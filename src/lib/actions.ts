@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -36,6 +37,7 @@ export async function createVehicle(formData: FormData) {
   let imageUrl = 'https://placehold.co/600x400.png';
   let imagePath = '';
 
+  // Try to generate and upload an image, but don't fail the whole process if it errors out.
   try {
     const imageDataUri = await generateVehicleImage({
         brand: validatedFields.data.brand,
@@ -44,27 +46,35 @@ export async function createVehicle(formData: FormData) {
     
     if (imageDataUri.startsWith('data:image')) {
         const path = `vehicle-images/${uuidv4()}.png`;
-        imagePath = path;
         const storageRef = ref(storage, path);
         await uploadString(storageRef, imageDataUri, 'data_url');
         imageUrl = await getDownloadURL(storageRef);
+        imagePath = path; // Only set imagePath on successful upload
     } else {
-        imageUrl = imageDataUri; // Use the fallback URL from the AI flow
+        console.warn("AI flow returned a fallback URL, not a data URI.", imageDataUri);
+        imageUrl = imageDataUri; 
     }
-
-    await addVehicle({ ...validatedFields.data, imageUrl, imagePath });
-
   } catch (error) {
-    console.error("Firebase/AI Error in createVehicle:", error);
-    if (error instanceof Error) {
-        if (String(error).includes('storage/unauthorized') || String(error).includes('permission-denied')) {
-            return { message: 'Permission Refusée par Firebase. Veuillez vérifier que vos règles de sécurité pour Firestore et Storage autorisent l\'écriture (write). C\'est l\'erreur la plus probable.' };
+    // Log the error for debugging but allow vehicle creation to proceed with a placeholder.
+    console.error(
+        "Erreur lors de la génération ou du téléversement de l'image. " +
+        "Le véhicule sera créé avec une image par défaut. " +
+        "Veuillez vérifier la configuration de Firebase Storage et les règles de sécurité. Erreur originale:", 
+        error
+    );
+  }
+
+  // Add vehicle to Firestore, regardless of image generation success.
+  try {
+      await addVehicle({ ...validatedFields.data, imageUrl, imagePath });
+  } catch (error) {
+      console.error("Firebase Error in createVehicle (addVehicle call):", error);
+      if (error instanceof Error) {
+        if (String(error).includes('firestore/permission-denied')) {
+             return { message: 'Permission Refusée par Firestore. Veuillez vérifier que vos règles de sécurité pour Firestore autorisent l\'écriture (write).' };
         }
-        if (String(error).includes('storage/object-not-found')) {
-             return { message: 'Erreur de stockage: Impossible d\'enregistrer l\'image. Vérifiez que Firebase Storage est activé.' };
-        }
-    }
-    return { message: 'Erreur de la base de données ou de l\'IA: Impossible de créer le véhicule. Consultez la console du terminal pour plus de détails.' };
+      }
+      return { message: 'Erreur de la base de données: Impossible de créer le véhicule. Consultez la console du terminal pour plus de détails.' };
   }
 
   revalidatePath('/');
