@@ -2,7 +2,7 @@
 'use server';
 
 import { z } from 'zod';
-import { addVehicle, addRepair, deleteVehicleById } from './data';
+import { addVehicle, addRepair, deleteVehicleById, addMaintenance, addFuelLog } from './data';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
@@ -56,13 +56,13 @@ export async function createVehicle(formData: FormData) {
         model: validatedFields.data.model,
     });
     
-    if (imageDataUri.startsWith('data:image')) {
+    if (imageDataUri && imageDataUri.startsWith('data:image')) {
         const path = `vehicle-images/${uuidv4()}.png`;
         const storageRef = ref(storage, path);
         await uploadString(storageRef, imageDataUri, 'data_url');
         imageUrl = await getDownloadURL(storageRef);
         imagePath = path;
-    } else {
+    } else if (imageDataUri) {
         imageUrl = imageDataUri; 
     }
   } catch (error) {
@@ -74,7 +74,7 @@ export async function createVehicle(formData: FormData) {
   } catch (error) {
       console.error("Firebase Error in createVehicle (addVehicle call):", error);
       if (error instanceof Error) {
-        if (String(error).includes('firestore/permission-denied') || String(error).includes('Permission denied')) {
+        if (String(error).includes('permission-denied') || String(error).includes('Permission denied')) {
              return { message: 'Permission Refusée par Firestore. Avez-vous configuré les variables d\'environnement dans Vercel ? Vérifiez aussi vos règles de sécurité Firestore.' };
         }
       }
@@ -135,6 +135,86 @@ export async function createRepair(formData: FormData) {
             return { message: 'Permission Refusée. Vérifiez vos règles de sécurité Firestore.' };
         }
         return { message: 'Erreur de la base de données: Impossible d\'ajouter la réparation.' };
+    }
+
+    revalidatePath(`/vehicles/${validatedFields.data.vehicleId}`);
+}
+
+const MaintenanceSchema = z.object({
+  vehicleId: z.string(),
+  date: z.string().min(1, 'La date est requise.'),
+  mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
+  task: z.string().min(1, 'La tâche est requise.'),
+  cost: z.coerce.number().min(0, 'Le coût doit être positif.'),
+  nextDueDate: z.string().optional(),
+  nextDueMileage: z.coerce.number().optional(),
+});
+
+export async function createMaintenance(formData: FormData) {
+    if (!checkFirebaseConfig()) {
+      return { message: MISSING_ENV_VARS_MESSAGE };
+    }
+    
+    const rawData = Object.fromEntries(formData.entries());
+    if (rawData.nextDueDate === '') delete rawData.nextDueDate;
+    if (rawData.nextDueMileage === '') delete rawData.nextDueMileage;
+
+    const validatedFields = MaintenanceSchema.safeParse(rawData);
+
+    if (!validatedFields.success) {
+        return {
+            errors: validatedFields.error.flatten().fieldErrors,
+            message: 'Champs manquants. Impossible d\'ajouter l\'entretien.',
+        };
+    }
+
+    try {
+        const dataToSave = {
+            ...validatedFields.data,
+            ...(validatedFields.data.nextDueMileage && { nextDueMileage: Number(validatedFields.data.nextDueMileage) }),
+        };
+        await addMaintenance(dataToSave);
+    } catch (error) {
+        console.error("Firebase Error in createMaintenance:", error);
+        if (error instanceof Error && (String(error).includes('permission-denied'))) {
+            return { message: 'Permission Refusée. Vérifiez vos règles de sécurité Firestore.' };
+        }
+        return { message: 'Erreur de la base de données: Impossible d\'ajouter l\'entretien.' };
+    }
+
+    revalidatePath(`/vehicles/${validatedFields.data.vehicleId}`);
+}
+
+const FuelLogSchema = z.object({
+    vehicleId: z.string(),
+    date: z.string().min(1, 'La date est requise.'),
+    mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
+    quantity: z.coerce.number().gt(0, 'La quantité doit être supérieure à 0.'),
+    pricePerLiter: z.coerce.number().gt(0, 'Le prix par litre doit être supérieur à 0.'),
+    totalCost: z.coerce.number().min(0, 'Le coût total doit être positif.'),
+});
+
+export async function createFuelLog(formData: FormData) {
+    if (!checkFirebaseConfig()) {
+      return { message: MISSING_ENV_VARS_MESSAGE };
+    }
+    const validatedFields = FuelLogSchema.safeParse(Object.fromEntries(formData.entries()));
+
+    if (!validatedFields.success) {
+        return {
+            errors: validatedFields.error.flatten().fieldErrors,
+            message: 'Champs manquants. Impossible d\'ajouter le plein.',
+        };
+    }
+
+    try {
+        await addFuelLog(validatedFields.data);
+    } catch (error) {
+        console.error("Firebase Error in createFuelLog:", error);
+        if (error instanceof Error && (String(error).includes('permission-denied'))) {
+            return { message: 'Permission Refusée. Vérifiez vos règles de sécurité Firestore.' };
+        }
+        return { message: 'Erreur de la base de données: Impossible d\'ajouter le plein.' };
     }
 
     revalidatePath(`/vehicles/${validatedFields.data.vehicleId}`);

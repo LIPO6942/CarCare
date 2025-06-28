@@ -1,5 +1,7 @@
 import { PlusCircle, Car, Wrench, Bell } from 'lucide-react';
 import type { ComponentType } from 'react';
+import { format } from "date-fns"
+import { fr } from "date-fns/locale"
 import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { AddVehicleSheet } from '@/components/add-vehicle-sheet';
@@ -32,7 +34,13 @@ export default async function DashboardPage() {
 
   const totalVehicles = vehicles.length;
   const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
-  const upcomingDeadlinesCount = deadlines.filter(d => new Date(d.date) >= new Date()).length;
+  
+  const upcomingDeadlines = deadlines
+    .map(d => ({ ...d, date: new Date(d.date) }))
+    .filter(d => d.date >= new Date())
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  const nextDeadline = upcomingDeadlines[0];
 
   return (
     <AppLayout>
@@ -62,10 +70,10 @@ export default async function DashboardPage() {
             description="Sur tous les véhicules"
           />
           <StatCard
-            title="Échéances à Venir"
-            value={upcomingDeadlinesCount}
+            title={nextDeadline ? nextDeadline.name : "Échéances à Venir"}
+            value={nextDeadline ? format(nextDeadline.date, 'd MMM yyyy', { locale: fr }) : upcomingDeadlines.length}
             icon={Bell}
-            description="Contrôles techniques, assurances..."
+            description={nextDeadline ? "Prochaine échéance" : "Aucune échéance à venir"}
           />
         </div>
         

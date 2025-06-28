@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react';
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
@@ -12,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Wrench, Fuel, Calendar, Bell, Sparkles } from 'lucide-react';
+import { PlusCircle, Wrench, Fuel, Calendar, Bell, Sparkles, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -26,7 +24,7 @@ import {
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { createRepair } from '@/lib/actions';
+import { createRepair, createMaintenance, createFuelLog } from '@/lib/actions';
 import { categorizeRepair } from '@/ai/flows/repair-categorization';
 
 interface VehicleTabsProps {
@@ -54,10 +52,10 @@ export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, deadlin
         <RepairsTab vehicleId={vehicleId} repairs={repairs} />
       </TabsContent>
       <TabsContent value="maintenance">
-        <MaintenanceTab maintenance={maintenance} />
+        <MaintenanceTab vehicleId={vehicleId} maintenance={maintenance} />
       </TabsContent>
       <TabsContent value="fuel">
-        <FuelTab fuelLogs={fuelLogs} />
+        <FuelTab vehicleId={vehicleId} fuelLogs={fuelLogs} />
       </TabsContent>
     </Tabs>
   );
@@ -138,7 +136,8 @@ function RepairsTab({ vehicleId, repairs }: { vehicleId: string, repairs: Repair
             <div className="text-center py-12 text-muted-foreground">
                 <Wrench className="mx-auto h-12 w-12 mb-4" />
                 <h3 className="text-lg font-semibold">Aucune réparation enregistrée</h3>
-                <p>Cliquez sur "Ajouter une réparation" pour commencer.</p>
+                <p className="mb-4">Cliquez sur "Ajouter une réparation" pour commencer.</p>
+                <AddRepairDialog vehicleId={vehicleId} />
             </div>
         )}
       </CardContent>
@@ -152,6 +151,7 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
     const [description, setDescription] = useState('');
     const [category, setCategory] = useState('');
     const [isCategorizing, setIsCategorizing] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleCategorize = async () => {
         if (!description) {
@@ -171,6 +171,7 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
     }
     
     async function handleSubmit(formData: FormData) {
+        setIsSubmitting(true);
         formData.set('vehicleId', vehicleId);
         const result = await createRepair(formData);
         if (result?.message) {
@@ -178,7 +179,10 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
         } else {
             toast({ title: "Succès", description: "Réparation ajoutée." });
             setOpen(false);
+            setDescription('');
+            setCategory('');
         }
+        setIsSubmitting(false);
     }
 
     return (
@@ -193,21 +197,24 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
                 </DialogHeader>
                 <form action={handleSubmit} className="space-y-4">
                      <div className="grid grid-cols-2 gap-4">
-                        <Input name="date" type="date" required />
+                        <Input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
                         <Input name="mileage" type="number" placeholder="Kilométrage" required />
                     </div>
                     <Textarea name="description" placeholder="Description de la réparation" required onChange={(e) => setDescription(e.target.value)} value={description} />
                     <div className="flex gap-2">
                         <Input name="category" placeholder="Catégorie" required value={category} onChange={e => setCategory(e.target.value)} className="flex-1" />
                         <Button type="button" variant="outline" onClick={handleCategorize} disabled={isCategorizing}>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            {isCategorizing ? 'Analyse...' : 'Catégoriser avec l\'IA'}
+                           {isCategorizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                            {isCategorizing ? 'Analyse...' : 'Suggérer'}
                         </Button>
                     </div>
                     <Input name="cost" type="number" step="0.01" placeholder="Coût (TND)" required />
                     <DialogFooter>
-                        <DialogClose asChild><Button type="button" variant="secondary">Annuler</Button></DialogClose>
-                        <Button type="submit">Enregistrer</Button>
+                        <DialogClose asChild><Button type="button" variant="secondary" disabled={isSubmitting}>Annuler</Button></DialogClose>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Enregistrer
+                        </Button>
                     </DialogFooter>
                 </form>
             </DialogContent>
@@ -215,7 +222,7 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
     )
 }
 
-function MaintenanceTab({ maintenance }: { maintenance: Maintenance[] }) {
+function MaintenanceTab({ vehicleId, maintenance }: { vehicleId: string, maintenance: Maintenance[] }) {
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -223,7 +230,7 @@ function MaintenanceTab({ maintenance }: { maintenance: Maintenance[] }) {
                     <CardTitle>Suivi de l'Entretien</CardTitle>
                     <CardDescription>Gardez un oeil sur les entretiens passés et à venir.</CardDescription>
                 </div>
-                 <Button disabled><PlusCircle className="mr-2 h-4 w-4" />Ajouter un entretien</Button>
+                 <AddMaintenanceDialog vehicleId={vehicleId} />
             </CardHeader>
             <CardContent>
                 {maintenance.length > 0 ? (
@@ -243,7 +250,7 @@ function MaintenanceTab({ maintenance }: { maintenance: Maintenance[] }) {
                             <TableCell className="font-medium">{item.task}</TableCell>
                             <TableCell>
                                 {item.nextDueDate ? format(new Date(item.nextDueDate), 'P', { locale: fr }) : ''}
-                                {item.nextDueMileage ? ` / ${item.nextDueMileage.toLocaleString('fr-FR')} km` : ''}
+                                {item.nextDueMileage ? `${item.nextDueDate ? ' / ' : ''}${item.nextDueMileage.toLocaleString('fr-FR')} km` : ''}
                             </TableCell>
                             <TableCell className="text-right">{item.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
                         </TableRow>
@@ -254,7 +261,8 @@ function MaintenanceTab({ maintenance }: { maintenance: Maintenance[] }) {
                     <div className="text-center py-12 text-muted-foreground">
                         <Calendar className="mx-auto h-12 w-12 mb-4" />
                         <h3 className="text-lg font-semibold">Aucun entretien enregistré</h3>
-                        <p>Ajoutez un entretien pour commencer le suivi.</p>
+                        <p className="mb-4">Ajoutez un entretien pour commencer le suivi.</p>
+                        <AddMaintenanceDialog vehicleId={vehicleId} />
                     </div>
                 )}
             </CardContent>
@@ -262,7 +270,75 @@ function MaintenanceTab({ maintenance }: { maintenance: Maintenance[] }) {
     )
 }
 
-function FuelTab({ fuelLogs }: { fuelLogs: FuelLog[] }) {
+function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
+    const [open, setOpen] = useState(false);
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    async function handleSubmit(formData: FormData) {
+        setIsSubmitting(true);
+        formData.set('vehicleId', vehicleId);
+        
+        const result = await createMaintenance(formData);
+        if (result?.message) {
+            toast({ title: "Erreur", description: result.message, variant: 'destructive' });
+        } else {
+            toast({ title: "Succès", description: "Entretien ajouté." });
+            setOpen(false);
+        }
+        setIsSubmitting(false);
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button><PlusCircle className="mr-2 h-4 w-4" />Ajouter un entretien</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>Nouvel Entretien</DialogTitle>
+                    <DialogDescription>Ajoutez les détails de l'entretien réalisé.</DialogDescription>
+                </DialogHeader>
+                <form action={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                        <label>Date & Kilométrage</label>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
+                            <Input name="mileage" type="number" placeholder="Kilométrage" required />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <label htmlFor="task">Tâche d'entretien</label>
+                        <Textarea id="task" name="task" placeholder="Ex: Vidange huile moteur et filtre" required />
+                    </div>
+                    <div className="space-y-2">
+                        <label htmlFor="cost">Coût de l'entretien (TND)</label>
+                        <Input id="cost" name="cost" type="number" step="0.01" placeholder="Coût (TND)" required />
+                    </div>
+
+                    <fieldset className="border p-4 rounded-md">
+                        <legend className="text-sm font-medium px-1">Prochain entretien (Optionnel)</legend>
+                        <div className="grid grid-cols-2 gap-4 pt-2">
+                            <Input name="nextDueDate" type="date" />
+                            <Input name="nextDueMileage" type="number" placeholder="Prochain kilométrage" />
+                        </div>
+                    </fieldset>
+                    
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="secondary" disabled={isSubmitting}>Annuler</Button></DialogClose>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Enregistrer
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+
+function FuelTab({ vehicleId, fuelLogs }: { vehicleId: string, fuelLogs: FuelLog[] }) {
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -270,7 +346,7 @@ function FuelTab({ fuelLogs }: { fuelLogs: FuelLog[] }) {
                     <CardTitle>Suivi du Carburant</CardTitle>
                     <CardDescription>Consultez l'historique de vos pleins de carburant.</CardDescription>
                 </div>
-                <Button disabled><PlusCircle className="mr-2 h-4 w-4" />Ajouter un plein</Button>
+                <AddFuelLogDialog vehicleId={vehicleId} />
             </CardHeader>
             <CardContent>
                 {fuelLogs.length > 0 ? (
@@ -300,10 +376,74 @@ function FuelTab({ fuelLogs }: { fuelLogs: FuelLog[] }) {
                     <div className="text-center py-12 text-muted-foreground">
                         <Fuel className="mx-auto h-12 w-12 mb-4" />
                         <h3 className="text-lg font-semibold">Aucun plein enregistré</h3>
-                        <p>Ajoutez un plein pour suivre votre consommation.</p>
+                        <p className="mb-4">Ajoutez un plein pour suivre votre consommation.</p>
+                        <AddFuelLogDialog vehicleId={vehicleId} />
                     </div>
                 )}
             </CardContent>
         </Card>
+    )
+}
+
+function AddFuelLogDialog({ vehicleId }: { vehicleId: string }) {
+    const [open, setOpen] = useState(false);
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [quantity, setQuantity] = useState('');
+    const [pricePerLiter, setPricePerLiter] = useState('');
+
+    const totalCost = parseFloat(quantity) * parseFloat(pricePerLiter);
+    const displayTotalCost = isNaN(totalCost) ? '' : totalCost.toFixed(2);
+    
+    async function handleSubmit(formData: FormData) {
+        setIsSubmitting(true);
+        formData.set('vehicleId', vehicleId);
+        formData.set('totalCost', displayTotalCost);
+
+        const result = await createFuelLog(formData);
+        if (result?.message) {
+            toast({ title: "Erreur", description: result.message, variant: 'destructive' });
+        } else {
+            toast({ title: "Succès", description: "Plein de carburant ajouté." });
+            setOpen(false);
+            setQuantity('');
+            setPricePerLiter('');
+        }
+        setIsSubmitting(false);
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button><PlusCircle className="mr-2 h-4 w-4" />Ajouter un plein</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>Nouveau Plein de Carburant</DialogTitle>
+                    <DialogDescription>Ajoutez les détails de votre passage à la station.</DialogDescription>
+                </DialogHeader>
+                <form action={handleSubmit} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <Input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
+                        <Input name="mileage" type="number" placeholder="Kilométrage" required />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <Input name="quantity" type="number" step="0.01" placeholder="Quantité (L)" required value={quantity} onChange={e => setQuantity(e.target.value)} />
+                        <Input name="pricePerLiter" type="number" step="0.01" placeholder="Prix / Litre" required value={pricePerLiter} onChange={e => setPricePerLiter(e.target.value)} />
+                    </div>
+                     <div className="space-y-2">
+                        <label htmlFor="totalCost">Coût total (TND)</label>
+                        <Input id="totalCost" name="totalCost" type="number" value={displayTotalCost} readOnly className="bg-muted" />
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="secondary" disabled={isSubmitting}>Annuler</Button></DialogClose>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Enregistrer
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
     )
 }
