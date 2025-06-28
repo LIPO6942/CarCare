@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useRef, type FormEvent } from 'react';
 import { z } from "zod"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
@@ -26,6 +26,13 @@ import { Textarea } from './ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { createRepair, createMaintenance, createFuelLog } from '@/lib/actions';
 import { categorizeRepair } from '@/ai/flows/repair-categorization';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface VehicleTabsProps {
     vehicleId: string;
@@ -274,10 +281,33 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
     const [open, setOpen] = useState(false);
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const formRef = useRef<HTMLFormElement>(null);
+    const [selectedTask, setSelectedTask] = useState('');
     
-    async function handleSubmit(formData: FormData) {
+    const maintenanceTasks = [
+        "Vidange huile moteur et filtre",
+        "Changement des pneus",
+        "Contrôle des freins",
+        "Rotation des pneus",
+        "Changement de la batterie",
+        "Entretien climatisation",
+        "Contrôle technique",
+        "Autre",
+    ];
+
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
         setIsSubmitting(true);
-        formData.set('vehicleId', vehicleId);
+        const formData = new FormData(event.currentTarget);
+        
+        const finalTask = selectedTask === 'Autre' ? formData.get('customTask') as string : selectedTask;
+        if (!finalTask || finalTask.trim() === '') {
+            toast({ title: "Erreur", description: "Veuillez sélectionner ou préciser une tâche.", variant: 'destructive' });
+            setIsSubmitting(false);
+            return;
+        }
+        formData.set('task', finalTask);
+        formData.delete('customTask');
         
         const result = await createMaintenance(formData);
         if (result?.message) {
@@ -285,6 +315,8 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
         } else {
             toast({ title: "Succès", description: "Entretien ajouté." });
             setOpen(false);
+            setSelectedTask('');
+            formRef.current?.reset();
         }
         setIsSubmitting(false);
     }
@@ -299,7 +331,8 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
                     <DialogTitle>Nouvel Entretien</DialogTitle>
                     <DialogDescription>Ajoutez les détails de l'entretien réalisé.</DialogDescription>
                 </DialogHeader>
-                <form action={handleSubmit} className="space-y-4">
+                <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+                    <input type="hidden" name="vehicleId" value={vehicleId} />
                     <div className="space-y-2">
                         <label>Date & Kilométrage</label>
                         <div className="grid grid-cols-2 gap-4">
@@ -307,9 +340,24 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
                             <Input name="mileage" type="number" placeholder="Kilométrage" required />
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <label htmlFor="task">Tâche d'entretien</label>
-                        <Textarea id="task" name="task" placeholder="Ex: Vidange huile moteur et filtre" required />
+                     <div className="space-y-2">
+                        <label>Tâche d'entretien</label>
+                        <Select onValueChange={setSelectedTask} value={selectedTask}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Sélectionnez une tâche" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {maintenanceTasks.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        {selectedTask === 'Autre' && (
+                             <Input 
+                                name="customTask" 
+                                placeholder="Précisez la tâche" 
+                                required 
+                                className="mt-2"
+                             />
+                        )}
                     </div>
                     <div className="space-y-2">
                         <label htmlFor="cost">Coût de l'entretien (TND)</label>

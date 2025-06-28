@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { Vehicle } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,7 +24,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { deleteVehicle } from '@/lib/actions';
 
-export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
+export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOpenDetails: (vehicle: Vehicle) => void; }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
@@ -76,7 +75,10 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Link href={`/vehicles/${vehicle.id}`}>
+          <button 
+            onClick={() => onOpenDetails(vehicle)} 
+            className="w-full text-left cursor-pointer block rounded-t-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
             <div className="relative h-48 w-full">
                {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -86,13 +88,13 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
                 className="absolute inset-0 h-full w-full object-cover rounded-t-lg"
               />
             </div>
-          </Link>
+          </button>
         </CardHeader>
         <CardContent className="flex-1 pt-6">
           <CardTitle className="text-xl mb-2">
-            <Link href={`/vehicles/${vehicle.id}`} className="hover:text-primary">
+            <button onClick={() => onOpenDetails(vehicle)} className="hover:text-primary text-left">
               {vehicle.brand} {vehicle.model}
-            </Link>
+            </button>
           </CardTitle>
           <div className="text-muted-foreground space-y-2 text-sm">
             <div className="flex items-center gap-2">
@@ -110,8 +112,8 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
           </div>
         </CardContent>
         <CardFooter>
-          <Button asChild className="w-full">
-            <Link href={`/vehicles/${vehicle.id}`}>Voir les détails</Link>
+          <Button onClick={() => onOpenDetails(vehicle)} className="w-full">
+            Voir les détails
           </Button>
         </CardFooter>
       </Card>
