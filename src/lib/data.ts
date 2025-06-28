@@ -81,9 +81,21 @@ export async function deleteVehicleById(id: string): Promise<void> {
 
 async function getSubCollectionForVehicle<T>(vehicleId: string, collectionName: string, dateField: string = 'date', sortOrder: 'asc' | 'desc' = 'desc'): Promise<T[]> {
     const colRef = collection(db, collectionName);
-    const q = query(colRef, where('vehicleId', '==', vehicleId), orderBy(dateField, sortOrder));
+    const q = query(colRef, where('vehicleId', '==', vehicleId));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => docToType<T>(d));
+    const data = snapshot.docs.map(d => docToType<T>(d));
+
+    // Sort the data in the application code to avoid needing a composite index
+    data.sort((a: any, b: any) => {
+        const dateA = new Date(a[dateField]).getTime();
+        const dateB = new Date(b[dateField]).getTime();
+        if (sortOrder === 'desc') {
+            return dateB - dateA;
+        }
+        return dateA - dateB;
+    });
+
+    return data;
 }
 
 export async function getRepairsForVehicle(vehicleId: string): Promise<Repair[]> {
