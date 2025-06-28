@@ -10,6 +10,15 @@ import { storage } from './firebase';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 
+const MISSING_ENV_VARS_MESSAGE = "Configuration Firebase manquante. Veuillez configurer les variables d'environnement sur votre plateforme d'hébergement (ex: Vercel) avant de modifier des données.";
+
+function checkFirebaseConfig() {
+    if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || !process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+        return false;
+    }
+    return true;
+}
+
 const VehicleSchema = z.object({
   brand: z.string().min(1, 'La marque est requise.'),
   model: z.string().min(1, 'Le modèle est requis.'),
@@ -19,6 +28,10 @@ const VehicleSchema = z.object({
 });
 
 export async function createVehicle(formData: FormData) {
+  if (!checkFirebaseConfig()) {
+    return { message: MISSING_ENV_VARS_MESSAGE };
+  }
+
   const validatedFields = VehicleSchema.safeParse({
     brand: formData.get('brand'),
     model: formData.get('model'),
@@ -73,6 +86,9 @@ export async function createVehicle(formData: FormData) {
 }
 
 export async function deleteVehicle(vehicleId: string) {
+  if (!checkFirebaseConfig()) {
+    return { message: MISSING_ENV_VARS_MESSAGE };
+  }
   if (!vehicleId) {
     return { message: 'ID du véhicule manquant.' };
   }
@@ -99,6 +115,9 @@ const RepairSchema = z.object({
 });
 
 export async function createRepair(formData: FormData) {
+    if (!checkFirebaseConfig()) {
+      return { message: MISSING_ENV_VARS_MESSAGE };
+    }
     const validatedFields = RepairSchema.safeParse(Object.fromEntries(formData.entries()));
 
     if (!validatedFields.success) {
