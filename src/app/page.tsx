@@ -5,7 +5,7 @@ import { fr } from "date-fns/locale"
 import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { AddVehicleSheet } from '@/components/add-vehicle-sheet';
-import { getVehicles, getAllRepairs, getAllDeadlines } from '@/lib/data';
+import { getVehicles, getAllRepairs, getAllDeadlines, getAllFuelLogs } from '@/lib/data';
 import { VehicleCard } from '@/components/vehicle-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,14 +26,17 @@ function StatCard({ title, value, icon: Icon, description }: { title: string, va
 }
 
 export default async function DashboardPage() {
-  const [vehicles, repairs, deadlines] = await Promise.all([
+  const [vehicles, repairs, deadlines, fuelLogs] = await Promise.all([
     getVehicles(),
     getAllRepairs(),
-    getAllDeadlines()
+    getAllDeadlines(),
+    getAllFuelLogs(),
   ]);
 
   const totalVehicles = vehicles.length;
   const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
+  const totalFuelCost = fuelLogs.reduce((sum, f) => sum + f.totalCost, 0);
+  const totalCost = totalRepairCost + totalFuelCost;
   
   const upcomingDeadlines = deadlines
     .map(d => ({ ...d, date: new Date(d.date) }))
@@ -64,14 +67,14 @@ export default async function DashboardPage() {
             description="Nombre de véhicules gérés"
           />
           <StatCard
-            title="Coût total des Réparations"
-            value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
+            title="Coût Total d'Entretien"
+            value={`${totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
             icon={Wrench}
-            description="Sur tous les véhicules"
+            description="Réparations + Carburant"
           />
           <StatCard
             title={nextDeadline ? nextDeadline.name : "Échéances à Venir"}
-            value={nextDeadline ? format(nextDeadline.date, 'd MMM yyyy', { locale: fr }) : upcomingDeadlines.length}
+            value={nextDeadline ? format(nextDeadline.date, 'd MMM yyyy', { locale: fr }) : "Aucune"}
             icon={Bell}
             description={nextDeadline ? "Prochaine échéance" : "Aucune échéance à venir"}
           />
