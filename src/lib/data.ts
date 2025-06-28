@@ -1,100 +1,133 @@
+import { db } from './firebase';
+import {
+  collection,
+  getDocs,
+  getDoc,
+  doc,
+  addDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  writeBatch,
+} from 'firebase/firestore';
 import type { Vehicle, Repair, Maintenance, FuelLog, Deadline } from './types';
 
-// In-memory store
-let vehicles: Vehicle[] = [
-  {
-    id: '1',
-    brand: 'Peugeot',
-    model: '308',
-    year: 2021,
-    licensePlate: 'AA-123-BB',
-    fuelType: 'Essence',
-    imageUrl: 'https://images.unsplash.com/photo-1697460750302-0e456cb3ec25?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxQZXVnZW90JTIwMzA4fGVufDB8fHx8MTc1MTEzODg3M3ww&ixlib=rb-4.1.0&q=80&w=1080',
-  },
-];
-
-let repairs: Repair[] = [
-  { id: 'r1', vehicleId: '1', date: '2023-10-15', mileage: 25000, description: 'Remplacement plaquettes de frein avant', category: 'Freins', cost: 250 },
-  { id: 'r2', vehicleId: '1', date: '2024-01-20', mileage: 30000, description: 'Changement pneu avant droit', category: 'Pneus', cost: 120 },
-];
-
-let maintenances: Maintenance[] = [
-  { id: 'm1', vehicleId: '1', date: '2023-05-01', mileage: 20000, task: 'Vidange huile moteur et filtre', cost: 180, nextDueDate: '2024-05-01', nextDueMileage: 40000 },
-];
-
-let fuelLogs: FuelLog[] = [
-  { id: 'f1', vehicleId: '1', date: '2024-03-01', mileage: 32000, quantity: 45, pricePerLiter: 1.95, totalCost: 87.75 },
-  { id: 'f2', vehicleId: '1', date: '2024-03-15', mileage: 32650, quantity: 42, pricePerLiter: 1.98, totalCost: 83.16 },
-];
-
-let deadlines: Deadline[] = [
-    { id: 'd1', vehicleId: '1', name: 'Contrôle Technique', date: '2025-05-20' },
-];
-
+// Helper function to convert Firestore doc to a specific type
+function docToType<T>(document: any): T {
+    const data = document.data();
+    return {
+        id: document.id,
+        ...data,
+    } as T;
+}
 
 // API functions
 export async function getVehicles(): Promise<Vehicle[]> {
-  return vehicles;
+  const vehiclesCol = collection(db, 'vehicles');
+  const vehicleSnapshot = await getDocs(query(vehiclesCol, orderBy('brand')));
+  const vehicleList = vehicleSnapshot.docs.map(d => docToType<Vehicle>(d));
+  return vehicleList;
 }
 
 export async function getVehicleById(id: string): Promise<Vehicle | undefined> {
-  return vehicles.find((v) => v.id === id);
+  const vehicleRef = doc(db, 'vehicles', id);
+  const vehicleSnap = await getDoc(vehicleRef);
+  if (vehicleSnap.exists()) {
+    return docToType<Vehicle>(vehicleSnap);
+  }
+  return undefined;
 }
 
 export async function addVehicle(vehicleData: Omit<Vehicle, 'id' | 'imageUrl'>): Promise<Vehicle> {
-  const newVehicle: Vehicle = {
-    id: (Math.random() * 1000).toString(),
-    ...vehicleData,
-    imageUrl: 'https://placehold.co/600x400.png',
-  };
-  vehicles.push(newVehicle);
-  return newVehicle;
+    const newVehicleData = {
+        ...vehicleData,
+        imageUrl: 'https://placehold.co/600x400.png',
+    };
+    const docRef = await addDoc(collection(db, 'vehicles'), newVehicleData);
+    return {
+        id: docRef.id,
+        ...newVehicleData,
+    };
 }
 
+
 export async function deleteVehicleById(id: string): Promise<void> {
-  const vehicleIndex = vehicles.findIndex((v) => v.id === id);
-  if (vehicleIndex > -1) {
-    vehicles.splice(vehicleIndex, 1);
-    repairs = repairs.filter((r) => r.vehicleId !== id);
-    maintenances = maintenances.filter((m) => m.vehicleId !== id);
-    fuelLogs = fuelLogs.filter((f) => f.vehicleId !== id);
-    deadlines = deadlines.filter((d) => d.vehicleId !== id);
-  }
+  const batch = writeBatch(db);
+
+  // Delete the vehicle document
+  const vehicleRef = doc(db, 'vehicles', id);
+  batch.delete(vehicleRef);
+
+  // Find and delete associated repairs
+  const repairsQuery = query(collection(db, 'repairs'), where('vehicleId', '==', id));
+  const repairsSnapshot = await getDocs(repairsQuery);
+  repairsSnapshot.forEach(doc => batch.delete(doc.ref));
+  
+  // Find and delete associated maintenance
+  const maintenanceQuery = query(collection(db, 'maintenance'), where('vehicleId', '==', id));
+  const maintenanceSnapshot = await getDocs(maintenanceQuery);
+  maintenanceSnapshot.forEach(doc => batch.delete(doc.ref));
+  
+  // Find and delete associated fuel logs
+  const fuelLogsQuery = query(collection(db, 'fuelLogs'), where('vehicleId', '==', id));
+  const fuelLogsSnapshot = await getDocs(fuelLogsQuery);
+  fuelLogsSnapshot.forEach(doc => batch.delete(doc.ref));
+
+  // Find and delete associated deadlines
+  const deadlinesQuery = query(collection(db, 'deadlines'), where('vehicleId', '==', id));
+  const deadlinesSnapshot = await getDocs(deadlinesQuery);
+  deadlinesSnapshot.forEach(doc => batch.delete(doc.ref));
+
+  // Commit the batch
+  await batch.commit();
+}
+
+async function getSubCollectionForVehicle<T>(vehicleId: string, collectionName: string, dateField: string = 'date', sortOrder: 'asc' | 'desc' = 'desc'): Promise<T[]> {
+    const colRef = collection(db, collectionName);
+    const q = query(colRef, where('vehicleId', '==', vehicleId), orderBy(dateField, sortOrder));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => docToType<T>(d));
 }
 
 export async function getRepairsForVehicle(vehicleId: string): Promise<Repair[]> {
-  return repairs.filter((r) => r.vehicleId === vehicleId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return getSubCollectionForVehicle<Repair>(vehicleId, 'repairs');
 }
 
 export async function getMaintenanceForVehicle(vehicleId: string): Promise<Maintenance[]> {
-    return maintenances.filter((m) => m.vehicleId === vehicleId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return getSubCollectionForVehicle<Maintenance>(vehicleId, 'maintenance');
 }
 
 export async function getFuelLogsForVehicle(vehicleId: string): Promise<FuelLog[]> {
-    return fuelLogs.filter((f) => f.vehicleId === vehicleId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return getSubCollectionForVehicle<FuelLog>(vehicleId, 'fuelLogs');
 }
 
 export async function getDeadlinesForVehicle(vehicleId: string): Promise<Deadline[]> {
-    return deadlines.filter((d) => d.vehicleId === vehicleId).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return getSubCollectionForVehicle<Deadline>(vehicleId, 'deadlines', 'date', 'asc');
+}
+
+async function getAllFromCollection<T>(collectionName: string): Promise<T[]> {
+    const colRef = collection(db, collectionName);
+    const snapshot = await getDocs(colRef);
+    return snapshot.docs.map(d => docToType<T>(d));
 }
 
 export async function getAllRepairs(): Promise<Repair[]> {
-    return repairs;
+    return getAllFromCollection<Repair>('repairs');
 }
 
 export async function getAllFuelLogs(): Promise<FuelLog[]> {
-    return fuelLogs;
+    return getAllFromCollection<FuelLog>('fuelLogs');
 }
 
 export async function getAllDeadlines(): Promise<Deadline[]> {
-    return deadlines;
+    return getAllFromCollection<Deadline>('deadlines');
 }
 
 export async function addRepair(repairData: Omit<Repair, 'id'>): Promise<Repair> {
-    const newRepair: Repair = {
-        id: `r${Math.random() * 1000}`,
+    const docRef = await addDoc(collection(db, 'repairs'), repairData);
+    return {
+        id: docRef.id,
         ...repairData,
     };
-    repairs.push(newRepair);
-    return newRepair;
 }
