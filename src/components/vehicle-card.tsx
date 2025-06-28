@@ -77,7 +77,7 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
           <Link href={`/vehicles/${vehicle.id}`}>
             <div className="relative h-48 w-full">
               <Image
-                src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
+                src={vehicle.imageUrl || 'https://images.unsplash.com/photo-1697460750302-0e456cb3ec25?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxQZXVnZW90JTIwMzA4fGVufDB8fHx8MTc1MTEzODg3M3ww&ixlib=rb-4.1.0&q=80&w=1080'}
                 alt={`${vehicle.brand} ${vehicle.model}`}
                 data-ai-hint="side view car"
                 fill
