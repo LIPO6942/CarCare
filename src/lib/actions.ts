@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { addVehicle, addRepair, deleteVehicleById } from './data';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 
 const VehicleSchema = z.object({
   brand: z.string().min(1, 'La marque est requise.'),
@@ -30,9 +31,21 @@ export async function createVehicle(formData: FormData) {
   }
   
   try {
-    await addVehicle(validatedFields.data);
+    // Generate image using AI
+    const imageUrl = await generateVehicleImage({
+        brand: validatedFields.data.brand,
+        model: validatedFields.data.model,
+    });
+    
+    // Add vehicle to database with the generated image URL
+    await addVehicle({ ...validatedFields.data, imageUrl });
+
   } catch (error) {
-    console.error("Firebase Error in createVehicle:", error);
+    console.error("Firebase/AI Error in createVehicle:", error);
+    // Provide a more specific error message if it's an AI error.
+    if (error instanceof Error && error.message.includes('generate')) {
+      return { message: 'Erreur de l\'IA: Impossible de générer l\'image du véhicule.' };
+    }
     return { message: 'Erreur de la base de données: Impossible de créer le véhicule.' };
   }
 
@@ -47,12 +60,11 @@ export async function deleteVehicle(vehicleId: string) {
   
   try {
     await deleteVehicleById(vehicleId);
+    revalidatePath('/');
   } catch (error) {
     console.error("Firebase Error in deleteVehicle:", error);
     return { message: 'Erreur de la base de données: Impossible de supprimer le véhicule.' };
   }
-
-  revalidatePath('/');
 }
 
 const RepairSchema = z.object({
