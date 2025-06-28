@@ -42,7 +42,7 @@ export async function getVehicleById(id: string): Promise<Vehicle | undefined> {
 export async function addVehicle(vehicleData: Omit<Vehicle, 'id' | 'imageUrl'>): Promise<Vehicle> {
     const newVehicleData = {
         ...vehicleData,
-        imageUrl: 'https://placehold.co/600x400.png',
+        imageUrl: 'https://images.unsplash.com/photo-1697460750302-0e456cb3ec25?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxQZXVnZW90JTIwMzA4fGVufDB8fHx8MTc1MTEzODg3M3ww&ixlib=rb-4.1.0&q=80&w=1080',
     };
     const docRef = await addDoc(collection(db, 'vehicles'), newVehicleData);
     return {
