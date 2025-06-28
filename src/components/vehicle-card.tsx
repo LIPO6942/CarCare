@@ -82,7 +82,7 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
             <div className="relative h-48 w-full">
                {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={vehicle.imageUrl || 'https://images.unsplash.com/photo-1553949345-eb786bb3f7ba?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxDYXIlMjBzaWxob3VldHRlfGVufDB8fHx8MTc1MTM5NjAyOHww&ixlib=rb-4.1.0&q=80&w=1080'}
+                src={vehicle.imageUrl || 'https://images.unsplash.com/photo-1683729748363-4622bd9f1e3a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMXx8cGV1Z2VvdHxlbnwwfHx8fDE3NTExNTUwOTd8MA&ixlib=rb-4.1.0&q=80&w=1080'}
                 alt={`${vehicle.brand} ${vehicle.model}`}
                 data-ai-hint="side view car"
                 className="absolute inset-0 h-full w-full object-cover rounded-t-lg"
