@@ -56,13 +56,15 @@ export async function createVehicle(formData: FormData) {
 
   } catch (error) {
     console.error("Firebase/AI Error in createVehicle:", error);
-    if (error instanceof Error && String(error).includes('storage/object-not-found')) {
-         return { message: 'Erreur de stockage: Impossible d\'enregistrer l\'image. Veuillez vérifier que Firebase Storage est activé et que les règles de sécurité sont correctes.' };
+    if (error instanceof Error) {
+        if (String(error).includes('storage/unauthorized') || String(error).includes('permission-denied')) {
+            return { message: 'Permission Refusée par Firebase. Veuillez vérifier que vos règles de sécurité pour Firestore et Storage autorisent l\'écriture (write). C\'est l\'erreur la plus probable.' };
+        }
+        if (String(error).includes('storage/object-not-found')) {
+             return { message: 'Erreur de stockage: Impossible d\'enregistrer l\'image. Vérifiez que Firebase Storage est activé.' };
+        }
     }
-    if (error instanceof Error && String(error).includes('permission-denied')) {
-        return { message: 'Permission Refusée: Vérifiez vos règles de sécurité Firestore et Storage.'};
-    }
-    return { message: 'Erreur de la base de données ou de l\'IA: Impossible de créer le véhicule.' };
+    return { message: 'Erreur de la base de données ou de l\'IA: Impossible de créer le véhicule. Consultez la console du terminal pour plus de détails.' };
   }
 
   revalidatePath('/');
@@ -79,7 +81,10 @@ export async function deleteVehicle(vehicleId: string) {
     revalidatePath('/');
   } catch (error) {
     console.error("Firebase Error in deleteVehicle:", error);
-    return { message: 'Erreur de la base de données: Impossible de supprimer le véhicule.' };
+    if (error instanceof Error && (String(error).includes('storage/unauthorized') || String(error).includes('permission-denied'))) {
+        return { message: 'Permission Refusée: L\'application n\'a pas la permission de supprimer l\'image du Storage. Veuillez vérifier vos règles de sécurité.' };
+    }
+    return { message: 'Erreur de la base de données: Impossible de supprimer le véhicule. Consultez la console du terminal pour plus de détails.' };
   }
 }
 
