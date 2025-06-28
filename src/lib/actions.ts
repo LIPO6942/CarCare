@@ -5,6 +5,9 @@ import { addVehicle, addRepair, deleteVehicleById } from './data';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
+import { storage } from './firebase';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { v4 as uuidv4 } from 'uuid';
 
 const VehicleSchema = z.object({
   brand: z.string().min(1, 'La marque est requise.'),
@@ -30,23 +33,36 @@ export async function createVehicle(formData: FormData) {
     };
   }
   
+  let imageUrl = 'https://placehold.co/600x400.png';
+  let imagePath = '';
+
   try {
-    // Generate image using AI
-    const imageUrl = await generateVehicleImage({
+    const imageDataUri = await generateVehicleImage({
         brand: validatedFields.data.brand,
         model: validatedFields.data.model,
     });
     
-    // Add vehicle to database with the generated image URL
-    await addVehicle({ ...validatedFields.data, imageUrl });
+    if (imageDataUri.startsWith('data:image')) {
+        const path = `vehicle-images/${uuidv4()}.png`;
+        imagePath = path;
+        const storageRef = ref(storage, path);
+        await uploadString(storageRef, imageDataUri, 'data_url');
+        imageUrl = await getDownloadURL(storageRef);
+    } else {
+        imageUrl = imageDataUri; // Use the fallback URL from the AI flow
+    }
+
+    await addVehicle({ ...validatedFields.data, imageUrl, imagePath });
 
   } catch (error) {
     console.error("Firebase/AI Error in createVehicle:", error);
-    // Provide a more specific error message if it's an AI error.
-    if (error instanceof Error && error.message.includes('generate')) {
-      return { message: 'Erreur de l\'IA: Impossible de générer l\'image du véhicule.' };
+    if (error instanceof Error && String(error).includes('storage/object-not-found')) {
+         return { message: 'Erreur de stockage: Impossible d\'enregistrer l\'image. Veuillez vérifier que Firebase Storage est activé et que les règles de sécurité sont correctes.' };
     }
-    return { message: 'Erreur de la base de données: Impossible de créer le véhicule.' };
+    if (error instanceof Error && String(error).includes('permission-denied')) {
+        return { message: 'Permission Refusée: Vérifiez vos règles de sécurité Firestore et Storage.'};
+    }
+    return { message: 'Erreur de la base de données ou de l\'IA: Impossible de créer le véhicule.' };
   }
 
   revalidatePath('/');

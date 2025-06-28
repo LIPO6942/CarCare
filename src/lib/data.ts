@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { db, storage } from './firebase';
 import {
   collection,
   getDocs,
@@ -11,6 +11,7 @@ import {
   orderBy,
   writeBatch,
 } from 'firebase/firestore';
+import { ref, deleteObject } from 'firebase/storage';
 import type { Vehicle, Repair, Maintenance, FuelLog, Deadline } from './types';
 
 // Helper function to convert Firestore doc to a specific type
@@ -49,10 +50,29 @@ export async function addVehicle(vehicleData: Omit<Vehicle, 'id'>): Promise<Vehi
 
 
 export async function deleteVehicleById(id: string): Promise<void> {
+  const vehicleRef = doc(db, 'vehicles', id);
+  const vehicleSnap = await getDoc(vehicleRef);
+
+  if (!vehicleSnap.exists()) {
+    console.log("Vehicle to delete does not exist.");
+    return;
+  }
+
+  const vehicleData = vehicleSnap.data() as Omit<Vehicle, 'id'>;
+  const imagePath = vehicleData.imagePath;
+
+  // Delete image from storage if it exists
+  if (imagePath) {
+    const imageRef = ref(storage, imagePath);
+    await deleteObject(imageRef).catch(error => {
+      // Log error but don't block document deletion if image doesn't exist or other error
+      console.error("Could not delete image from storage, it might not exist:", error);
+    });
+  }
+  
   const batch = writeBatch(db);
 
   // Delete the vehicle document
-  const vehicleRef = doc(db, 'vehicles', id);
   batch.delete(vehicleRef);
 
   // Find and delete associated repairs

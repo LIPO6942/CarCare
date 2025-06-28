@@ -77,7 +77,7 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
             <div className="relative h-48 w-full">
                {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={vehicle.imageUrl || 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxDYXJ8ZW58MHx8fHwxNzUyMTk2NzAyfDA&ixlib=rb-4.1.0&q=80&w=1080'}
+                src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
                 alt={`${vehicle.brand} ${vehicle.model}`}
                 data-ai-hint="side view car"
                 className="absolute inset-0 h-full w-full object-cover rounded-t-lg"
