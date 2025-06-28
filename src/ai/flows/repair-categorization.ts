@@ -1,4 +1,4 @@
-// use server'
+'use server';
 
 /**
  * @fileOverview This file contains the Genkit flow for categorizing car repairs.
@@ -22,7 +22,7 @@ const CategorizeRepairOutputSchema = z.object({
   category: z
     .string()
     .describe(
-      'The categorized type of repair (e.g., engine, brakes, electrical, etc.).'
+      'The categorized type of repair (e.g., engine, brakes, electrical, suspension, body, interior, exhaust, transmission, or other).'
     ),
 });
 export type CategorizeRepairOutput = z.infer<typeof CategorizeRepairOutputSchema>;
