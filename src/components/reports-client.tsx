@@ -52,7 +52,7 @@ export function ReportsClient({ repairs, fuelLogs }: ReportsClientProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+              {totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
             </div>
           </CardContent>
         </Card>
@@ -63,7 +63,7 @@ export function ReportsClient({ repairs, fuelLogs }: ReportsClientProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+              {totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
             </div>
           </CardContent>
         </Card>
@@ -74,7 +74,7 @@ export function ReportsClient({ repairs, fuelLogs }: ReportsClientProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+              {totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
             </div>
           </CardContent>
         </Card>
@@ -85,7 +85,7 @@ export function ReportsClient({ repairs, fuelLogs }: ReportsClientProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {costPerKm.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })} / km
+              {costPerKm.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })} / km
             </div>
             <p className="text-xs text-muted-foreground">Basé sur {maxMileage.toLocaleString('fr-FR')} km parcourus</p>
           </CardContent>
@@ -100,10 +100,11 @@ export function ReportsClient({ repairs, fuelLogs }: ReportsClientProps) {
           <ResponsiveContainer width="100%" height={350}>
             <BarChart data={costData}>
               <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value: number) => `€${value}`} />
+              <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value: number) => `${value.toLocaleString('fr-FR')} TND`} />
               <Tooltip 
                 cursor={{fill: 'hsl(var(--muted))'}}
                 contentStyle={{background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)'}}
+                formatter={(value: number) => `${value.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
               />
               <Legend />
               <Bar dataKey="Coût" radius={[4, 4, 0, 0]} />

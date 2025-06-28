@@ -57,7 +57,7 @@ export default async function DashboardPage() {
           />
           <StatCard
             title="Coût total des Réparations"
-            value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`}
+            value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
             icon={Wrench}
             description="Sur tous les véhicules"
           />

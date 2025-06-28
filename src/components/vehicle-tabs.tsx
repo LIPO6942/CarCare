@@ -129,7 +129,7 @@ function RepairsTab({ vehicleId, repairs }: { vehicleId: string, repairs: Repair
                         <TableCell className="font-medium">{repair.description}</TableCell>
                         <TableCell>{repair.category}</TableCell>
                         <TableCell>{repair.mileage.toLocaleString('fr-FR')} km</TableCell>
-                        <TableCell className="text-right">{repair.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</TableCell>
+                        <TableCell className="text-right">{repair.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
                     </TableRow>
                     ))}
                 </TableBody>
@@ -204,7 +204,7 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
                             {isCategorizing ? 'Analyse...' : 'Catégoriser avec l\'IA'}
                         </Button>
                     </div>
-                    <Input name="cost" type="number" step="0.01" placeholder="Coût (€)" required />
+                    <Input name="cost" type="number" step="0.01" placeholder="Coût (TND)" required />
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="secondary">Annuler</Button></DialogClose>
                         <Button type="submit">Enregistrer</Button>
@@ -245,7 +245,7 @@ function MaintenanceTab({ maintenance }: { maintenance: Maintenance[] }) {
                                 {item.nextDueDate ? format(new Date(item.nextDueDate), 'P', { locale: fr }) : ''}
                                 {item.nextDueMileage ? ` / ${item.nextDueMileage.toLocaleString('fr-FR')} km` : ''}
                             </TableCell>
-                            <TableCell className="text-right">{item.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</TableCell>
+                            <TableCell className="text-right">{item.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
                         </TableRow>
                         ))}
                     </TableBody>
@@ -290,8 +290,8 @@ function FuelTab({ fuelLogs }: { fuelLogs: FuelLog[] }) {
                             <TableCell>{format(new Date(log.date), 'P', { locale: fr })}</TableCell>
                             <TableCell>{log.mileage.toLocaleString('fr-FR')} km</TableCell>
                             <TableCell>{log.quantity.toFixed(2)} L</TableCell>
-                            <TableCell>{log.pricePerLiter.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</TableCell>
-                            <TableCell className="text-right">{log.totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</TableCell>
+                            <TableCell>{log.pricePerLiter.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
+                            <TableCell className="text-right">{log.totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
                         </TableRow>
                         ))}
                     </TableBody>
