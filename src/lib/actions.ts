@@ -34,7 +34,7 @@ export async function createVehicle(formData: FormData) {
     };
   }
   
-  let imageUrl = 'https://placehold.co/600x400.png';
+  let imageUrl = 'https://images.unsplash.com/photo-1553949345-eb786bb3f7ba?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxDYXIlMjBzaWxob3VldHRlfGVufDB8fHx8MTc1MTM5NjAyOHww&ixlib=rb-4.1.0&q=80&w=1080';
   let imagePath = '';
 
   // Try to generate and upload an image, but don't fail the whole process if it errors out.
@@ -70,7 +70,7 @@ export async function createVehicle(formData: FormData) {
   } catch (error) {
       console.error("Firebase Error in createVehicle (addVehicle call):", error);
       if (error instanceof Error) {
-        if (String(error).includes('firestore/permission-denied')) {
+        if (String(error).includes('firestore/permission-denied') || String(error).includes('Permission denied')) {
              return { message: 'Permission Refusée par Firestore. Veuillez vérifier que vos règles de sécurité pour Firestore autorisent l\'écriture (write).' };
         }
       }
