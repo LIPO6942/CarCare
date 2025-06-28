@@ -160,6 +160,8 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
     const [isCategorizing, setIsCategorizing] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const repairCategories = ["Moteur", "Freins", "Électrique", "Suspension", "Carrosserie", "Intérieur", "Échappement", "Transmission", "Pneus", "Autre"];
+
     const handleCategorize = async () => {
         if (!description) {
             toast({ title: 'Erreur', description: 'Veuillez d\'abord entrer une description.', variant: 'destructive'});
@@ -168,8 +170,13 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
         setIsCategorizing(true);
         try {
             const result = await categorizeRepair({ repairDetails: description });
-            setCategory(result.category);
-            toast({ title: 'Catégorie suggérée!', description: `La catégorie a été définie sur "${result.category}".`});
+            if (repairCategories.includes(result.category)) {
+              setCategory(result.category);
+              toast({ title: 'Catégorie suggérée!', description: `La catégorie a été définie sur "${result.category}".`});
+            } else {
+              setCategory("Autre");
+              toast({ title: 'Catégorie suggérée!', description: `La catégorie suggérée "${result.category}" n'est pas dans la liste, "Autre" a été sélectionné.`});
+            }
         } catch (error) {
             toast({ title: 'Erreur IA', description: 'Impossible de suggérer une catégorie.', variant: 'destructive'});
         } finally {
@@ -180,6 +187,11 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
     async function handleSubmit(formData: FormData) {
         setIsSubmitting(true);
         formData.set('vehicleId', vehicleId);
+
+        if (!formData.has('category')) {
+          formData.set('category', category);
+        }
+
         const result = await createRepair(formData);
         if (result?.message) {
             toast({ title: "Erreur", description: result.message, variant: 'destructive' });
@@ -208,11 +220,20 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
                         <Input name="mileage" type="number" placeholder="Kilométrage" required />
                     </div>
                     <Textarea name="description" placeholder="Description de la réparation" required onChange={(e) => setDescription(e.target.value)} value={description} />
-                    <div className="flex gap-2">
-                        <Input name="category" placeholder="Catégorie" required value={category} onChange={e => setCategory(e.target.value)} className="flex-1" />
+                    <div className="flex gap-2 items-center">
+                        <div className="flex-1 space-y-2">
+                            <Select name="category" required value={category} onValueChange={setCategory}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Sélectionnez une catégorie" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {repairCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <Button type="button" variant="outline" onClick={handleCategorize} disabled={isCategorizing}>
                            {isCategorizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                            {isCategorizing ? 'Analyse...' : 'Suggérer'}
+                            <span className="hidden sm:inline">{isCategorizing ? 'Analyse...' : 'Suggérer'}</span>
                         </Button>
                     </div>
                     <Input name="cost" type="number" step="0.01" placeholder="Coût (TND)" required />

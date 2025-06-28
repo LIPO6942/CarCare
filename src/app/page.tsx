@@ -1,4 +1,4 @@
-import { PlusCircle, Car, Wrench, Bell } from 'lucide-react';
+import { PlusCircle, Car, Wrench, Bell, Fuel } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
@@ -9,6 +9,7 @@ import { getVehicles, getAllRepairs, getAllDeadlines, getAllFuelLogs } from '@/l
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DashboardClient } from '@/components/dashboard-client';
+import { RepairSummaryChart } from '@/components/repair-summary-chart';
 
 function StatCard({ title, value, icon: Icon, description }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string }) {
   return (
@@ -36,7 +37,6 @@ export default async function DashboardPage() {
   const totalVehicles = vehicles.length;
   const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
   const totalFuelCost = fuelLogs.reduce((sum, f) => sum + f.totalCost, 0);
-  const totalCost = totalRepairCost + totalFuelCost;
   
   const upcomingDeadlines = deadlines
     .map(d => ({ ...d, date: new Date(d.date) }))
@@ -59,7 +59,7 @@ export default async function DashboardPage() {
         </AddVehicleSheet>
       </DashboardHeader>
       <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total des Véhicules"
             value={totalVehicles}
@@ -67,10 +67,16 @@ export default async function DashboardPage() {
             description="Nombre de véhicules gérés"
           />
           <StatCard
-            title="Coût Total d'Entretien"
-            value={`${totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
+            title="Coût des Réparations"
+            value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
             icon={Wrench}
-            description="Réparations + Carburant"
+            description="Total des réparations"
+          />
+          <StatCard
+            title="Coût du Carburant"
+            value={`${totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
+            icon={Fuel}
+            description="Total des pleins"
           />
           <StatCard
             title={nextDeadline ? nextDeadline.name : "Échéances à Venir"}
@@ -79,6 +85,8 @@ export default async function DashboardPage() {
             description={nextDeadline ? "Prochaine échéance" : "Aucune échéance à venir"}
           />
         </div>
+
+        <RepairSummaryChart repairs={repairs} />
         
         <DashboardClient vehicles={vehicles} />
       </main>
