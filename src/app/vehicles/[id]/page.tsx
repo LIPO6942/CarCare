@@ -6,7 +6,6 @@ import { DashboardHeader } from '@/components/dashboard-header';
 import { VehicleTabs } from '@/components/vehicle-tabs';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 
 export default async function VehicleDetailPage({ params }: { params: { id: string } }) {
@@ -38,12 +37,12 @@ export default async function VehicleDetailPage({ params }: { params: { id: stri
                 <CardContent className="pt-6">
                     <div className="grid gap-6 sm:grid-cols-3">
                         <div className="relative h-60 w-full sm:col-span-1 rounded-lg overflow-hidden">
-                             <Image
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                             <img
                               src={vehicle.imageUrl || 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxDYXJ8ZW58MHx8fHwxNzUyMTk2NzAyfDA&ixlib=rb-4.1.0&q=80&w=1080'}
                               alt={`${vehicle.brand} ${vehicle.model}`}
                               data-ai-hint="front view car"
-                              fill
-                              className="object-cover"
+                              className="absolute inset-0 h-full w-full object-cover"
                             />
                         </div>
                         <div className="sm:col-span-2">
