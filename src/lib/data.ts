@@ -64,6 +64,17 @@ export async function addVehicle(vehicleData: Omit<Vehicle, 'id' | 'imageUrl'>):
   return newVehicle;
 }
 
+export async function deleteVehicleById(id: string): Promise<void> {
+  const vehicleIndex = vehicles.findIndex((v) => v.id === id);
+  if (vehicleIndex > -1) {
+    vehicles.splice(vehicleIndex, 1);
+    repairs = repairs.filter((r) => r.vehicleId !== id);
+    maintenances = maintenances.filter((m) => m.vehicleId !== id);
+    fuelLogs = fuelLogs.filter((f) => f.vehicleId !== id);
+    deadlines = deadlines.filter((d) => d.vehicleId !== id);
+  }
+}
+
 export async function getRepairsForVehicle(vehicleId: string): Promise<Repair[]> {
   return repairs.filter((r) => r.vehicleId === vehicleId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
@@ -86,6 +97,10 @@ export async function getAllRepairs(): Promise<Repair[]> {
 
 export async function getAllFuelLogs(): Promise<FuelLog[]> {
     return fuelLogs;
+}
+
+export async function getAllDeadlines(): Promise<Deadline[]> {
+    return deadlines;
 }
 
 export async function addRepair(repairData: Omit<Repair, 'id'>): Promise<Repair> {

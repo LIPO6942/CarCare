@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { addVehicle, addRepair } from './data';
+import { addVehicle, addRepair, deleteVehicleById } from './data';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -37,6 +37,20 @@ export async function createVehicle(formData: FormData) {
 
   revalidatePath('/');
   redirect('/');
+}
+
+export async function deleteVehicle(vehicleId: string) {
+  if (!vehicleId) {
+    return { message: 'ID du véhicule manquant.' };
+  }
+  
+  try {
+    await deleteVehicleById(vehicleId);
+  } catch (error) {
+    return { message: 'Erreur de la base de données: Impossible de supprimer le véhicule.' };
+  }
+
+  revalidatePath('/');
 }
 
 const RepairSchema = z.object({
