@@ -32,6 +32,7 @@ export async function createVehicle(formData: FormData) {
   try {
     await addVehicle(validatedFields.data);
   } catch (error) {
+    console.error("Firebase Error in createVehicle:", error);
     return { message: 'Erreur de la base de données: Impossible de créer le véhicule.' };
   }
 
@@ -47,6 +48,7 @@ export async function deleteVehicle(vehicleId: string) {
   try {
     await deleteVehicleById(vehicleId);
   } catch (error) {
+    console.error("Firebase Error in deleteVehicle:", error);
     return { message: 'Erreur de la base de données: Impossible de supprimer le véhicule.' };
   }
 
@@ -75,6 +77,7 @@ export async function createRepair(formData: FormData) {
     try {
         await addRepair(validatedFields.data);
     } catch (error) {
+        console.error("Firebase Error in createRepair:", error);
         return { message: 'Erreur de la base de données: Impossible d\'ajouter la réparation.' };
     }
 
