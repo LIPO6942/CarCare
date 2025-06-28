@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, Car, BarChart3, Bot, Settings } from 'lucide-react';
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Logo } from './logo';
 import { cn } from '@/lib/utils';
@@ -29,14 +29,13 @@ export function MobileSidebar() {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="sm:max-w-xs flex flex-col p-0">
-            <SheetHeader className="p-4 border-b text-left">
-                <SheetTitle asChild>
-                    <Logo />
-                </SheetTitle>
-                 <SheetDescription className="sr-only">
-                    Menu de navigation principal
-                </SheetDescription>
-            </SheetHeader>
+            <SheetTitle className="sr-only">Menu</SheetTitle>
+            <SheetDescription className="sr-only">
+                Menu de navigation principal
+            </SheetDescription>
+            <div className="p-4 border-b">
+                <Logo />
+            </div>
             <nav className="grid gap-2 text-lg font-medium flex-1 p-4">
               {navItems.map((item) => (
                 <Link
