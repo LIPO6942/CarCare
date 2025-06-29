@@ -3,8 +3,11 @@
 import { z } from 'zod';
 import { addVehicle, addRepair, deleteVehicleById, addMaintenance, addFuelLog } from './data';
 import { revalidatePath } from 'next/cache';
+import { storage } from './firebase';
+import { ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
+import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 
-const MISSING_ENV_VARS_MESSAGE = "Configuration Firebase manquante. Veuillez configurer les variables d'environnement sur votre plateforme d'hébergement (ex: Vercel) avant de modifier des données.";
+const MISSING_ENV_VARS_MESSAGE = "Configuration Firebase manquante. Assurez-vous d'avoir un fichier .env correctement configuré pour le développement local et que les variables d'environnement sont définies pour le déploiement.";
 
 function checkFirebaseConfig() {
     if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || !process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
@@ -43,12 +46,13 @@ export async function createVehicle(userId: string, formData: FormData) {
       message: 'Champs manquants. Impossible de créer le véhicule.',
     };
   }
-  
-  const brandDomain = validatedFields.data.brand.toLowerCase().replace(/ /g, '') + '.com';
-  const imageUrl = `https://logo.clearbit.com/${brandDomain}`;
 
   try {
-      await addVehicle({ ...validatedFields.data, imageUrl }, userId);
+      const brandDomain = validatedFields.data.brand.toLowerCase().replace(/ /g, '') + '.com';
+      const logoUrl = `https://logo.clearbit.com/${brandDomain}`;
+
+      await addVehicle({ ...validatedFields.data, imageUrl: logoUrl }, userId);
+      
   } catch (error) {
       console.error("Firebase Error in createVehicle (addVehicle call):", error);
       if (error instanceof Error) {

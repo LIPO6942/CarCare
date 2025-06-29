@@ -26,7 +26,7 @@ export default function LoginPage() {
      if (!isFirebaseConfigured) {
       toast({
         title: 'Configuration manquante',
-        description: "Les variables d'environnement Firebase ne sont pas définies. L'authentification est désactivée.",
+        description: "Configuration Firebase manquante. Consultez les instructions sur la page pour résoudre ce problème.",
         variant: 'destructive',
       });
       return;
@@ -68,8 +68,8 @@ export default function LoginPage() {
               <div className="mb-4 flex items-start gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
                 <AlertTriangle className="h-5 w-5 flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="font-semibold">Configuration requise</p>
-                  <p>Les clés de configuration Firebase ne sont pas définies. L'authentification ne fonctionnera pas.</p>
+                  <p className="font-semibold">Action requise</p>
+                  <p>La configuration Firebase est incomplète. Veuillez créer un fichier `.env` en copiant le modèle `.env.example` et en le remplissant avec vos clés. Sans cela, l'authentification ne peut pas fonctionner.</p>
                 </div>
               </div>
             )}
