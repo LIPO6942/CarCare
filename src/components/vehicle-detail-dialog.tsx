@@ -28,7 +28,8 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
 
   const fetchVehicleData = useCallback(async () => {
     if (vehicle && user) {
-        setIsLoading(true);
+      setIsLoading(true);
+      try {
         const [repairsData, maintenanceData, fuelLogsData, deadlinesData] = await Promise.all([
           getRepairsForVehicle(vehicle.id, user.uid),
           getMaintenanceForVehicle(vehicle.id, user.uid),
@@ -39,9 +40,18 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
         setMaintenance(maintenanceData);
         setFuelLogs(fuelLogsData);
         setDeadlines(deadlinesData);
-        setIsLoading(false);
         // Also refresh the dashboard data in case a cost was added/changed
         onDataChange();
+      } catch (error) {
+        console.error("Failed to fetch vehicle details due to an error. Displaying empty data.", error);
+        // Reset state to empty arrays to prevent rendering stale or invalid data
+        setRepairs([]);
+        setMaintenance([]);
+        setFuelLogs([]);
+        setDeadlines([]);
+      } finally {
+        setIsLoading(false);
+      }
     }
   }, [vehicle, user, onDataChange]);
 
