@@ -1,15 +1,14 @@
 'use client'
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { Menu, Car, BarChart3, Bot, Settings, LogOut } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Menu, Car, BarChart3, Bot } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Logo } from './logo';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAuth } from '@/context/auth-context';
-import { auth } from '@/lib/firebase';
 
 const navItems = [
   { href: '/', label: 'Mes Véhicules', icon: Car },
@@ -19,15 +18,8 @@ const navItems = [
 
 export function MobileSidebar() {
     const pathname = usePathname();
-    const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const { user } = useAuth();
-
-    const handleSignOut = async () => {
-        await auth.signOut();
-        setIsOpen(false);
-        router.push('/login');
-    };
 
     if (!user) return null;
 
@@ -64,24 +56,6 @@ export function MobileSidebar() {
                 </Link>
               ))}
             </nav>
-            <div className="p-4 border-t space-y-2">
-                <Link
-                    href="#"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
-                >
-                    <Settings className="h-5 w-5" />
-                    Paramètres
-                </Link>
-                <Button
-                    variant="ghost"
-                    onClick={handleSignOut}
-                    className="w-full justify-start flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
-                >
-                    <LogOut className="h-5 w-5" />
-                    Déconnexion
-                </Button>
-            </div>
           </SheetContent>
         </Sheet>
     </header>

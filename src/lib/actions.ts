@@ -5,16 +5,6 @@ import { addVehicle, addRepair, deleteVehicleById, addMaintenance, addFuelLog } 
 import { revalidatePath } from 'next/cache';
 import { storage } from './firebase';
 import { ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
-import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
-
-const MISSING_ENV_VARS_MESSAGE = "Configuration Firebase manquante. Assurez-vous d'avoir un fichier .env correctement configuré pour le développement local et que les variables d'environnement sont définies pour le déploiement.";
-
-function checkFirebaseConfig() {
-    if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || !process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-        return false;
-    }
-    return true;
-}
 
 const VehicleSchema = z.object({
   brand: z.string().min(1, 'La marque est requise.'),
@@ -25,9 +15,6 @@ const VehicleSchema = z.object({
 });
 
 export async function createVehicle(userId: string, formData: FormData) {
-  if (!checkFirebaseConfig()) {
-    return { message: MISSING_ENV_VARS_MESSAGE };
-  }
   if (!userId) {
      return { message: 'Utilisateur non authentifié.' };
   }
@@ -55,11 +42,6 @@ export async function createVehicle(userId: string, formData: FormData) {
       
   } catch (error) {
       console.error("Firebase Error in createVehicle (addVehicle call):", error);
-      if (error instanceof Error) {
-        if (String(error).includes('permission-denied') || String(error).includes('Permission denied')) {
-             return { message: 'Permission Refusée par Firestore. Avez-vous configuré les variables d\'environnement dans Vercel ? Vérifiez aussi vos règles de sécurité Firestore.' };
-        }
-      }
       return { message: 'Erreur de la base de données: Impossible de créer le véhicule. Consultez la console pour plus de détails.' };
   }
 
@@ -67,9 +49,6 @@ export async function createVehicle(userId: string, formData: FormData) {
 }
 
 export async function deleteVehicle(vehicleId: string) {
-  if (!checkFirebaseConfig()) {
-    return { message: MISSING_ENV_VARS_MESSAGE };
-  }
   if (!vehicleId) {
     return { message: 'ID du véhicule manquant.' };
   }
@@ -79,9 +58,6 @@ export async function deleteVehicle(vehicleId: string) {
     revalidatePath('/');
   } catch (error) {
     console.error("Firebase Error in deleteVehicle:", error);
-    if (error instanceof Error && (String(error).includes('storage/unauthorized') || String(error).includes('permission-denied'))) {
-        return { message: 'Permission Refusée: L\'application n\'a pas la permission de supprimer les données. Vérifiez vos règles de sécurité Firestore.' };
-    }
     return { message: 'Erreur de la base de données: Impossible de supprimer le véhicule.' };
   }
 }
@@ -96,9 +72,6 @@ const RepairSchema = z.object({
 });
 
 export async function createRepair(userId: string, formData: FormData) {
-    if (!checkFirebaseConfig()) {
-      return { message: MISSING_ENV_VARS_MESSAGE };
-    }
      if (!userId) {
         return { message: 'Utilisateur non authentifié.' };
     }
@@ -115,9 +88,6 @@ export async function createRepair(userId: string, formData: FormData) {
         await addRepair(validatedFields.data, userId);
     } catch (error) {
         console.error("Firebase Error in createRepair:", error);
-        if (error instanceof Error && (String(error).includes('permission-denied'))) {
-            return { message: 'Permission Refusée. Vérifiez vos règles de sécurité Firestore.' };
-        }
         return { message: 'Erreur de la base de données: Impossible d\'ajouter la réparation.' };
     }
 
@@ -135,9 +105,6 @@ const MaintenanceSchema = z.object({
 });
 
 export async function createMaintenance(userId: string, formData: FormData) {
-    if (!checkFirebaseConfig()) {
-      return { message: MISSING_ENV_VARS_MESSAGE };
-    }
      if (!userId) {
         return { message: 'Utilisateur non authentifié.' };
     }
@@ -163,9 +130,6 @@ export async function createMaintenance(userId: string, formData: FormData) {
         await addMaintenance(dataToSave, userId);
     } catch (error) {
         console.error("Firebase Error in createMaintenance:", error);
-        if (error instanceof Error && (String(error).includes('permission-denied'))) {
-            return { message: 'Permission Refusée. Vérifiez vos règles de sécurité Firestore.' };
-        }
         return { message: 'Erreur de la base de données: Impossible d\'ajouter l\'entretien.' };
     }
 
@@ -182,9 +146,6 @@ const FuelLogSchema = z.object({
 });
 
 export async function createFuelLog(userId: string, formData: FormData) {
-    if (!checkFirebaseConfig()) {
-      return { message: MISSING_ENV_VARS_MESSAGE };
-    }
      if (!userId) {
         return { message: 'Utilisateur non authentifié.' };
     }
@@ -201,9 +162,6 @@ export async function createFuelLog(userId: string, formData: FormData) {
         await addFuelLog(validatedFields.data, userId);
     } catch (error) {
         console.error("Firebase Error in createFuelLog:", error);
-        if (error instanceof Error && (String(error).includes('permission-denied'))) {
-            return { message: 'Permission Refusée. Vérifiez vos règles de sécurité Firestore.' };
-        }
         return { message: 'Erreur de la base de données: Impossible d\'ajouter le plein.' };
     }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -20,9 +20,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setIsLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        setIsLoading(false);
+      } else {
+        // No user is signed in, so sign them in anonymously.
+        signInAnonymously(auth)
+          .then((anonymousUserCredential) => {
+            setUser(anonymousUserCredential.user);
+            setIsLoading(false);
+          })
+          .catch((error) => {
+            console.error("Error signing in anonymously. Please enable anonymous auth in your Firebase project.", error);
+            // Even if it fails, we should stop loading to prevent an infinite loop.
+            // The app will be in a "no user" state, but won't be stuck.
+            setIsLoading(false);
+          });
+      }
     });
 
     return () => unsubscribe();

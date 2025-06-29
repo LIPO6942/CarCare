@@ -2,13 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Car, BarChart3, Bot, Settings, LogOut } from 'lucide-react';
+import { Car, BarChart3, Bot } from 'lucide-react';
 import { Logo } from './logo';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/auth-context';
-import { auth } from '@/lib/firebase';
-import { Button } from './ui/button';
-import { useRouter } from 'next/navigation';
 
 const navItems = [
   { href: '/', label: 'Mes Véhicules', icon: Car },
@@ -19,12 +16,6 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const router = useRouter();
-
-  const handleSignOut = async () => {
-    await auth.signOut();
-    router.push('/login');
-  };
 
   if (!user) return null;
 
@@ -51,23 +42,6 @@ export function Sidebar() {
           ))}
         </ul>
       </nav>
-      <div className="p-4 border-t space-y-2">
-         <Link
-            href="#"
-            className='flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-accent-foreground'
-          >
-            <Settings className="h-5 w-5" />
-            <span>Paramètres</span>
-        </Link>
-        <Button
-            variant="ghost"
-            onClick={handleSignOut}
-            className='w-full justify-start flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive'
-        >
-            <LogOut className="h-5 w-5" />
-            <span>Déconnexion</span>
-        </Button>
-      </div>
     </aside>
   );
 }
