@@ -11,8 +11,13 @@ import {
 } from '@/components/ui/sheet';
 import { AddVehicleForm } from './add-vehicle-form';
 
-export function AddVehicleSheet({ children }: { children: ReactNode }) {
+export function AddVehicleSheet({ children, onVehicleAdded }: { children: ReactNode; onVehicleAdded: () => void; }) {
   const [open, setOpen] = useState(false);
+
+  const handleFormSubmit = () => {
+    setOpen(false);
+    onVehicleAdded();
+  }
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -24,7 +29,7 @@ export function AddVehicleSheet({ children }: { children: ReactNode }) {
             Remplissez les détails de votre véhicule pour l'ajouter à votre flotte.
           </SheetDescription>
         </SheetHeader>
-        <AddVehicleForm onFormSubmit={() => setOpen(false)} />
+        <AddVehicleForm onFormSubmit={handleFormSubmit} />
       </SheetContent>
     </Sheet>
   );

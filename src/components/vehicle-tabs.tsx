@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
 import { z } from "zod"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
@@ -42,13 +41,11 @@ interface VehicleTabsProps {
     maintenance: Maintenance[];
     fuelLogs: FuelLog[];
     deadlines: Deadline[];
+    onDataChange: () => void;
 }
 
-export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, deadlines }: VehicleTabsProps) {
-  const router = useRouter();
+export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, deadlines, onDataChange }: VehicleTabsProps) {
   
-  const refreshData = () => router.refresh();
-
   return (
     <Tabs defaultValue="deadlines">
       <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
@@ -62,13 +59,13 @@ export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, deadlin
         <DeadlinesTab deadlines={deadlines} />
       </TabsContent>
       <TabsContent value="repairs">
-        <RepairsTab vehicleId={vehicleId} repairs={repairs} onDataChange={refreshData} />
+        <RepairsTab vehicleId={vehicleId} repairs={repairs} onDataChange={onDataChange} />
       </TabsContent>
       <TabsContent value="maintenance">
-        <MaintenanceTab vehicleId={vehicleId} maintenance={maintenance} onDataChange={refreshData} />
+        <MaintenanceTab vehicleId={vehicleId} maintenance={maintenance} onDataChange={onDataChange} />
       </TabsContent>
       <TabsContent value="fuel">
-        <FuelTab vehicleId={vehicleId} fuelLogs={fuelLogs} onDataChange={refreshData} />
+        <FuelTab vehicleId={vehicleId} fuelLogs={fuelLogs} onDataChange={onDataChange} />
       </TabsContent>
     </Tabs>
   );

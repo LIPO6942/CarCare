@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Vehicle, Repair, Deadline, FuelLog } from '@/lib/types';
 import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
@@ -44,24 +44,27 @@ export function DashboardClient() {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!user) return;
-      setIsLoading(true);
-      const [vehiclesData, repairsData, deadlinesData, fuelLogsData] = await Promise.all([
-        getVehicles(user.uid),
-        getAllUserRepairs(user.uid),
-        getAllUserDeadlines(user.uid),
-        getAllUserFuelLogs(user.uid),
-      ]);
-      setVehicles(vehiclesData);
-      setRepairs(repairsData);
-      setDeadlines(deadlinesData);
-      setFuelLogs(fuelLogsData);
-      setIsLoading(false);
-    }
-    fetchData();
+  const fetchData = useCallback(async () => {
+    if (!user) return;
+    setIsLoading(true);
+    const [vehiclesData, repairsData, deadlinesData, fuelLogsData] = await Promise.all([
+      getVehicles(user.uid),
+      getAllUserRepairs(user.uid),
+      getAllUserDeadlines(user.uid),
+      getAllUserFuelLogs(user.uid),
+    ]);
+    setVehicles(vehiclesData);
+    setRepairs(repairsData);
+    setDeadlines(deadlinesData);
+    setFuelLogs(fuelLogsData);
+    setIsLoading(false);
   }, [user]);
+
+  useEffect(() => {
+    if (user) {
+        fetchData();
+    }
+  }, [user, fetchData]);
 
 
   const handleOpenDetails = (vehicle: Vehicle) => {
@@ -108,7 +111,7 @@ export function DashboardClient() {
           title="Tableau de Bord"
           description="Vue d'ensemble de votre flotte de véhicules."
         >
-          <AddVehicleSheet>
+          <AddVehicleSheet onVehicleAdded={fetchData}>
             <Button>
               <PlusCircle className="mr-2" />
               Ajouter un véhicule
@@ -162,7 +165,7 @@ export function DashboardClient() {
                     <p className="text-muted-foreground mb-6">
                         Commencez par ajouter votre premier véhicule pour suivre son entretien.
                     </p>
-                    <AddVehicleSheet>
+                    <AddVehicleSheet onVehicleAdded={fetchData}>
                         <Button>
                         <PlusCircle className="mr-2" />
                         Ajouter un véhicule
@@ -174,7 +177,7 @@ export function DashboardClient() {
             </div>
         </main>
       </AppLayout>
-      <VehicleDetailDialog vehicle={selectedVehicle} open={isDetailOpen} onOpenChange={setIsDetailOpen} />
+      <VehicleDetailDialog vehicle={selectedVehicle} open={isDetailOpen} onOpenChange={setIsDetailOpen} onDataChange={fetchData} />
     </>
   );
 }

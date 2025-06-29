@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Vehicle, Repair, Maintenance, FuelLog, Deadline } from '@/lib/types';
 import { getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle, getDeadlinesForVehicle } from '@/lib/data';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -13,9 +13,10 @@ interface VehicleDetailDialogProps {
   vehicle: Vehicle | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onDataChange: () => void; // To refresh dashboard data when this dialog makes a change
 }
 
-export function VehicleDetailDialog({ vehicle, open, onOpenChange }: VehicleDetailDialogProps) {
+export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange }: VehicleDetailDialogProps) {
   const { user } = useAuth();
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
@@ -23,9 +24,8 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange }: VehicleDeta
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (vehicle && open && user) {
-      const fetchData = async () => {
+  const fetchVehicleData = useCallback(async () => {
+    if (vehicle && user) {
         setIsLoading(true);
         const [repairsData, maintenanceData, fuelLogsData, deadlinesData] = await Promise.all([
           getRepairsForVehicle(vehicle.id, user.uid),
@@ -38,10 +38,16 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange }: VehicleDeta
         setFuelLogs(fuelLogsData);
         setDeadlines(deadlinesData);
         setIsLoading(false);
-      };
-      fetchData();
+        // Also refresh the dashboard data in case a cost was added/changed
+        onDataChange();
     }
-  }, [vehicle, open, user]);
+  }, [vehicle, user, onDataChange]);
+
+  useEffect(() => {
+    if (open) {
+      fetchVehicleData();
+    }
+  }, [open, fetchVehicleData]);
 
   if (!vehicle) return null;
 
@@ -92,6 +98,7 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange }: VehicleDeta
                 maintenance={maintenance} 
                 fuelLogs={fuelLogs}
                 deadlines={deadlines}
+                onDataChange={fetchVehicleData}
             />
            )}
         </div>

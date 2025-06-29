@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/auth-context';
@@ -29,7 +28,6 @@ const VehicleSchema = z.object({
 export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -68,7 +66,6 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
           title: 'Succès',
           description: 'Le véhicule a été ajouté.',
         });
-        router.refresh();
         onFormSubmit();
 
     } catch (error) {
