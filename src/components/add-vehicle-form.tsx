@@ -1,8 +1,8 @@
 'use client';
 
-import { useFormStatus } from 'react-dom';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { createVehicle } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/auth-context';
 import { Input } from '@/components/ui/input';
@@ -13,46 +13,82 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { addVehicle } from '@/lib/data';
+import { z } from 'zod';
+import { Loader2 } from 'lucide-react';
 
-function SubmitButton() {
-    const { pending } = useFormStatus();
-    return <Button type="submit" disabled={pending} className="w-full">{pending ? 'Ajout du véhicule...' : 'Ajouter le véhicule'}</Button>;
-}
+const VehicleSchema = z.object({
+  brand: z.string().min(1, 'La marque est requise.'),
+  model: z.string().min(1, 'Le modèle est requis.'),
+  year: z.coerce.number().min(1900, 'Année invalide.').max(new Date().getFullYear() + 1, 'Année invalide.'),
+  licensePlate: z.string().min(1, 'La plaque d\'immatriculation est requise.'),
+  fuelType: z.enum(['Essence', 'Diesel', 'Électrique', 'Hybride']),
+});
+
 
 export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const formAction = async (formData: FormData) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+
     if (!user) {
         toast({ title: 'Erreur', description: 'Vous devez être connecté.', variant: 'destructive'});
+        setIsSubmitting(false);
         return;
     }
-    // L'ID utilisateur est maintenant ajouté via un champ caché
-    const result = await createVehicle(formData);
-    if (result?.message) {
+    
+    const formData = new FormData(event.currentTarget);
+    const vehicleData = Object.fromEntries(formData.entries());
+
+    const validatedFields = VehicleSchema.safeParse(vehicleData);
+
+    if (!validatedFields.success) {
+      const firstError = validatedFields.error.issues[0];
       toast({
-        title: 'Erreur',
-        description: result.message,
+        title: 'Erreur de validation',
+        description: `Veuillez corriger le champ: ${firstError.path[0]}.`,
         variant: 'destructive',
       });
-    } else {
-      toast({
-        title: 'Succès',
-        description: 'Le véhicule a été ajouté.',
-      });
-      onFormSubmit();
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+        const brandDomain = validatedFields.data.brand.toLowerCase().replace(/ /g, '') + '.com';
+        const logoUrl = `https://logo.clearbit.com/${brandDomain}`;
+
+        await addVehicle({ ...validatedFields.data, imageUrl: logoUrl }, user.uid);
+        
+        toast({
+          title: 'Succès',
+          description: 'Le véhicule a été ajouté.',
+        });
+        router.refresh();
+        onFormSubmit();
+
+    } catch (error) {
+        console.error("Firebase Error in addVehicle call:", error);
+        toast({
+            title: 'Erreur',
+            description: "Erreur de permission lors de la création du véhicule. Veuillez vérifier que vos règles de sécurité Firestore sont correctement configurées et publiées.",
+            variant: 'destructive',
+        });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
   if (!user) {
-    // Ne rien afficher si l'utilisateur n'est pas encore chargé
     return null;
   }
 
   return (
-    <form action={formAction} className="space-y-6 py-6">
-      <input type="hidden" name="userId" value={user.uid} />
+    <form onSubmit={handleSubmit} className="space-y-6 py-6">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -87,7 +123,12 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
             </Select>
         </div>
       </div>
-      <SubmitButton />
+      <Button type="submit" disabled={isSubmitting} className="w-full">
+        {isSubmitting ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : null}
+        {isSubmitting ? 'Ajout du véhicule...' : 'Ajouter le véhicule'}
+      </Button>
     </form>
   );
 }

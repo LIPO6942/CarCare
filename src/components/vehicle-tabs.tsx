@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { z } from "zod"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
@@ -24,7 +25,7 @@ import {
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { createRepair, createMaintenance, createFuelLog } from '@/lib/actions';
+import { addRepair, addMaintenance, addFuelLog } from '@/lib/data';
 import { categorizeRepair } from '@/ai/flows/repair-categorization';
 import { useAuth } from '@/context/auth-context';
 import {
@@ -44,6 +45,10 @@ interface VehicleTabsProps {
 }
 
 export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, deadlines }: VehicleTabsProps) {
+  const router = useRouter();
+  
+  const refreshData = () => router.refresh();
+
   return (
     <Tabs defaultValue="deadlines">
       <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
@@ -57,13 +62,13 @@ export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, deadlin
         <DeadlinesTab deadlines={deadlines} />
       </TabsContent>
       <TabsContent value="repairs">
-        <RepairsTab vehicleId={vehicleId} repairs={repairs} />
+        <RepairsTab vehicleId={vehicleId} repairs={repairs} onDataChange={refreshData} />
       </TabsContent>
       <TabsContent value="maintenance">
-        <MaintenanceTab vehicleId={vehicleId} maintenance={maintenance} />
+        <MaintenanceTab vehicleId={vehicleId} maintenance={maintenance} onDataChange={refreshData} />
       </TabsContent>
       <TabsContent value="fuel">
-        <FuelTab vehicleId={vehicleId} fuelLogs={fuelLogs} />
+        <FuelTab vehicleId={vehicleId} fuelLogs={fuelLogs} onDataChange={refreshData} />
       </TabsContent>
     </Tabs>
   );
@@ -106,7 +111,7 @@ function DeadlinesTab({ deadlines }: { deadlines: Deadline[] }) {
     )
 }
 
-function RepairsTab({ vehicleId, repairs }: { vehicleId: string, repairs: Repair[] }) {
+function RepairsTab({ vehicleId, repairs, onDataChange }: { vehicleId: string, repairs: Repair[], onDataChange: () => void }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -114,7 +119,7 @@ function RepairsTab({ vehicleId, repairs }: { vehicleId: string, repairs: Repair
             <CardTitle>Journal des Réparations</CardTitle>
             <CardDescription>Historique de toutes les réparations effectuées.</CardDescription>
         </div>
-        <AddRepairDialog vehicleId={vehicleId} />
+        <AddRepairDialog vehicleId={vehicleId} onDataChange={onDataChange} />
       </CardHeader>
       <CardContent>
         {repairs.length > 0 ? (
@@ -145,7 +150,7 @@ function RepairsTab({ vehicleId, repairs }: { vehicleId: string, repairs: Repair
                 <Wrench className="mx-auto h-12 w-12 mb-4" />
                 <h3 className="text-lg font-semibold">Aucune réparation enregistrée</h3>
                 <p className="mb-4">Cliquez sur "Ajouter une réparation" pour commencer.</p>
-                <AddRepairDialog vehicleId={vehicleId} />
+                <AddRepairDialog vehicleId={vehicleId} onDataChange={onDataChange} />
             </div>
         )}
       </CardContent>
@@ -153,7 +158,16 @@ function RepairsTab({ vehicleId, repairs }: { vehicleId: string, repairs: Repair
   );
 }
 
-function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
+const RepairSchema = z.object({
+  vehicleId: z.string(),
+  date: z.string().min(1, 'La date est requise.'),
+  mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
+  description: z.string().min(1, 'La description est requise.'),
+  category: z.string().min(1, 'La catégorie est requise.'),
+  cost: z.coerce.number().min(0, 'Le coût doit être positif.'),
+});
+
+function AddRepairDialog({ vehicleId, onDataChange }: { vehicleId: string, onDataChange: () => void }) {
     const [open, setOpen] = useState(false);
     const { toast } = useToast();
     const { user } = useAuth();
@@ -161,6 +175,7 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
     const [category, setCategory] = useState('');
     const [isCategorizing, setIsCategorizing] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const formRef = useRef<HTMLFormElement>(null);
 
     const repairCategories = ["Moteur", "Freins", "Électrique", "Suspension", "Carrosserie", "Intérieur", "Échappement", "Transmission", "Pneus", "Autre"];
 
@@ -186,23 +201,43 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
         }
     }
     
-    async function handleSubmit(formData: FormData) {
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
         setIsSubmitting(true);
         
-        if (!formData.has('category')) {
+        if (!user) {
+            toast({ title: "Erreur", description: "Utilisateur non authentifié.", variant: 'destructive' });
+            setIsSubmitting(false);
+            return;
+        }
+
+        const formData = new FormData(event.currentTarget);
+        if (!formData.get('category')) {
           formData.set('category', category);
         }
 
-        const result = await createRepair(formData);
-        if (result?.message) {
-            toast({ title: "Erreur", description: result.message, variant: 'destructive' });
-        } else {
+        const data = Object.fromEntries(formData.entries());
+        const validatedFields = RepairSchema.safeParse(data);
+
+        if (!validatedFields.success) {
+            toast({ title: "Erreur de validation", description: validatedFields.error.issues[0].message, variant: 'destructive' });
+            setIsSubmitting(false);
+            return;
+        }
+
+        try {
+            await addRepair(validatedFields.data, user.uid);
             toast({ title: "Succès", description: "Réparation ajoutée." });
             setOpen(false);
             setDescription('');
             setCategory('');
+            formRef.current?.reset();
+            onDataChange();
+        } catch (error) {
+            toast({ title: "Erreur", description: "Impossible d'ajouter la réparation.", variant: 'destructive' });
+        } finally {
+            setIsSubmitting(false);
         }
-        setIsSubmitting(false);
     }
 
     if (!user) return null;
@@ -217,8 +252,7 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
                     <DialogTitle>Nouvelle Réparation</DialogTitle>
                     <DialogDescription>Ajoutez les détails de la réparation effectuée.</DialogDescription>
                 </DialogHeader>
-                <form action={handleSubmit} className="space-y-4">
-                     <input type="hidden" name="userId" value={user.uid} />
+                <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
                      <input type="hidden" name="vehicleId" value={vehicleId} />
                      <div className="grid grid-cols-2 gap-4">
                         <Input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
@@ -255,7 +289,7 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
     )
 }
 
-function MaintenanceTab({ vehicleId, maintenance }: { vehicleId: string, maintenance: Maintenance[] }) {
+function MaintenanceTab({ vehicleId, maintenance, onDataChange }: { vehicleId: string, maintenance: Maintenance[], onDataChange: () => void }) {
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -263,7 +297,7 @@ function MaintenanceTab({ vehicleId, maintenance }: { vehicleId: string, mainten
                     <CardTitle>Suivi de l'Entretien</CardTitle>
                     <CardDescription>Gardez un oeil sur les entretiens passés et à venir.</CardDescription>
                 </div>
-                 <AddMaintenanceDialog vehicleId={vehicleId} />
+                 <AddMaintenanceDialog vehicleId={vehicleId} onDataChange={onDataChange} />
             </CardHeader>
             <CardContent>
                 {maintenance.length > 0 ? (
@@ -295,7 +329,7 @@ function MaintenanceTab({ vehicleId, maintenance }: { vehicleId: string, mainten
                         <Calendar className="mx-auto h-12 w-12 mb-4" />
                         <h3 className="text-lg font-semibold">Aucun entretien enregistré</h3>
                         <p className="mb-4">Ajoutez un entretien pour commencer le suivi.</p>
-                        <AddMaintenanceDialog vehicleId={vehicleId} />
+                        <AddMaintenanceDialog vehicleId={vehicleId} onDataChange={onDataChange} />
                     </div>
                 )}
             </CardContent>
@@ -303,7 +337,17 @@ function MaintenanceTab({ vehicleId, maintenance }: { vehicleId: string, mainten
     )
 }
 
-function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
+const MaintenanceSchema = z.object({
+  vehicleId: z.string(),
+  date: z.string().min(1, 'La date est requise.'),
+  mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
+  task: z.string().min(1, 'La tâche est requise.'),
+  cost: z.coerce.number().min(0, 'Le coût doit être positif.'),
+  nextDueDate: z.string().optional(),
+  nextDueMileage: z.coerce.number().optional(),
+});
+
+function AddMaintenanceDialog({ vehicleId, onDataChange }: { vehicleId: string, onDataChange: () => void }) {
     const [open, setOpen] = useState(false);
     const { toast } = useToast();
     const { user } = useAuth();
@@ -325,6 +369,13 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setIsSubmitting(true);
+        
+        if (!user) {
+            toast({ title: "Erreur", description: "Utilisateur non authentifié.", variant: 'destructive' });
+            setIsSubmitting(false);
+            return;
+        }
+        
         const formData = new FormData(event.currentTarget);
         
         const finalTask = selectedTask === 'Autre' ? formData.get('customTask') as string : selectedTask;
@@ -336,16 +387,30 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
         formData.set('task', finalTask);
         formData.delete('customTask');
         
-        const result = await createMaintenance(formData);
-        if (result?.message) {
-            toast({ title: "Erreur", description: result.message, variant: 'destructive' });
-        } else {
+        const rawData = Object.fromEntries(formData.entries());
+        if (rawData.nextDueDate === '') delete rawData.nextDueDate;
+        if (rawData.nextDueMileage === '') delete rawData.nextDueMileage;
+
+        const validatedFields = MaintenanceSchema.safeParse(rawData);
+
+        if (!validatedFields.success) {
+            toast({ title: "Erreur de validation", description: validatedFields.error.issues[0].message, variant: 'destructive' });
+            setIsSubmitting(false);
+            return;
+        }
+
+        try {
+            await addMaintenance(validatedFields.data, user.uid);
             toast({ title: "Succès", description: "Entretien ajouté." });
             setOpen(false);
             setSelectedTask('');
             formRef.current?.reset();
+            onDataChange();
+        } catch (error) {
+            toast({ title: "Erreur", description: "Impossible d'ajouter l'entretien.", variant: 'destructive' });
+        } finally {
+            setIsSubmitting(false);
         }
-        setIsSubmitting(false);
     }
     
     if (!user) return null;
@@ -361,7 +426,6 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
                     <DialogDescription>Ajoutez les détails de l'entretien réalisé.</DialogDescription>
                 </DialogHeader>
                 <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-                    <input type="hidden" name="userId" value={user.uid} />
                     <input type="hidden" name="vehicleId" value={vehicleId} />
                     <div className="space-y-2">
                         <label>Date & Kilométrage</label>
@@ -415,8 +479,16 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
     )
 }
 
+const FuelLogSchema = z.object({
+    vehicleId: z.string(),
+    date: z.string().min(1, 'La date est requise.'),
+    mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
+    quantity: z.coerce.number().gt(0, 'La quantité doit être supérieure à 0.'),
+    pricePerLiter: z.coerce.number().gt(0, 'Le prix par litre doit être supérieur à 0.'),
+    totalCost: z.coerce.number().min(0, 'Le coût total doit être positif.'),
+});
 
-function FuelTab({ vehicleId, fuelLogs }: { vehicleId: string, fuelLogs: FuelLog[] }) {
+function FuelTab({ vehicleId, fuelLogs, onDataChange }: { vehicleId: string, fuelLogs: FuelLog[], onDataChange: () => void }) {
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -424,7 +496,7 @@ function FuelTab({ vehicleId, fuelLogs }: { vehicleId: string, fuelLogs: FuelLog
                     <CardTitle>Suivi du Carburant</CardTitle>
                     <CardDescription>Consultez l'historique de vos pleins de carburant.</CardDescription>
                 </div>
-                <AddFuelLogDialog vehicleId={vehicleId} />
+                <AddFuelLogDialog vehicleId={vehicleId} onDataChange={onDataChange} />
             </CardHeader>
             <CardContent>
                 {fuelLogs.length > 0 ? (
@@ -455,7 +527,7 @@ function FuelTab({ vehicleId, fuelLogs }: { vehicleId: string, fuelLogs: FuelLog
                         <Fuel className="mx-auto h-12 w-12 mb-4" />
                         <h3 className="text-lg font-semibold">Aucun plein enregistré</h3>
                         <p className="mb-4">Ajoutez un plein pour suivre votre consommation.</p>
-                        <AddFuelLogDialog vehicleId={vehicleId} />
+                        <AddFuelLogDialog vehicleId={vehicleId} onDataChange={onDataChange} />
                     </div>
                 )}
             </CardContent>
@@ -463,31 +535,52 @@ function FuelTab({ vehicleId, fuelLogs }: { vehicleId: string, fuelLogs: FuelLog
     )
 }
 
-function AddFuelLogDialog({ vehicleId }: { vehicleId: string }) {
+function AddFuelLogDialog({ vehicleId, onDataChange }: { vehicleId: string, onDataChange: () => void }) {
     const [open, setOpen] = useState(false);
     const { toast } = useToast();
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [quantity, setQuantity] = useState('');
     const [pricePerLiter, setPricePerLiter] = useState('');
+    const formRef = useRef<HTMLFormElement>(null);
 
     const totalCost = parseFloat(quantity) * parseFloat(pricePerLiter);
     const displayTotalCost = isNaN(totalCost) ? '' : totalCost.toFixed(2);
     
-    async function handleSubmit(formData: FormData) {
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
         setIsSubmitting(true);
+
+        if (!user) {
+            toast({ title: "Erreur", description: "Utilisateur non authentifié.", variant: 'destructive' });
+            setIsSubmitting(false);
+            return;
+        }
+
+        const formData = new FormData(event.currentTarget);
         formData.set('totalCost', displayTotalCost);
 
-        const result = await createFuelLog(formData);
-        if (result?.message) {
-            toast({ title: "Erreur", description: result.message, variant: 'destructive' });
-        } else {
+        const validatedFields = FuelLogSchema.safeParse(Object.fromEntries(formData.entries()));
+
+        if (!validatedFields.success) {
+            toast({ title: "Erreur de validation", description: validatedFields.error.issues[0].message, variant: 'destructive' });
+            setIsSubmitting(false);
+            return;
+        }
+        
+        try {
+            await addFuelLog(validatedFields.data, user.uid);
             toast({ title: "Succès", description: "Plein de carburant ajouté." });
             setOpen(false);
             setQuantity('');
             setPricePerLiter('');
+            formRef.current?.reset();
+            onDataChange();
+        } catch (error) {
+            toast({ title: "Erreur", description: "Impossible d'ajouter le plein.", variant: 'destructive' });
+        } finally {
+            setIsSubmitting(false);
         }
-        setIsSubmitting(false);
     }
     
     if (!user) return null;
@@ -502,8 +595,7 @@ function AddFuelLogDialog({ vehicleId }: { vehicleId: string }) {
                     <DialogTitle>Nouveau Plein de Carburant</DialogTitle>
                     <DialogDescription>Ajoutez les détails de votre passage à la station.</DialogDescription>
                 </DialogHeader>
-                <form action={handleSubmit} className="space-y-4">
-                    <input type="hidden" name="userId" value={user.uid} />
+                <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
                     <input type="hidden" name="vehicleId" value={vehicleId} />
                     <div className="grid grid-cols-2 gap-4">
                         <Input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />

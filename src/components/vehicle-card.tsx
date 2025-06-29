@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { Vehicle } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,11 +23,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { deleteVehicle } from '@/lib/actions';
+import { deleteVehicleById } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 
 export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOpenDetails: (vehicle: Vehicle) => void; }) {
   const { user } = useAuth();
+  const router = useRouter();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
@@ -45,20 +47,23 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
       return;
     }
 
-    const result = await deleteVehicle(vehicle.id, user.uid);
-
-    if (result?.message) {
-      toast({
-        title: 'Erreur',
-        description: result.message,
-        variant: 'destructive',
-      });
-    } else {
+    try {
+      await deleteVehicleById(vehicle.id);
       toast({
         title: 'Succès',
         description: 'Le véhicule a été supprimé.',
       });
+      // Refresh the page to reflect the deletion
+      router.refresh();
+    } catch(error) {
+      console.error("Firebase Error in deleteVehicle:", error);
+      toast({
+        title: 'Erreur',
+        description: 'Erreur de permission lors de la suppression du véhicule.',
+        variant: 'destructive',
+      });
     }
+
 
     setIsDeleting(false);
     setShowDeleteDialog(false);
