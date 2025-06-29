@@ -21,15 +21,17 @@ export default function SignupPage() {
   const { toast } = useToast();
   
   const isFirebaseConfigured =
-    !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
-    !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
+    !process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID.startsWith('VOTRE_') &&
+    process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
+    !process.env.NEXT_PUBLIC_FIREBASE_API_KEY.startsWith('VOTRE_');
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
      if (!isFirebaseConfigured) {
       toast({
         title: 'Configuration manquante',
-        description: "Configuration Firebase manquante. Consultez les instructions sur la page pour résoudre ce problème.",
+        description: "La configuration Firebase est incomplète. Suivez les instructions sur la page.",
         variant: 'destructive',
       });
       return;
@@ -54,9 +56,7 @@ export default function SignupPage() {
         } else if (error.code === 'auth/weak-password') {
             description = 'Le mot de passe doit contenir au moins 6 caractères.';
         } else if (error.code === 'auth/invalid-api-key' || error.code === 'auth/api-key-not-valid') {
-            description = "La clé d'API Firebase n'est pas valide. Veuillez vérifier votre configuration .env.";
-        } else {
-            console.error(error);
+            description = "La clé d'API Firebase n'est pas valide. Veuillez vérifier votre configuration .env et redémarrer le serveur.";
         }
       toast({
         title: 'Erreur d\'inscription',
@@ -85,7 +85,7 @@ export default function SignupPage() {
                 <AlertTriangle className="h-5 w-5 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="font-semibold">Action requise</p>
-                   <p>La configuration Firebase est incomplète. Veuillez créer un fichier `.env` en copiant le modèle `.env.example` et en le remplissant avec vos clés. Sans cela, l'authentification ne peut pas fonctionner.</p>
+                   <p>La configuration Firebase est incomplète. Créez un fichier `.env`, copiez le contenu de `.env.example`, et remplacez les valeurs `VOTRE_...` par vos propres clés. Ensuite, redémarrez le serveur.</p>
                 </div>
               </div>
             )}
