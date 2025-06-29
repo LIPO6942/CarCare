@@ -33,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         'NEXT_PUBLIC_FIREBASE_APP_ID',
     ];
     
+    // This check only runs on the client-side, so process.env is what's available in the browser.
     const missingVars = requiredEnvVars.filter(v => !process.env[v]);
 
     if (missingVars.length > 0) {
@@ -40,7 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             `${v}: ${process.env[v] ? '✔️ Trouvée' : '❌ MANQUANTE'}`
         ).join('\n');
 
-        const errorMessage = `Configuration Firebase incomplète.\n\nÉtat des variables d'environnement détecté par l'application :\n${debugInfo}\n\nVeuillez vérifier que les variables marquées comme "MANQUANTE" sont correctement ajoutées dans les paramètres de votre projet Vercel et qu'elles sont appliquées à l'environnement "Production".`;
+        const errorMessage = `Erreur Critique de Déploiement.\n\nL'application a confirmé que Vercel ne lui fournit PAS les variables d'environnement nécessaires. \n\nÉtat des variables:\n${debugInfo}\n\nACTION REQUISE: Allez dans les paramètres de votre projet Vercel, supprimez TOUTES les variables d'environnement NEXT_PUBLIC_..., puis ajoutez-les à nouveau une par une, en vous assurant que la case "Production" est cochée pour chacune. Puis, redéployez.`;
+        
         setConfigError(errorMessage);
         setIsLoading(false);
         return; // Stop further execution
@@ -65,11 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoading(false);
           })
           .catch((error) => {
-            // Provide a more detailed error message to help debug deployment issues.
              const detailedError = `Erreur d'authentification Firebase : "${error.message}" (Code: ${error.code}).`;
-             const VercelHint = "Sur Vercel, cela signifie généralement que les variables d'environnement (NEXT_PUBLIC_...) ne sont pas correctement configurées ou que l'authentification 'Anonyme' n'est pas activée dans votre console Firebase.";
+             const vercelHint = "Sur Vercel, cela signifie généralement que les variables d'environnement (NEXT_PUBLIC_...) ne sont pas correctement configurées ou que l'authentification 'Anonyme' n'est pas activée dans votre console Firebase.";
              
-             const finalMessage = process.env.NEXT_PUBLIC_VERCEL_URL ? `${detailedError}\n\n${VercelHint}` : detailedError;
+             const finalMessage = process.env.NEXT_PUBLIC_VERCEL_URL ? `${detailedError}\n\n${vercelHint}` : detailedError;
 
             setConfigError(finalMessage);
             setIsLoading(false);
