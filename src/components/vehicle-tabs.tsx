@@ -44,6 +44,18 @@ interface VehicleTabsProps {
     onDataChange: () => void;
 }
 
+// Helper to safely format dates and avoid crashes from invalid date strings
+const safeFormatDate = (dateInput: string | undefined | null, formatString: string = 'P') => {
+  if (!dateInput) return '';
+  const date = new Date(dateInput);
+  
+  if (isNaN(date.getTime())) {
+    return 'Date invalide';
+  }
+  return format(date, formatString, { locale: fr });
+};
+
+
 export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, deadlines, onDataChange }: VehicleTabsProps) {
   
   return (
@@ -73,8 +85,14 @@ export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, deadlin
 
 function DeadlinesTab({ deadlines }: { deadlines: Deadline[] }) {
     const today = new Date();
-    const upcoming = deadlines.filter(d => new Date(d.date) >= today);
-    const past = deadlines.filter(d => new Date(d.date) < today);
+    // Pre-filter to ensure date is valid before comparison
+    const upcoming = deadlines
+        .filter(d => {
+            if (!d.date) return false;
+            const deadlineDate = new Date(d.date);
+            if (isNaN(deadlineDate.getTime())) return false; // Exclude invalid dates
+            return deadlineDate >= today;
+        });
 
     return (
         <Card>
@@ -95,7 +113,7 @@ function DeadlinesTab({ deadlines }: { deadlines: Deadline[] }) {
                         {upcoming.map((deadline) => (
                         <TableRow key={deadline.id}>
                             <TableCell className="font-medium">{deadline.name}</TableCell>
-                            <TableCell>{format(new Date(deadline.date), 'PPP', { locale: fr })}</TableCell>
+                            <TableCell>{safeFormatDate(deadline.date, 'PPP')}</TableCell>
                         </TableRow>
                         ))}
                     </TableBody>
@@ -133,7 +151,7 @@ function RepairsTab({ vehicleId, repairs, onDataChange }: { vehicleId: string, r
                 <TableBody>
                     {repairs.map((repair) => (
                     <TableRow key={repair.id}>
-                        <TableCell>{format(new Date(repair.date), 'P', { locale: fr })}</TableCell>
+                        <TableCell>{safeFormatDate(repair.date)}</TableCell>
                         <TableCell className="font-medium">{repair.description}</TableCell>
                         <TableCell>{repair.category}</TableCell>
                         <TableCell>{repair.mileage.toLocaleString('fr-FR')} km</TableCell>
@@ -308,17 +326,20 @@ function MaintenanceTab({ vehicleId, maintenance, onDataChange }: { vehicleId: s
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {maintenance.map((item) => (
-                        <TableRow key={item.id}>
-                            <TableCell>{format(new Date(item.date), 'P', { locale: fr })}</TableCell>
-                            <TableCell className="font-medium">{item.task}</TableCell>
-                            <TableCell>
-                                {item.nextDueDate ? format(new Date(item.nextDueDate), 'P', { locale: fr }) : ''}
-                                {item.nextDueMileage ? `${item.nextDueDate ? ' / ' : ''}${item.nextDueMileage.toLocaleString('fr-FR')} km` : ''}
-                            </TableCell>
-                            <TableCell className="text-right">{item.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
-                        </TableRow>
-                        ))}
+                        {maintenance.map((item) => {
+                          const formattedNextDate = safeFormatDate(item.nextDueDate);
+                          return (
+                            <TableRow key={item.id}>
+                                <TableCell>{safeFormatDate(item.date)}</TableCell>
+                                <TableCell className="font-medium">{item.task}</TableCell>
+                                <TableCell>
+                                    {formattedNextDate}
+                                    {item.nextDueMileage ? `${formattedNextDate ? ' / ' : ''}${item.nextDueMileage.toLocaleString('fr-FR')} km` : ''}
+                                </TableCell>
+                                <TableCell className="text-right">{item.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
+                            </TableRow>
+                          );
+                        })}
                     </TableBody>
                 </Table>
                 ) : (
@@ -510,7 +531,7 @@ function FuelTab({ vehicleId, fuelLogs, onDataChange }: { vehicleId: string, fue
                     <TableBody>
                         {fuelLogs.map((log) => (
                         <TableRow key={log.id}>
-                            <TableCell>{format(new Date(log.date), 'P', { locale: fr })}</TableCell>
+                            <TableCell>{safeFormatDate(log.date)}</TableCell>
                             <TableCell>{log.mileage.toLocaleString('fr-FR')} km</TableCell>
                             <TableCell>{log.quantity.toFixed(2)} L</TableCell>
                             <TableCell>{log.pricePerLiter.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
