@@ -20,7 +20,9 @@ export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
   
-  const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  const isFirebaseConfigured =
+    !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
+    !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +54,8 @@ export default function SignupPage() {
             description = 'Cet email est déjà utilisé par un autre compte.';
         } else if (error.code === 'auth/weak-password') {
             description = 'Le mot de passe doit contenir au moins 6 caractères.';
+        } else if (error.code === 'auth/invalid-api-key' || error.code === 'auth/api-key-not-valid') {
+            description = "La clé d'API Firebase n'est pas valide. Veuillez vérifier votre configuration .env.";
         }
       toast({
         title: 'Erreur d\'inscription',
