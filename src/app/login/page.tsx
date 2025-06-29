@@ -39,12 +39,13 @@ export default function LoginPage() {
       toast({ title: 'Succès', description: 'Connexion réussie !' });
       router.push('/');
     } catch (error: any) {
-      console.error(error);
       let description = "Une erreur inattendue est survenue.";
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
         description = "L'email ou le mot de passe est incorrect.";
       } else if (error.code === 'auth/invalid-api-key' || error.code === 'auth/api-key-not-valid') {
         description = "La clé d'API Firebase n'est pas valide. Veuillez vérifier votre configuration .env.";
+      } else {
+        console.error(error);
       }
       toast({
         title: 'Erreur de connexion',

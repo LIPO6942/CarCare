@@ -48,7 +48,6 @@ export default function SignupPage() {
       toast({ title: 'Succès', description: 'Compte créé avec succès !' });
       router.push('/');
     } catch (error: any) {
-        console.error(error);
         let description = 'Une erreur est survenue.';
         if (error.code === 'auth/email-already-in-use') {
             description = 'Cet email est déjà utilisé par un autre compte.';
@@ -56,6 +55,8 @@ export default function SignupPage() {
             description = 'Le mot de passe doit contenir au moins 6 caractères.';
         } else if (error.code === 'auth/invalid-api-key' || error.code === 'auth/api-key-not-valid') {
             description = "La clé d'API Firebase n'est pas valide. Veuillez vérifier votre configuration .env.";
+        } else {
+            console.error(error);
         }
       toast({
         title: 'Erreur d\'inscription',
