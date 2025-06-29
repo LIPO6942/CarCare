@@ -40,8 +40,6 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
         setMaintenance(maintenanceData);
         setFuelLogs(fuelLogsData);
         setDeadlines(deadlinesData);
-        // Also refresh the dashboard data in case a cost was added/changed
-        onDataChange();
       } catch (error) {
         console.error("Failed to fetch vehicle details due to an error. Displaying empty data.", error);
         // Reset state to empty arrays to prevent rendering stale or invalid data
@@ -53,13 +51,18 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
         setIsLoading(false);
       }
     }
-  }, [vehicle, user, onDataChange]);
+  }, [vehicle, user]);
 
   useEffect(() => {
     if (open) {
       fetchVehicleData();
     }
   }, [open, fetchVehicleData]);
+
+  const handleDataChange = () => {
+    fetchVehicleData(); // Re-fetch data for the dialog
+    onDataChange(); // And refresh the dashboard
+  };
 
   if (!vehicle) return null;
 
@@ -112,7 +115,7 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
                   maintenance={maintenance} 
                   fuelLogs={fuelLogs}
                   deadlines={deadlines}
-                  onDataChange={fetchVehicleData}
+                  onDataChange={handleDataChange}
               />
             )}
             </div>
