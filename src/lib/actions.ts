@@ -7,6 +7,7 @@ import { storage } from './firebase';
 import { ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
 
 const VehicleSchema = z.object({
+  userId: z.string().min(1, "L'identifiant utilisateur est manquant."),
   brand: z.string().min(1, 'La marque est requise.'),
   model: z.string().min(1, 'Le modèle est requis.'),
   year: z.coerce.number().min(1900, 'Année invalide.').max(new Date().getFullYear() + 1, 'Année invalide.'),
@@ -14,18 +15,8 @@ const VehicleSchema = z.object({
   fuelType: z.enum(['Essence', 'Diesel', 'Électrique', 'Hybride']),
 });
 
-export async function createVehicle(userId: string, formData: FormData) {
-  if (!userId) {
-     return { message: 'Utilisateur non authentifié.' };
-  }
-
-  const validatedFields = VehicleSchema.safeParse({
-    brand: formData.get('brand'),
-    model: formData.get('model'),
-    year: formData.get('year'),
-    licensePlate: formData.get('licensePlate'),
-    fuelType: formData.get('fuelType'),
-  });
+export async function createVehicle(formData: FormData) {
+  const validatedFields = VehicleSchema.safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
     return {
@@ -34,11 +25,13 @@ export async function createVehicle(userId: string, formData: FormData) {
     };
   }
 
+  const { userId, ...vehicleData } = validatedFields.data;
+
   try {
-      const brandDomain = validatedFields.data.brand.toLowerCase().replace(/ /g, '') + '.com';
+      const brandDomain = vehicleData.brand.toLowerCase().replace(/ /g, '') + '.com';
       const logoUrl = `https://logo.clearbit.com/${brandDomain}`;
 
-      await addVehicle({ ...validatedFields.data, imageUrl: logoUrl }, userId);
+      await addVehicle({ ...vehicleData, imageUrl: logoUrl }, userId);
       
   } catch (error) {
       console.error("Firebase Error in createVehicle (addVehicle call):", error);
@@ -60,7 +53,7 @@ export async function deleteVehicle(vehicleId: string, userId: string) {
   }
   
   try {
-    await deleteVehicleById(vehicleId, userId);
+    await deleteVehicleById(vehicleId);
     revalidatePath('/');
   } catch (error) {
     console.error("Firebase Error in deleteVehicle:", error);
@@ -72,6 +65,7 @@ export async function deleteVehicle(vehicleId: string, userId: string) {
 }
 
 const RepairSchema = z.object({
+  userId: z.string().min(1, "L'identifiant utilisateur est manquant."),
   vehicleId: z.string(),
   date: z.string().min(1, 'La date est requise.'),
   mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
@@ -80,10 +74,7 @@ const RepairSchema = z.object({
   cost: z.coerce.number().min(0, 'Le coût doit être positif.'),
 });
 
-export async function createRepair(userId: string, formData: FormData) {
-     if (!userId) {
-        return { message: 'Utilisateur non authentifié.' };
-    }
+export async function createRepair(formData: FormData) {
     const validatedFields = RepairSchema.safeParse(Object.fromEntries(formData.entries()));
 
     if (!validatedFields.success) {
@@ -92,9 +83,11 @@ export async function createRepair(userId: string, formData: FormData) {
             message: 'Champs manquants. Impossible d\'ajouter la réparation.',
         };
     }
+    
+    const { userId, ...repairData } = validatedFields.data;
 
     try {
-        await addRepair(validatedFields.data, userId);
+        await addRepair(repairData, userId);
     } catch (error) {
         console.error("Firebase Error in createRepair:", error);
         if ((error as any)?.code === 'permission-denied') {
@@ -107,6 +100,7 @@ export async function createRepair(userId: string, formData: FormData) {
 }
 
 const MaintenanceSchema = z.object({
+  userId: z.string().min(1, "L'identifiant utilisateur est manquant."),
   vehicleId: z.string(),
   date: z.string().min(1, 'La date est requise.'),
   mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
@@ -116,11 +110,7 @@ const MaintenanceSchema = z.object({
   nextDueMileage: z.coerce.number().optional(),
 });
 
-export async function createMaintenance(userId: string, formData: FormData) {
-     if (!userId) {
-        return { message: 'Utilisateur non authentifié.' };
-    }
-    
+export async function createMaintenance(formData: FormData) {
     const rawData = Object.fromEntries(formData.entries());
     if (rawData.nextDueDate === '') delete rawData.nextDueDate;
     if (rawData.nextDueMileage === '') delete rawData.nextDueMileage;
@@ -133,11 +123,13 @@ export async function createMaintenance(userId: string, formData: FormData) {
             message: 'Champs manquants. Impossible d\'ajouter l\'entretien.',
         };
     }
+    
+    const { userId, ...maintenanceData } = validatedFields.data;
 
     try {
         const dataToSave = {
-            ...validatedFields.data,
-            ...(validatedFields.data.nextDueMileage && { nextDueMileage: Number(validatedFields.data.nextDueMileage) }),
+            ...maintenanceData,
+            ...(maintenanceData.nextDueMileage && { nextDueMileage: Number(maintenanceData.nextDueMileage) }),
         };
         await addMaintenance(dataToSave, userId);
     } catch (error) {
@@ -152,6 +144,7 @@ export async function createMaintenance(userId: string, formData: FormData) {
 }
 
 const FuelLogSchema = z.object({
+    userId: z.string().min(1, "L'identifiant utilisateur est manquant."),
     vehicleId: z.string(),
     date: z.string().min(1, 'La date est requise.'),
     mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
@@ -160,10 +153,7 @@ const FuelLogSchema = z.object({
     totalCost: z.coerce.number().min(0, 'Le coût total doit être positif.'),
 });
 
-export async function createFuelLog(userId: string, formData: FormData) {
-     if (!userId) {
-        return { message: 'Utilisateur non authentifié.' };
-    }
+export async function createFuelLog(formData: FormData) {
     const validatedFields = FuelLogSchema.safeParse(Object.fromEntries(formData.entries()));
 
     if (!validatedFields.success) {
@@ -172,9 +162,11 @@ export async function createFuelLog(userId: string, formData: FormData) {
             message: 'Champs manquants. Impossible d\'ajouter le plein.',
         };
     }
+    
+    const { userId, ...fuelLogData } = validatedFields.data;
 
     try {
-        await addFuelLog(validatedFields.data, userId);
+        await addFuelLog(fuelLogData, userId);
     } catch (error) {
         console.error("Firebase Error in createFuelLog:", error);
         if ((error as any)?.code === 'permission-denied') {

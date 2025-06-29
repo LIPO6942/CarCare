@@ -61,15 +61,10 @@ export async function addVehicle(vehicleData: Omit<Vehicle, 'id' | 'userId'>, us
 }
 
 
-export async function deleteVehicleById(id: string, userId: string): Promise<void> {
+export async function deleteVehicleById(id: string): Promise<void> {
   const vehicleRef = doc(db, 'vehicles', id);
   const vehicleDoc = await getDoc(vehicleRef);
   const vehicleData = vehicleDoc.data();
-
-  // This check is another layer of security, although Firestore rules should be the primary one.
-  if (!vehicleData || vehicleData.userId !== userId) {
-      throw new Error("Permission denied or vehicle not found.");
-  }
 
   // Delete image from storage if it exists
   if (vehicleData?.imageUrl && vehicleData.imageUrl.includes('firebasestorage')) {
@@ -82,8 +77,7 @@ export async function deleteVehicleById(id: string, userId: string): Promise<voi
   }
 
   // A more robust solution would use a Firebase Function to clean up sub-collections.
-  // To avoid client-side complexity and potential errors with missing indexes, we are only
-  // deleting the main vehicle document for now. This will leave orphaned data.
+  // For now, we only delete the main vehicle document to avoid client-side complexity.
   await deleteDoc(vehicleRef);
 }
 

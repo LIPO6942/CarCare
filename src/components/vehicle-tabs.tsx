@@ -187,18 +187,13 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
     }
     
     async function handleSubmit(formData: FormData) {
-        if (!user) {
-            toast({ title: 'Erreur', description: 'Vous devez être connecté.', variant: 'destructive'});
-            return;
-        }
         setIsSubmitting(true);
-        formData.set('vehicleId', vehicleId);
-
+        
         if (!formData.has('category')) {
           formData.set('category', category);
         }
 
-        const result = await createRepair(user.uid, formData);
+        const result = await createRepair(formData);
         if (result?.message) {
             toast({ title: "Erreur", description: result.message, variant: 'destructive' });
         } else {
@@ -209,6 +204,8 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
         }
         setIsSubmitting(false);
     }
+
+    if (!user) return null;
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -221,6 +218,8 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
                     <DialogDescription>Ajoutez les détails de la réparation effectuée.</DialogDescription>
                 </DialogHeader>
                 <form action={handleSubmit} className="space-y-4">
+                     <input type="hidden" name="userId" value={user.uid} />
+                     <input type="hidden" name="vehicleId" value={vehicleId} />
                      <div className="grid grid-cols-2 gap-4">
                         <Input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
                         <Input name="mileage" type="number" placeholder="Kilométrage" required />
@@ -325,10 +324,6 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        if (!user) {
-            toast({ title: 'Erreur', description: 'Vous devez être connecté.', variant: 'destructive'});
-            return;
-        }
         setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
         
@@ -341,7 +336,7 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
         formData.set('task', finalTask);
         formData.delete('customTask');
         
-        const result = await createMaintenance(user.uid, formData);
+        const result = await createMaintenance(formData);
         if (result?.message) {
             toast({ title: "Erreur", description: result.message, variant: 'destructive' });
         } else {
@@ -352,6 +347,8 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
         }
         setIsSubmitting(false);
     }
+    
+    if (!user) return null;
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -364,6 +361,7 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
                     <DialogDescription>Ajoutez les détails de l'entretien réalisé.</DialogDescription>
                 </DialogHeader>
                 <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+                    <input type="hidden" name="userId" value={user.uid} />
                     <input type="hidden" name="vehicleId" value={vehicleId} />
                     <div className="space-y-2">
                         <label>Date & Kilométrage</label>
@@ -374,7 +372,7 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
                     </div>
                      <div className="space-y-2">
                         <label>Tâche d'entretien</label>
-                        <Select onValueChange={setSelectedTask} value={selectedTask}>
+                        <Select onValueChange={setSelectedTask} value={selectedTask} required>
                             <SelectTrigger>
                                 <SelectValue placeholder="Sélectionnez une tâche" />
                             </SelectTrigger>
@@ -477,15 +475,10 @@ function AddFuelLogDialog({ vehicleId }: { vehicleId: string }) {
     const displayTotalCost = isNaN(totalCost) ? '' : totalCost.toFixed(2);
     
     async function handleSubmit(formData: FormData) {
-        if (!user) {
-            toast({ title: 'Erreur', description: 'Vous devez être connecté.', variant: 'destructive'});
-            return;
-        }
         setIsSubmitting(true);
-        formData.set('vehicleId', vehicleId);
         formData.set('totalCost', displayTotalCost);
 
-        const result = await createFuelLog(user.uid, formData);
+        const result = await createFuelLog(formData);
         if (result?.message) {
             toast({ title: "Erreur", description: result.message, variant: 'destructive' });
         } else {
@@ -496,6 +489,8 @@ function AddFuelLogDialog({ vehicleId }: { vehicleId: string }) {
         }
         setIsSubmitting(false);
     }
+    
+    if (!user) return null;
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -508,6 +503,8 @@ function AddFuelLogDialog({ vehicleId }: { vehicleId: string }) {
                     <DialogDescription>Ajoutez les détails de votre passage à la station.</DialogDescription>
                 </DialogHeader>
                 <form action={handleSubmit} className="space-y-4">
+                    <input type="hidden" name="userId" value={user.uid} />
+                    <input type="hidden" name="vehicleId" value={vehicleId} />
                     <div className="grid grid-cols-2 gap-4">
                         <Input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
                         <Input name="mileage" type="number" placeholder="Kilométrage" required />

@@ -23,12 +23,13 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
   const { toast } = useToast();
   const { user } = useAuth();
   
-  const actionWithUserId = async (formData: FormData) => {
+  const formAction = async (formData: FormData) => {
     if (!user) {
         toast({ title: 'Erreur', description: 'Vous devez être connecté.', variant: 'destructive'});
         return;
     }
-    const result = await createVehicle(user.uid, formData);
+    // L'ID utilisateur est maintenant ajouté via un champ caché
+    const result = await createVehicle(formData);
     if (result?.message) {
       toast({
         title: 'Erreur',
@@ -44,8 +45,14 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
     }
   };
 
+  if (!user) {
+    // Ne rien afficher si l'utilisateur n'est pas encore chargé
+    return null;
+  }
+
   return (
-    <form action={actionWithUserId} className="space-y-6 py-6">
+    <form action={formAction} className="space-y-6 py-6">
+      <input type="hidden" name="userId" value={user.uid} />
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -67,7 +74,7 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
         </div>
         <div className="space-y-2">
             <label htmlFor="fuelType">Type de carburant</label>
-            <Select name="fuelType" defaultValue='Essence'>
+            <Select name="fuelType" defaultValue='Essence' required>
                 <SelectTrigger>
                     <SelectValue placeholder="Sélectionnez un type" />
                 </SelectTrigger>
