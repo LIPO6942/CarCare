@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -55,9 +56,9 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="text-2xl">{vehicle.brand} {vehicle.model}</DialogTitle>
+          <DialogTitle className="text-2xl">{vehicle.brand || 'Marque Inconnue'} {vehicle.model || 'Modèle Inconnu'}</DialogTitle>
           <DialogDescription>
-            {vehicle.year} - {vehicle.licensePlate}
+            {vehicle.year || 'N/A'} - {vehicle.licensePlate || 'N/A'}
           </DialogDescription>
         </DialogHeader>
         <div className="grid flex-1 items-start gap-4 overflow-y-auto p-6">
@@ -68,7 +69,7 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
                              {/* eslint-disable-next-line @next/next/no-img-element */}
                              <img
                               src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
-                              alt={`${vehicle.brand} logo`}
+                              alt={`${vehicle.brand || ''} ${vehicle.model || ''}`}
                               className="h-full w-full object-contain"
                               onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
                             />
@@ -76,11 +77,11 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
                         <div className="sm:col-span-2">
                             <h2 className="text-2xl font-bold mb-4">Informations Clés</h2>
                             <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div><strong className="block text-muted-foreground">Marque</strong> {vehicle.brand}</div>
-                                <div><strong className="block text-muted-foreground">Modèle</strong> {vehicle.model}</div>
-                                <div><strong className="block text-muted-foreground">Année</strong> {vehicle.year}</div>
-                                <div><strong className="block text-muted-foreground">Plaque</strong> {vehicle.licensePlate}</div>
-                                <div><strong className="block text-muted-foreground">Carburant</strong> {vehicle.fuelType}</div>
+                                <div><strong className="block text-muted-foreground">Marque</strong> {vehicle.brand || 'N/A'}</div>
+                                <div><strong className="block text-muted-foreground">Modèle</strong> {vehicle.model || 'N/A'}</div>
+                                <div><strong className="block text-muted-foreground">Année</strong> {vehicle.year || 'N/A'}</div>
+                                <div><strong className="block text-muted-foreground">Plaque</strong> {vehicle.licensePlate || 'N/A'}</div>
+                                <div><strong className="block text-muted-foreground">Carburant</strong> {vehicle.fuelType || 'N/A'}</div>
                             </div>
                         </div>
                     </div>
