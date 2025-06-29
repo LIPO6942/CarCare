@@ -44,14 +44,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoading(false);
           })
           .catch((error) => {
+             let message = "Une erreur inattendue est survenue lors de l'authentification. Vérifiez la console pour plus de détails.";
              if (error.code === 'auth/api-key-not-valid') {
-                setConfigError(
-                    "Votre clé d'API Firebase n'est pas valide. L'authentification ne peut pas continuer."
-                );
-            } else {
+                message = "Votre clé d'API Firebase n'est pas valide. L'authentification ne peut pas continuer.";
+             } else if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+                message = "Erreur de configuration pour le déploiement. Assurez-vous que toutes les variables d'environnement Firebase (NEXT_PUBLIC_...) sont bien configurées dans les paramètres de votre plateforme d'hébergement (ex: Vercel) et que l'authentification 'Anonyme' est activée dans votre console Firebase.";
+             } else {
                  console.error("Error signing in anonymously. Please enable anonymous auth in your Firebase project.", error);
-                 setConfigError("Une erreur inattendue est survenue lors de l'authentification. Vérifiez la console pour plus de détails.");
-            }
+             }
+            setConfigError(message);
             setIsLoading(false);
           });
       }
@@ -70,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 <h1 className="text-2xl font-bold text-destructive">Erreur de Configuration Firebase</h1>
                 <p className="mt-4 text-card-foreground">{configError}</p>
                 <p className="mt-6 text-sm text-muted-foreground">
-                    Veuillez vérifier que votre fichier <code>.env</code> est correctement rempli avec les clés valides de votre projet Firebase, puis redémarrez le serveur de développement.
+                    Veuillez vérifier votre configuration, puis redéployez votre application.
                 </p>
             </div>
         </div>
