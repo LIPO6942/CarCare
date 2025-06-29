@@ -45,17 +45,33 @@ interface VehicleTabsProps {
     onDataChange: () => void;
 }
 
-// Helper to safely format dates and avoid crashes from invalid date strings
-const safeFormatDate = (dateInput: string | undefined | null, formatString: string = 'P') => {
-  if (!dateInput) return 'N/A';
-  const date = new Date(dateInput);
-  
-  // Check if date is valid
-  if (isNaN(date.getTime())) {
-    return 'Date invalide';
+// Helper to safely format dates, handling Timestamps, strings, and invalid data.
+const safeFormatDate = (dateInput: any, formatString: string = 'P') => {
+  try {
+    if (!dateInput) return 'N/A';
+
+    let date;
+    // Handle Firestore Timestamp object, which has a toDate() method
+    if (typeof dateInput === 'object' && dateInput !== null && typeof dateInput.toDate === 'function') {
+      date = dateInput.toDate();
+    } else {
+      // Handle ISO strings or other date string formats
+      date = new Date(dateInput);
+    }
+    
+    // Check if the created date is valid
+    if (isNaN(date.getTime())) {
+      return 'Date invalide';
+    }
+    
+    return format(date, formatString, { locale: fr });
+  } catch (error) {
+    // This will catch any unexpected errors during date processing
+    console.error("Erreur irrécupérable lors du formatage de la date:", dateInput, error);
+    return 'Erreur date';
   }
-  return format(date, formatString, { locale: fr });
 };
+
 
 // Helper to safely format numbers and avoid crashes
 const safeFormatNumber = (numInput: any): string => {
@@ -104,9 +120,18 @@ function DeadlinesTab({ deadlines }: { deadlines: Deadline[] }) {
     const upcoming = deadlines
         .filter(d => {
             if (!d.date) return false;
-            const deadlineDate = new Date(d.date);
-            if (isNaN(deadlineDate.getTime())) return false; // Exclude invalid dates
-            return deadlineDate >= today;
+            try {
+              let date;
+              if (typeof d.date === 'object' && d.date !== null && typeof (d.date as any).toDate === 'function') {
+                  date = (d.date as any).toDate();
+              } else {
+                  date = new Date(d.date);
+              }
+              if (isNaN(date.getTime())) return false;
+              return date >= today;
+            } catch {
+              return false;
+            }
         });
 
     return (
@@ -125,12 +150,19 @@ function DeadlinesTab({ deadlines }: { deadlines: Deadline[] }) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {upcoming.map((deadline) => (
-                        <TableRow key={deadline.id}>
-                            <TableCell className="font-medium">{deadline.name || 'N/A'}</TableCell>
-                            <TableCell>{safeFormatDate(deadline.date, 'PPP')}</TableCell>
-                        </TableRow>
-                        ))}
+                        {upcoming.map((deadline) => {
+                          try {
+                            return (
+                              <TableRow key={deadline.id}>
+                                  <TableCell className="font-medium">{deadline.name || 'N/A'}</TableCell>
+                                  <TableCell>{safeFormatDate(deadline.date, 'PPP')}</TableCell>
+                              </TableRow>
+                            )
+                          } catch (e) {
+                            console.error("Impossible d'afficher la ligne d'échéance, données corrompues:", deadline, e);
+                            return null;
+                          }
+                        })}
                     </TableBody>
                 </Table>
              ) : (
@@ -164,15 +196,22 @@ function RepairsTab({ vehicleId, repairs, onDataChange }: { vehicleId: string, r
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {repairs.map((repair) => (
-                    <TableRow key={repair.id}>
-                        <TableCell>{safeFormatDate(repair.date)}</TableCell>
-                        <TableCell className="font-medium">{repair.description || 'N/A'}</TableCell>
-                        <TableCell>{repair.category || 'N/A'}</TableCell>
-                        <TableCell>{safeFormatNumber(repair.mileage)} km</TableCell>
-                        <TableCell className="text-right">{safeFormatCurrency(repair.cost)}</TableCell>
-                    </TableRow>
-                    ))}
+                    {repairs.map((repair) => {
+                      try {
+                        return (
+                          <TableRow key={repair.id}>
+                              <TableCell>{safeFormatDate(repair.date)}</TableCell>
+                              <TableCell className="font-medium">{repair.description || 'N/A'}</TableCell>
+                              <TableCell>{repair.category || 'N/A'}</TableCell>
+                              <TableCell>{safeFormatNumber(repair.mileage)} km</TableCell>
+                              <TableCell className="text-right">{safeFormatCurrency(repair.cost)}</TableCell>
+                          </TableRow>
+                        )
+                      } catch (e) {
+                        console.error("Impossible d'afficher la ligne de réparation, données corrompues:", repair, e);
+                        return null;
+                      }
+                    })}
                 </TableBody>
             </Table>
         ) : (
@@ -342,21 +381,26 @@ function MaintenanceTab({ vehicleId, maintenance, onDataChange }: { vehicleId: s
                     </TableHeader>
                     <TableBody>
                         {maintenance.map((item) => {
-                          const formattedNextDate = safeFormatDate(item.nextDueDate);
-                          const nextMileage = Number(item.nextDueMileage);
-                          const formattedNextMileage = isNaN(nextMileage) ? '' : `${nextMileage.toLocaleString('fr-FR')} km`;
-                          return (
-                            <TableRow key={item.id}>
-                                <TableCell>{safeFormatDate(item.date)}</TableCell>
-                                <TableCell className="font-medium">{item.task || 'N/A'}</TableCell>
-                                <TableCell>
-                                    {formattedNextDate !== 'N/A' ? formattedNextDate : ''}
-                                    {formattedNextDate !== 'N/A' && formattedNextMileage ? ' / ' : ''}
-                                    {formattedNextMileage}
-                                </TableCell>
-                                <TableCell className="text-right">{safeFormatCurrency(item.cost)}</TableCell>
-                            </TableRow>
-                          );
+                          try {
+                            const formattedNextDate = safeFormatDate(item.nextDueDate);
+                            const nextMileage = Number(item.nextDueMileage);
+                            const formattedNextMileage = isNaN(nextMileage) ? '' : `${nextMileage.toLocaleString('fr-FR')} km`;
+                            return (
+                              <TableRow key={item.id}>
+                                  <TableCell>{safeFormatDate(item.date)}</TableCell>
+                                  <TableCell className="font-medium">{item.task || 'N/A'}</TableCell>
+                                  <TableCell>
+                                      {formattedNextDate !== 'N/A' ? formattedNextDate : ''}
+                                      {formattedNextDate !== 'N/A' && formattedNextMileage ? ' / ' : ''}
+                                      {formattedNextMileage}
+                                  </TableCell>
+                                  <TableCell className="text-right">{safeFormatCurrency(item.cost)}</TableCell>
+                              </TableRow>
+                            );
+                          } catch(e) {
+                              console.error("Impossible d'afficher la ligne d'entretien, données corrompues:", item, e);
+                              return null;
+                          }
                         })}
                     </TableBody>
                 </Table>
@@ -547,15 +591,22 @@ function FuelTab({ vehicleId, fuelLogs, onDataChange }: { vehicleId: string, fue
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {fuelLogs.map((log) => (
-                        <TableRow key={log.id}>
-                            <TableCell>{safeFormatDate(log.date)}</TableCell>
-                            <TableCell>{safeFormatNumber(log.mileage)} km</TableCell>
-                            <TableCell>{safeFormatNumber(log.quantity)} L</TableCell>
-                            <TableCell>{safeFormatCurrency(log.pricePerLiter)}</TableCell>
-                            <TableCell className="text-right">{safeFormatCurrency(log.totalCost)}</TableCell>
-                        </TableRow>
-                        ))}
+                        {fuelLogs.map((log) => {
+                          try {
+                            return (
+                              <TableRow key={log.id}>
+                                  <TableCell>{safeFormatDate(log.date)}</TableCell>
+                                  <TableCell>{safeFormatNumber(log.mileage)} km</TableCell>
+                                  <TableCell>{safeFormatNumber(log.quantity)} L</TableCell>
+                                  <TableCell>{safeFormatCurrency(log.pricePerLiter)}</TableCell>
+                                  <TableCell className="text-right">{safeFormatCurrency(log.totalCost)}</TableCell>
+                              </TableRow>
+                            )
+                          } catch (e) {
+                              console.error("Impossible d'afficher la ligne de carburant, données corrompues:", log, e);
+                              return null;
+                          }
+                        })}
                     </TableBody>
                 </Table>
                 ) : (
