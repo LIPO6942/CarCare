@@ -63,21 +63,8 @@ export async function addVehicle(vehicleData: Omit<Vehicle, 'id' | 'userId'>, us
 
 export async function deleteVehicleById(id: string): Promise<void> {
   const vehicleRef = doc(db, 'vehicles', id);
-  const vehicleDoc = await getDoc(vehicleRef);
-  const vehicleData = vehicleDoc.data();
-
-  // Delete image from storage if it exists
-  if (vehicleData?.imageUrl && vehicleData.imageUrl.includes('firebasestorage')) {
-      try {
-        const imageRef = ref(storage, vehicleData.imageUrl);
-        await deleteObject(imageRef);
-      } catch (error) {
-          console.error("Error deleting image from storage, continuing with firestore deletion.", error);
-      }
-  }
-
-  // A more robust solution would use a Firebase Function to clean up sub-collections.
-  // For now, we only delete the main vehicle document to avoid client-side complexity.
+  // Pour le débogage, nous ne supprimons que le document de la base de données pour isoler les erreurs de permission.
+  // La suppression de l'image du stockage est temporairement désactivée.
   await deleteDoc(vehicleRef);
 }
 
