@@ -23,17 +23,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check for missing environment variables, which is a common deployment issue.
+    const requiredEnvVars = [
+        'NEXT_PUBLIC_FIREBASE_API_KEY',
+        'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+        'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+        'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
+        'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+        'NEXT_PUBLIC_FIREBASE_APP_ID',
+    ];
+    const missingVars = requiredEnvVars.filter(v => !process.env[v]);
+
+    if (missingVars.length > 0) {
+        const errorMessage = `Configuration Firebase incomplète. La ou les variables d'environnement suivantes sont manquantes : ${missingVars.join(', ')}. Veuillez les ajouter dans les paramètres de votre projet sur votre plateforme d'hébergement (ex: Vercel) et redéployer.`;
+        setConfigError(errorMessage);
+        setIsLoading(false);
+        return; // Stop further execution
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
         setIsLoading(false);
       } else {
-        // No user is signed in, so sign them in anonymously.
         signInAnonymously(auth)
           .then(async (anonymousUserCredential) => {
             const additionalInfo = getAdditionalUserInfo(anonymousUserCredential);
             if (additionalInfo?.isNewUser) {
-              // This is a brand new anonymous user, let's add sample data for them.
               try {
                 await addSampleData(anonymousUserCredential.user.uid);
               } catch (e) {
@@ -44,15 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoading(false);
           })
           .catch((error) => {
-             let message = "Une erreur inattendue est survenue lors de l'authentification. Vérifiez la console pour plus de détails.";
-             if (error.code === 'auth/api-key-not-valid') {
-                message = "Votre clé d'API Firebase n'est pas valide. L'authentification ne peut pas continuer.";
-             } else if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-                message = "Erreur de configuration pour le déploiement. Assurez-vous que toutes les variables d'environnement Firebase (NEXT_PUBLIC_...) sont bien configurées dans les paramètres de votre plateforme d'hébergement (ex: Vercel) et que l'authentification 'Anonyme' est activée dans votre console Firebase.";
-             } else {
-                 console.error("Error signing in anonymously. Please enable anonymous auth in your Firebase project.", error);
-             }
-            setConfigError(message);
+            // Provide a more detailed error message to help debug deployment issues.
+             const detailedError = `Erreur d'authentification Firebase : "${error.message}" (Code: ${error.code}).`;
+             const VercelHint = "Sur Vercel, cela signifie généralement que les variables d'environnement (NEXT_PUBLIC_...) ne sont pas correctement configurées ou que l'authentification 'Anonyme' n'est pas activée dans votre console Firebase.";
+             
+             const finalMessage = process.env.NEXT_PUBLIC_VERCEL_URL ? `${detailedError}\n\n${VercelHint}` : detailedError;
+
+            setConfigError(finalMessage);
             setIsLoading(false);
           });
       }
@@ -64,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (configError) {
     return (
         <div className="flex min-h-screen w-full items-center justify-center bg-background p-4">
-            <div className="w-full max-w-lg rounded-lg border-2 border-destructive/50 bg-card p-8 text-center shadow-xl">
+            <div className="w-full max-w-lg rounded-lg border-2 border-destructive/50 bg-card p-8 text-center shadow-xl whitespace-pre-wrap">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 mb-4">
                     <AlertTriangle className="h-6 w-6 text-destructive" />
                 </div>
