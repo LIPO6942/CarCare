@@ -98,7 +98,7 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
-                alt={`${vehicle.brand} logo`}
+                alt={`${vehicle.brand || ''} ${vehicle.model || ''} logo`}
                 className="h-full w-full object-contain"
                 onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
               />
@@ -108,21 +108,21 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
         <CardContent className="flex-1 pt-6">
           <CardTitle className="text-xl mb-2">
             <button onClick={() => onOpenDetails(vehicle)} className="hover:text-primary text-left">
-              {vehicle.brand} {vehicle.model}
+              {vehicle.brand || 'Marque inconnue'} {vehicle.model || ''}
             </button>
           </CardTitle>
           <div className="text-muted-foreground space-y-2 text-sm">
             <div className="flex items-center gap-2">
               <GitCommitHorizontal className="h-4 w-4" />
-              <span>{vehicle.licensePlate}</span>
+              <span>{vehicle.licensePlate || 'N/A'}</span>
             </div>
             <div className="flex items-center gap-2">
               <Car className="h-4 w-4" />
-              <span>{vehicle.year}</span>
+              <span>{vehicle.year || 'N/A'}</span>
             </div>
             <div className="flex items-center gap-2">
               <Fuel className="h-4 w-4" />
-              <span>{vehicle.fuelType}</span>
+              <span>{vehicle.fuelType || 'N/A'}</span>
             </div>
           </div>
         </CardContent>

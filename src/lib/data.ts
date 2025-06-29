@@ -29,7 +29,7 @@ export async function getVehicles(userId: string): Promise<Vehicle[]> {
     const vehicleSnapshot = await getDocs(q);
     const vehicleList = vehicleSnapshot.docs.map(d => docToType<Vehicle>(d));
     // Trier côté client pour éviter d'avoir besoin d'un index composite sur Firestore
-    vehicleList.sort((a, b) => a.brand.localeCompare(b.brand));
+    vehicleList.sort((a, b) => (a.brand || '').localeCompare(b.brand || ''));
     return vehicleList;
   } catch (error) {
     console.error("Firebase error fetching vehicles for user. Returning empty array.", error);
@@ -76,9 +76,13 @@ async function getSubCollectionForVehicle<T>(vehicleId: string, userId: string, 
         const data = snapshot.docs.map(d => docToType<T>(d));
 
         data.sort((a: any, b: any) => {
-            const dateA = new Date(a[dateField]).getTime();
-            const dateB = new Date(b[dateField]).getTime();
-            return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+            const dateA = a[dateField] ? new Date(a[dateField]).getTime() : 0;
+            const dateB = b[dateField] ? new Date(b[dateField]).getTime() : 0;
+
+            const validA = isNaN(dateA) ? 0 : dateA;
+            const validB = isNaN(dateB) ? 0 : dateB;
+
+            return sortOrder === 'desc' ? validB - validA : validA - validB;
         });
         return data;
 
