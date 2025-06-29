@@ -23,23 +23,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
-    // This check is a safeguard against common deployment issues.
-    // It verifies that the most critical environment variables are available on the client-side.
-    const requiredEnvVars = [
-        'NEXT_PUBLIC_FIREBASE_API_KEY',
-        'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-        'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-    ];
-    
-    const isMissingVars = requiredEnvVars.some(v => !process.env[v]);
-
-    if (isMissingVars) {
-        console.error("Critical Firebase configuration is missing. App cannot start.");
-        setConfigError("La configuration Firebase est incomplète. L'application ne peut pas démarrer. Veuillez contacter le support technique.");
-        setIsLoading(false);
-        return;
-    }
-
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
@@ -60,7 +43,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           })
           .catch((error) => {
             console.error("Firebase Authentication Error:", error);
-            setConfigError("Impossible de se connecter aux services de l'application. Veuillez vérifier votre connexion internet et réessayer.");
+            // Provide a more helpful error message for common configuration issues.
+            if (error.code === 'auth/invalid-api-key' || error.code === 'auth/internal-error') {
+                 setConfigError("Erreur de configuration Firebase. Veuillez vérifier que vos variables d'environnement (clés API) sont correctement configurées.");
+            } else {
+                setConfigError("Impossible de se connecter aux services de l'application. Veuillez vérifier votre connexion internet et réessayer.");
+            }
             setIsLoading(false);
           });
       }
