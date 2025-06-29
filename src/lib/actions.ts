@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { addVehicle, addRepair, deleteVehicleById, addMaintenance, addFuelLog } from './data';
+import { addVehicle, addRepair, deleteVehicleById, addMaintenance, addFuelLog, createSampleDataForUser } from './data';
 import { revalidatePath } from 'next/cache';
 import { storage } from './firebase';
 import { ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -166,4 +166,17 @@ export async function createFuelLog(userId: string, formData: FormData) {
     }
 
     revalidatePath(`/`);
+}
+
+export async function addSampleData(userId: string) {
+  if (!userId) {
+    return { message: 'Utilisateur non authentifié.' };
+  }
+  try {
+    await createSampleDataForUser(userId);
+  } catch (error) {
+    console.error("Firebase Error in addSampleData:", error);
+    return { message: 'Erreur de la base de données: Impossible d\'ajouter les données d\'exemple.' };
+  }
+  revalidatePath('/');
 }

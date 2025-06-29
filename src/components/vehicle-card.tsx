@@ -28,7 +28,6 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
-  const isSample = vehicle.id.startsWith('sample-');
 
   async function handleDelete() {
     setIsDeleting(true);
@@ -56,7 +55,6 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
     <>
       <Card className="flex flex-col transition-all hover:shadow-lg">
         <CardHeader className="p-0 relative">
-          {!isSample && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="absolute top-2 right-2 z-10 h-8 w-8 rounded-full bg-black/30 text-white hover:bg-black/50 hover:text-white">
@@ -74,7 +72,6 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
           <button 
             onClick={() => onOpenDetails(vehicle)} 
             className="w-full text-left cursor-pointer block rounded-t-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"

@@ -1,9 +1,10 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { onAuthStateChanged, signInAnonymously, type User } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously, type User, getAdditionalUserInfo } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
+import { addSampleData } from '@/lib/actions';
 
 interface AuthContextType {
   user: User | null;
@@ -27,7 +28,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         // No user is signed in, so sign them in anonymously.
         signInAnonymously(auth)
-          .then((anonymousUserCredential) => {
+          .then(async (anonymousUserCredential) => {
+            const additionalInfo = getAdditionalUserInfo(anonymousUserCredential);
+            if (additionalInfo?.isNewUser) {
+              // This is a brand new anonymous user, let's add sample data for them.
+              try {
+                await addSampleData(anonymousUserCredential.user.uid);
+              } catch (e) {
+                console.error("Failed to add sample data for new user.", e);
+              }
+            }
             setUser(anonymousUserCredential.user);
             setIsLoading(false);
           })

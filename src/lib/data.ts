@@ -174,3 +174,62 @@ export async function addFuelLog(fuelLogData: Omit<FuelLog, 'id' | 'userId'>, us
         ...fuelLogData,
     };
 }
+
+export async function createSampleDataForUser(userId: string): Promise<void> {
+  const brand = 'Peugeot';
+  const model = '308';
+  const brandDomain = brand.toLowerCase().replace(/ /g, '') + '.com';
+  const logoUrl = `https://logo.clearbit.com/${brandDomain}`;
+
+  const vehicleData = {
+    brand,
+    model,
+    year: 2021,
+    licensePlate: 'XX-123-YY',
+    fuelType: 'Essence' as const,
+    imageUrl: logoUrl,
+  };
+  const vehicle = await addVehicle(vehicleData, userId);
+
+  const now = new Date();
+  const nextYear = new Date(now);
+  nextYear.setFullYear(now.getFullYear() + 1);
+  const nextMonth = new Date(now);
+  nextMonth.setMonth(now.getMonth() + 1);
+  const oneMonthAgo = new Date(now);
+  oneMonthAgo.setMonth(now.getMonth() - 1);
+  const oneWeekAgo = new Date(now);
+  oneWeekAgo.setDate(now.getDate() - 7);
+  
+  await addDoc(collection(db, 'deadlines'), {
+    userId,
+    vehicleId: vehicle.id,
+    name: 'Contrôle Technique',
+    date: nextYear.toISOString().split('T')[0],
+  });
+  
+  await addDoc(collection(db, 'deadlines'), {
+    userId,
+    vehicleId: vehicle.id,
+    name: 'Assurance',
+    date: nextMonth.toISOString().split('T')[0],
+  });
+
+  await addRepair({
+    vehicleId: vehicle.id,
+    date: oneMonthAgo.toISOString().split('T')[0],
+    mileage: 15000,
+    description: 'Changement des plaquettes de frein avant',
+    category: 'Freins',
+    cost: 150,
+  }, userId);
+  
+  await addFuelLog({
+      vehicleId: vehicle.id,
+      date: oneWeekAgo.toISOString().split('T')[0],
+      mileage: 15600,
+      quantity: 45,
+      pricePerLiter: 2.50,
+      totalCost: 112.50,
+  }, userId);
+}
