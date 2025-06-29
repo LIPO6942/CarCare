@@ -43,7 +43,8 @@ export async function createVehicle(formData: FormData) {
     };
   }
   
-  const imageUrl = 'https://placehold.co/600x400.png';
+  const brandDomain = validatedFields.data.brand.toLowerCase().replace(/ /g, '') + '.com';
+  const imageUrl = `https://logo.clearbit.com/${brandDomain}`;
 
   try {
       await addVehicle({ ...validatedFields.data, imageUrl });

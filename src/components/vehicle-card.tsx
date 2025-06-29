@@ -79,13 +79,13 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
             onClick={() => onOpenDetails(vehicle)} 
             className="w-full text-left cursor-pointer block rounded-t-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           >
-            <div className="relative h-48 w-full">
-               {/* eslint-disable-next-line @next/next/no-img-element */}
+             <div className="relative h-48 w-full bg-muted/30 rounded-t-lg flex items-center justify-center p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
-                alt={`${vehicle.brand} ${vehicle.model}`}
-                data-ai-hint="side view car"
-                className="absolute inset-0 h-full w-full object-cover rounded-t-lg"
+                alt={`${vehicle.brand} logo`}
+                className="h-full w-full object-contain"
+                onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
               />
             </div>
           </button>

@@ -56,12 +56,13 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange }: VehicleDeta
             <Card>
                 <CardContent className="pt-6">
                     <div className="grid gap-6 sm:grid-cols-3">
-                        <div className="relative h-60 w-full sm:col-span-1 rounded-lg overflow-hidden">
+                        <div className="relative h-60 w-full sm:col-span-1 rounded-lg bg-muted/30 flex items-center justify-center p-4">
+                             {/* eslint-disable-next-line @next/next/no-img-element */}
                              <img
                               src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
-                              alt={`${vehicle.brand} ${vehicle.model}`}
-                              data-ai-hint="front view car"
-                              className="absolute inset-0 h-full w-full object-cover"
+                              alt={`${vehicle.brand} logo`}
+                              className="h-full w-full object-contain"
+                              onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
                             />
                         </div>
                         <div className="sm:col-span-2">
