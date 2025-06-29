@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Car } from 'lucide-react';
+import { Car, AlertTriangle } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -19,8 +19,18 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
+  const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+     if (!isFirebaseConfigured) {
+      toast({
+        title: 'Configuration manquante',
+        description: "Les variables d'environnement Firebase ne sont pas définies. L'authentification est désactivée.",
+        variant: 'destructive',
+      });
+      return;
+    }
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -28,9 +38,13 @@ export default function LoginPage() {
       router.push('/');
     } catch (error: any) {
       console.error(error);
+      let description = "Une erreur inattendue est survenue.";
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        description = "L'email ou le mot de passe est incorrect.";
+      }
       toast({
         title: 'Erreur de connexion',
-        description: "L'email ou le mot de passe est incorrect.",
+        description,
         variant: 'destructive',
       });
     } finally {
@@ -50,6 +64,15 @@ export default function LoginPage() {
           <CardDescription>Accédez à votre tableau de bord</CardDescription>
         </CardHeader>
         <CardContent>
+           {!isFirebaseConfigured && (
+              <div className="mb-4 flex items-start gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-semibold">Configuration requise</p>
+                  <p>Les clés de configuration Firebase ne sont pas définies. L'authentification ne fonctionnera pas.</p>
+                </div>
+              </div>
+            )}
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -60,6 +83,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={!isFirebaseConfigured}
               />
             </div>
             <div className="space-y-2">
@@ -70,9 +94,10 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={!isFirebaseConfigured}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full" disabled={isLoading || !isFirebaseConfigured}>
               {isLoading ? 'Connexion...' : 'Se connecter'}
             </Button>
           </form>

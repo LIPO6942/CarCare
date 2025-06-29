@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Car } from 'lucide-react';
+import { Car, AlertTriangle } from 'lucide-react';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -19,9 +19,19 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  
+  const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+     if (!isFirebaseConfigured) {
+      toast({
+        title: 'Configuration manquante',
+        description: "Les variables d'environnement Firebase ne sont pas définies. L'authentification est désactivée.",
+        variant: 'destructive',
+      });
+      return;
+    }
     if (password !== confirmPassword) {
       toast({
         title: 'Erreur',
@@ -65,6 +75,15 @@ export default function SignupPage() {
           <CardDescription>Rejoignez CarCare Pro pour gérer vos véhicules.</CardDescription>
         </CardHeader>
         <CardContent>
+           {!isFirebaseConfigured && (
+              <div className="mb-4 flex items-start gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-semibold">Configuration requise</p>
+                  <p>Les clés de configuration Firebase ne sont pas définies. L'authentification ne fonctionnera pas.</p>
+                </div>
+              </div>
+            )}
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -75,6 +94,7 @@ export default function SignupPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={!isFirebaseConfigured}
               />
             </div>
             <div className="space-y-2">
@@ -85,6 +105,7 @@ export default function SignupPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={!isFirebaseConfigured}
               />
             </div>
              <div className="space-y-2">
@@ -95,9 +116,10 @@ export default function SignupPage() {
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={!isFirebaseConfigured}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full" disabled={isLoading || !isFirebaseConfigured}>
               {isLoading ? 'Création...' : 'S\'inscrire'}
             </Button>
           </form>
