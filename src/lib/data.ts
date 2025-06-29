@@ -10,12 +10,20 @@ import {
   where,
   orderBy,
   writeBatch,
+  Timestamp,
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import type { Vehicle, Repair, Maintenance, FuelLog, Deadline } from './types';
 
 function docToType<T>(document: any): T {
     const data = document.data();
+    // Convert Firestore Timestamps to ISO strings for any 'date' or 'due' fields.
+    // This makes them JSON-serializable and usable by `new Date()`.
+    for (const key in data) {
+        if (data[key] instanceof Timestamp) {
+            data[key] = data[key].toDate().toISOString();
+        }
+    }
     return {
         id: document.id,
         ...data,
