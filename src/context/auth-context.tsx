@@ -32,10 +32,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
         'NEXT_PUBLIC_FIREBASE_APP_ID',
     ];
+    
     const missingVars = requiredEnvVars.filter(v => !process.env[v]);
 
     if (missingVars.length > 0) {
-        const errorMessage = `Configuration Firebase incomplète. La ou les variables d'environnement suivantes sont manquantes : ${missingVars.join(', ')}. Veuillez les ajouter dans les paramètres de votre projet sur votre plateforme d'hébergement (ex: Vercel) et redéployer.`;
+        const debugInfo = requiredEnvVars.map(v => 
+            `${v}: ${process.env[v] ? '✔️ Trouvée' : '❌ MANQUANTE'}`
+        ).join('\n');
+
+        const errorMessage = `Configuration Firebase incomplète.\n\nÉtat des variables d'environnement détecté par l'application :\n${debugInfo}\n\nVeuillez vérifier que les variables marquées comme "MANQUANTE" sont correctement ajoutées dans les paramètres de votre projet Vercel et qu'elles sont appliquées à l'environnement "Production".`;
         setConfigError(errorMessage);
         setIsLoading(false);
         return; // Stop further execution
