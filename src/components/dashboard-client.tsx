@@ -64,7 +64,7 @@ export function DashboardClient() {
     if (user) {
         fetchData();
     }
-  }, [user, fetchData]);
+  }, [user]);
 
 
   const handleOpenDetails = (vehicle: Vehicle) => {
@@ -88,7 +88,7 @@ export function DashboardClient() {
         <AppLayout>
             <DashboardHeader title="Tableau de Bord" description="Chargement de vos données..." />
             <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
-                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                 <div className="grid gap-6 grid-cols-2 lg:grid-cols-4">
                     <Skeleton className="h-28" />
                     <Skeleton className="h-28" />
                     <Skeleton className="h-28" />
@@ -119,7 +119,7 @@ export function DashboardClient() {
           </AddVehicleSheet>
         </DashboardHeader>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
-           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+           <div className="grid gap-6 grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title="Total des Véhicules"
                 value={totalVehicles}

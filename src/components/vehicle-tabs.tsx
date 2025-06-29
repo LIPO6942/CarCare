@@ -8,10 +8,10 @@ import { fr } from "date-fns/locale"
 
 import type { Repair, Maintenance, FuelLog, Deadline } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Wrench, Fuel, Calendar, Bell, Sparkles, Loader2 } from 'lucide-react';
+import { PlusCircle, Wrench, Fuel, Calendar, Bell, Sparkles, Loader2, GaugeCircle, Tag } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -52,8 +52,8 @@ const safeFormatDate = (dateInput: any, formatString: string = 'P') => {
 
     let date;
     // Handle Firestore Timestamp object, which has a toDate() method
-    if (typeof dateInput === 'object' && dateInput !== null && typeof dateInput.toDate === 'function') {
-      date = dateInput.toDate();
+    if (typeof dateInput === 'object' && dateInput !== null && typeof (dateInput as any).toDate === 'function') {
+      date = (dateInput as any).toDate();
     } else {
       // Handle ISO strings or other date string formats
       date = new Date(dateInput);
@@ -61,6 +61,7 @@ const safeFormatDate = (dateInput: any, formatString: string = 'P') => {
     
     // Check if the created date is valid
     if (isNaN(date.getTime())) {
+      console.warn("Date invalide détectée:", dateInput);
       return 'Date invalide';
     }
     
@@ -76,13 +77,13 @@ const safeFormatDate = (dateInput: any, formatString: string = 'P') => {
 // Helper to safely format numbers and avoid crashes
 const safeFormatNumber = (numInput: any): string => {
     const num = Number(numInput);
-    if (isNaN(num)) return 'N/A';
+    if (isNaN(num)) return '0';
     return num.toLocaleString('fr-FR');
 }
 
 const safeFormatCurrency = (numInput: any): string => {
     const num = Number(numInput);
-    if (isNaN(num)) return 'N/A';
+    if (isNaN(num)) return '0,00 TND';
     return num.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
 }
 
@@ -91,7 +92,7 @@ export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, deadlin
   
   return (
     <Tabs defaultValue="deadlines">
-      <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+      <TabsList className="grid w-full grid-cols-4">
         <TabsTrigger value="deadlines"><Bell className="mr-2 h-4 w-4" />Échéances</TabsTrigger>
         <TabsTrigger value="repairs"><Wrench className="mr-2 h-4 w-4" />Réparations</TabsTrigger>
         <TabsTrigger value="maintenance"><Calendar className="mr-2 h-4 w-4" />Entretien</TabsTrigger>
@@ -116,11 +117,13 @@ export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, deadlin
 
 function DeadlinesTab({ deadlines }: { deadlines: Deadline[] }) {
     const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of day for accurate comparison
+
     // Pre-filter to ensure date is valid before comparison
     const upcoming = deadlines
         .filter(d => {
-            if (!d.date) return false;
             try {
+              if (!d.date) return false;
               let date;
               if (typeof d.date === 'object' && d.date !== null && typeof (d.date as any).toDate === 'function') {
                   date = (d.date as any).toDate();
@@ -132,6 +135,11 @@ function DeadlinesTab({ deadlines }: { deadlines: Deadline[] }) {
             } catch {
               return false;
             }
+        })
+        .sort((a, b) => {
+            const dateA = new Date(a.date).getTime();
+            const dateB = new Date(b.date).getTime();
+            return dateA - dateB;
         });
 
     return (
@@ -142,29 +150,14 @@ function DeadlinesTab({ deadlines }: { deadlines: Deadline[] }) {
           </CardHeader>
           <CardContent>
              {upcoming.length > 0 ? (
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                        <TableHead>Nom</TableHead>
-                        <TableHead>Date</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {upcoming.map((deadline) => {
-                          try {
-                            return (
-                              <TableRow key={deadline.id}>
-                                  <TableCell className="font-medium">{deadline.name || 'N/A'}</TableCell>
-                                  <TableCell>{safeFormatDate(deadline.date, 'PPP')}</TableCell>
-                              </TableRow>
-                            )
-                          } catch (e) {
-                            console.error("Impossible d'afficher la ligne d'échéance, données corrompues:", deadline, e);
-                            return null;
-                          }
-                        })}
-                    </TableBody>
-                </Table>
+                <div className="space-y-4">
+                    {upcoming.map((deadline) => (
+                         <div key={deadline.id} className="flex items-center justify-between p-4 border rounded-lg bg-background">
+                            <div className="font-medium">{deadline.name || 'N/A'}</div>
+                            <div className="text-sm text-muted-foreground">{safeFormatDate(deadline.date, 'd MMM yyyy')}</div>
+                        </div>
+                    ))}
+                </div>
              ) : (
                 <p className="text-center text-muted-foreground py-8">Aucune échéance à venir.</p>
              )}
@@ -185,35 +178,50 @@ function RepairsTab({ vehicleId, repairs, onDataChange }: { vehicleId: string, r
       </CardHeader>
       <CardContent>
         {repairs.length > 0 ? (
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Catégorie</TableHead>
-                    <TableHead>Kilométrage</TableHead>
-                    <TableHead className="text-right">Coût</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {repairs.map((repair) => {
-                      try {
-                        return (
-                          <TableRow key={repair.id}>
-                              <TableCell>{safeFormatDate(repair.date)}</TableCell>
-                              <TableCell className="font-medium">{repair.description || 'N/A'}</TableCell>
-                              <TableCell>{repair.category || 'N/A'}</TableCell>
-                              <TableCell>{safeFormatNumber(repair.mileage)} km</TableCell>
-                              <TableCell className="text-right">{safeFormatCurrency(repair.cost)}</TableCell>
-                          </TableRow>
-                        )
-                      } catch (e) {
-                        console.error("Impossible d'afficher la ligne de réparation, données corrompues:", repair, e);
-                        return null;
-                      }
-                    })}
-                </TableBody>
-            </Table>
+            <div>
+                {/* Mobile View */}
+                <div className="md:hidden space-y-4">
+                {repairs.map((repair) => (
+                    <div key={repair.id} className="p-4 border rounded-lg bg-card text-card-foreground">
+                        <div className="flex justify-between items-start">
+                            <p className="font-bold text-lg">{repair.description || 'N/A'}</p>
+                            <p className="font-bold text-lg text-right">{safeFormatCurrency(repair.cost)}</p>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(repair.date)}</span>
+                            <span className="flex items-center gap-1.5"><Tag size={14} /> {repair.category || 'N/A'}</span>
+                            <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(repair.mileage)} km</span>
+                        </div>
+                    </div>
+                ))}
+                </div>
+
+                {/* Desktop View */}
+                <div className="hidden md:block">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Catégorie</TableHead>
+                            <TableHead>Kilométrage</TableHead>
+                            <TableHead className="text-right">Coût</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {repairs.map((repair) => (
+                                <TableRow key={repair.id}>
+                                    <TableCell>{safeFormatDate(repair.date)}</TableCell>
+                                    <TableCell className="font-medium">{repair.description || 'N/A'}</TableCell>
+                                    <TableCell>{repair.category || 'N/A'}</TableCell>
+                                    <TableCell>{safeFormatNumber(repair.mileage)} km</TableCell>
+                                    <TableCell className="text-right">{safeFormatCurrency(repair.cost)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </div>
         ) : (
             <div className="text-center py-12 text-muted-foreground">
                 <Wrench className="mx-auto h-12 w-12 mb-4" />
@@ -370,40 +378,67 @@ function MaintenanceTab({ vehicleId, maintenance, onDataChange }: { vehicleId: s
             </CardHeader>
             <CardContent>
                 {maintenance.length > 0 ? (
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Tâche</TableHead>
-                        <TableHead>Prochain Entretien</TableHead>
-                        <TableHead className="text-right">Coût</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <div>
+                    {/* Mobile View */}
+                    <div className="md:hidden space-y-4">
                         {maintenance.map((item) => {
-                          try {
                             const formattedNextDate = safeFormatDate(item.nextDueDate);
                             const nextMileage = Number(item.nextDueMileage);
-                            const formattedNextMileage = isNaN(nextMileage) ? '' : `${nextMileage.toLocaleString('fr-FR')} km`;
+                            const formattedNextMileage = isNaN(nextMileage) || nextMileage === 0 ? '' : `${nextMileage.toLocaleString('fr-FR')} km`;
+                            let nextDueText = [formattedNextDate, formattedNextMileage].filter(v => v && v !== 'N/A').join(' / ');
+                            if (!nextDueText) nextDueText = "N/A";
+                            
                             return (
-                              <TableRow key={item.id}>
-                                  <TableCell>{safeFormatDate(item.date)}</TableCell>
-                                  <TableCell className="font-medium">{item.task || 'N/A'}</TableCell>
-                                  <TableCell>
-                                      {formattedNextDate !== 'N/A' ? formattedNextDate : ''}
-                                      {formattedNextDate !== 'N/A' && formattedNextMileage ? ' / ' : ''}
-                                      {formattedNextMileage}
-                                  </TableCell>
-                                  <TableCell className="text-right">{safeFormatCurrency(item.cost)}</TableCell>
-                              </TableRow>
-                            );
-                          } catch(e) {
-                              console.error("Impossible d'afficher la ligne d'entretien, données corrompues:", item, e);
-                              return null;
-                          }
+                                <div key={item.id} className="p-4 border rounded-lg bg-card text-card-foreground">
+                                    <div className="flex justify-between items-start">
+                                        <p className="font-bold text-lg">{item.task || 'N/A'}</p>
+                                        <p className="font-bold text-lg text-right">{safeFormatCurrency(item.cost)}</p>
+                                    </div>
+                                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                                        <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(item.date)}</span>
+                                        <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(item.mileage)} km</span>
+                                    </div>
+                                    <div className="mt-2 pt-2 border-t text-sm text-muted-foreground">
+                                       <span className="flex items-center gap-1.5"><span className="font-medium text-foreground">Prochain:</span> {nextDueText}</span>
+                                    </div>
+                                </div>
+                            )
                         })}
-                    </TableBody>
-                </Table>
+                    </div>
+
+                    {/* Desktop View */}
+                    <div className="hidden md:block">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Tâche</TableHead>
+                                <TableHead>Prochain Entretien</TableHead>
+                                <TableHead className="text-right">Coût</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {maintenance.map((item) => {
+                                    const formattedNextDate = safeFormatDate(item.nextDueDate);
+                                    const nextMileage = Number(item.nextDueMileage);
+                                    const formattedNextMileage = isNaN(nextMileage) || nextMileage === 0 ? '' : `${nextMileage.toLocaleString('fr-FR')} km`;
+                                    return (
+                                    <TableRow key={item.id}>
+                                        <TableCell>{safeFormatDate(item.date)}</TableCell>
+                                        <TableCell className="font-medium">{item.task || 'N/A'}</TableCell>
+                                        <TableCell>
+                                            {formattedNextDate !== 'N/A' ? formattedNextDate : ''}
+                                            {formattedNextDate !== 'N/A' && formattedNextMileage ? ' / ' : ''}
+                                            {formattedNextMileage}
+                                        </TableCell>
+                                        <TableCell className="text-right">{safeFormatCurrency(item.cost)}</TableCell>
+                                    </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </div>
                 ) : (
                     <div className="text-center py-12 text-muted-foreground">
                         <Calendar className="mx-auto h-12 w-12 mb-4" />
@@ -580,35 +615,53 @@ function FuelTab({ vehicleId, fuelLogs, onDataChange }: { vehicleId: string, fue
             </CardHeader>
             <CardContent>
                 {fuelLogs.length > 0 ? (
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Kilométrage</TableHead>
-                        <TableHead>Quantité</TableHead>
-                        <TableHead>Prix/L</TableHead>
-                        <TableHead className="text-right">Coût Total</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {fuelLogs.map((log) => {
-                          try {
-                            return (
-                              <TableRow key={log.id}>
-                                  <TableCell>{safeFormatDate(log.date)}</TableCell>
-                                  <TableCell>{safeFormatNumber(log.mileage)} km</TableCell>
-                                  <TableCell>{safeFormatNumber(log.quantity)} L</TableCell>
-                                  <TableCell>{safeFormatCurrency(log.pricePerLiter)}</TableCell>
-                                  <TableCell className="text-right">{safeFormatCurrency(log.totalCost)}</TableCell>
-                              </TableRow>
-                            )
-                          } catch (e) {
-                              console.error("Impossible d'afficher la ligne de carburant, données corrompues:", log, e);
-                              return null;
-                          }
-                        })}
-                    </TableBody>
-                </Table>
+                <div>
+                    {/* Mobile View */}
+                    <div className="md:hidden space-y-4">
+                        {fuelLogs.map((log) => (
+                             <div key={log.id} className="p-4 border rounded-lg bg-card text-card-foreground">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex items-center gap-2">
+                                        <Fuel size={20} className="text-primary"/>
+                                        <p className="font-bold text-lg">Plein de carburant</p>
+                                    </div>
+                                    <p className="font-bold text-lg text-right">{safeFormatCurrency(log.totalCost)}</p>
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                                    <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(log.date)}</span>
+                                    <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(log.mileage)} km</span>
+                                    <span className="flex items-center gap-1.5">{safeFormatNumber(log.quantity)} L à {safeFormatCurrency(log.pricePerLiter)}/L</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Desktop View */}
+                    <div className="hidden md:block">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Kilométrage</TableHead>
+                                <TableHead>Quantité</TableHead>
+                                <TableHead>Prix/L</TableHead>
+                                <TableHead className="text-right">Coût Total</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {fuelLogs.map((log) => (
+                                    <TableRow key={log.id}>
+                                        <TableCell>{safeFormatDate(log.date)}</TableCell>
+                                        <TableCell>{safeFormatNumber(log.mileage)} km</TableCell>
+                                        <TableCell>{safeFormatNumber(log.quantity)} L</TableCell>
+                                        <TableCell>{safeFormatCurrency(log.pricePerLiter)}</TableCell>
+                                        <TableCell className="text-right">{safeFormatCurrency(log.totalCost)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </div>
                 ) : (
                     <div className="text-center py-12 text-muted-foreground">
                         <Fuel className="mx-auto h-12 w-12 mb-4" />
