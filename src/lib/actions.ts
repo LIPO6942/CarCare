@@ -42,7 +42,10 @@ export async function createVehicle(userId: string, formData: FormData) {
       
   } catch (error) {
       console.error("Firebase Error in createVehicle (addVehicle call):", error);
-      return { message: 'Erreur de la base de données: Impossible de créer le véhicule. Consultez la console pour plus de détails.' };
+      if ((error as any)?.code === 'permission-denied') {
+        return { message: "Erreur de permission. Assurez-vous que vos règles de sécurité Firestore sont correctes." };
+      }
+      return { message: 'Erreur de la base de données: Impossible de créer le véhicule.' };
   }
 
   revalidatePath('/');
@@ -58,6 +61,9 @@ export async function deleteVehicle(vehicleId: string) {
     revalidatePath('/');
   } catch (error) {
     console.error("Firebase Error in deleteVehicle:", error);
+    if ((error as any)?.code === 'permission-denied') {
+        return { message: "Erreur de permission. Impossible de supprimer le véhicule." };
+    }
     return { message: 'Erreur de la base de données: Impossible de supprimer le véhicule.' };
   }
 }
@@ -88,6 +94,9 @@ export async function createRepair(userId: string, formData: FormData) {
         await addRepair(validatedFields.data, userId);
     } catch (error) {
         console.error("Firebase Error in createRepair:", error);
+        if ((error as any)?.code === 'permission-denied') {
+            return { message: "Erreur de permission. Impossible d'ajouter la réparation." };
+        }
         return { message: 'Erreur de la base de données: Impossible d\'ajouter la réparation.' };
     }
 
@@ -130,6 +139,9 @@ export async function createMaintenance(userId: string, formData: FormData) {
         await addMaintenance(dataToSave, userId);
     } catch (error) {
         console.error("Firebase Error in createMaintenance:", error);
+        if ((error as any)?.code === 'permission-denied') {
+            return { message: "Erreur de permission. Impossible d'ajouter l'entretien." };
+        }
         return { message: 'Erreur de la base de données: Impossible d\'ajouter l\'entretien.' };
     }
 
@@ -162,6 +174,9 @@ export async function createFuelLog(userId: string, formData: FormData) {
         await addFuelLog(validatedFields.data, userId);
     } catch (error) {
         console.error("Firebase Error in createFuelLog:", error);
+        if ((error as any)?.code === 'permission-denied') {
+            return { message: "Erreur de permission. Impossible d'ajouter le plein." };
+        }
         return { message: 'Erreur de la base de données: Impossible d\'ajouter le plein.' };
     }
 
@@ -176,6 +191,9 @@ export async function addSampleData(userId: string) {
     await createSampleDataForUser(userId);
   } catch (error) {
     console.error("Firebase Error in addSampleData:", error);
+    if ((error as any)?.code === 'permission-denied') {
+        return { message: "Erreur de permission. Impossible d'ajouter les données d'exemple." };
+    }
     return { message: 'Erreur de la base de données: Impossible d\'ajouter les données d\'exemple.' };
   }
   revalidatePath('/');
