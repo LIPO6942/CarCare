@@ -1,14 +1,10 @@
 'use client';
 
 import { useFormStatus } from 'react-dom';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Button } from '@/components/ui/button';
+import { createVehicle } from '@/lib/actions';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/context/auth-context';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -17,10 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { createVehicle } from '@/lib/actions';
-import { useToast } from '@/hooks/use-toast';
-import { useForm } from 'react-hook-form';
 
 function SubmitButton() {
     const { pending } = useFormStatus();
@@ -29,10 +21,14 @@ function SubmitButton() {
 
 export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
   const { toast } = useToast();
-  const form = useForm();
+  const { user } = useAuth();
   
-  const action = async (formData: FormData) => {
-    const result = await createVehicle(formData);
+  const actionWithUserId = async (formData: FormData) => {
+    if (!user) {
+        toast({ title: 'Erreur', description: 'Vous devez être connecté.', variant: 'destructive'});
+        return;
+    }
+    const result = await createVehicle(user.uid, formData);
     if (result?.message) {
       toast({
         title: 'Erreur',
@@ -49,7 +45,7 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
   };
 
   return (
-    <form action={action} className="space-y-6 py-6">
+    <form action={actionWithUserId} className="space-y-6 py-6">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

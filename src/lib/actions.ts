@@ -1,10 +1,8 @@
-
 'use server';
 
 import { z } from 'zod';
 import { addVehicle, addRepair, deleteVehicleById, addMaintenance, addFuelLog } from './data';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 
 const MISSING_ENV_VARS_MESSAGE = "Configuration Firebase manquante. Veuillez configurer les variables d'environnement sur votre plateforme d'hébergement (ex: Vercel) avant de modifier des données.";
 
@@ -23,9 +21,12 @@ const VehicleSchema = z.object({
   fuelType: z.enum(['Essence', 'Diesel', 'Électrique', 'Hybride']),
 });
 
-export async function createVehicle(formData: FormData) {
+export async function createVehicle(userId: string, formData: FormData) {
   if (!checkFirebaseConfig()) {
     return { message: MISSING_ENV_VARS_MESSAGE };
+  }
+  if (!userId) {
+     return { message: 'Utilisateur non authentifié.' };
   }
 
   const validatedFields = VehicleSchema.safeParse({
@@ -47,7 +48,7 @@ export async function createVehicle(formData: FormData) {
   const imageUrl = `https://logo.clearbit.com/${brandDomain}`;
 
   try {
-      await addVehicle({ ...validatedFields.data, imageUrl });
+      await addVehicle({ ...validatedFields.data, imageUrl }, userId);
   } catch (error) {
       console.error("Firebase Error in createVehicle (addVehicle call):", error);
       if (error instanceof Error) {
@@ -59,7 +60,6 @@ export async function createVehicle(formData: FormData) {
   }
 
   revalidatePath('/');
-  redirect('/');
 }
 
 export async function deleteVehicle(vehicleId: string) {
@@ -91,9 +91,12 @@ const RepairSchema = z.object({
   cost: z.coerce.number().min(0, 'Le coût doit être positif.'),
 });
 
-export async function createRepair(formData: FormData) {
+export async function createRepair(userId: string, formData: FormData) {
     if (!checkFirebaseConfig()) {
       return { message: MISSING_ENV_VARS_MESSAGE };
+    }
+     if (!userId) {
+        return { message: 'Utilisateur non authentifié.' };
     }
     const validatedFields = RepairSchema.safeParse(Object.fromEntries(formData.entries()));
 
@@ -105,7 +108,7 @@ export async function createRepair(formData: FormData) {
     }
 
     try {
-        await addRepair(validatedFields.data);
+        await addRepair(validatedFields.data, userId);
     } catch (error) {
         console.error("Firebase Error in createRepair:", error);
         if (error instanceof Error && (String(error).includes('permission-denied'))) {
@@ -115,7 +118,6 @@ export async function createRepair(formData: FormData) {
     }
 
     revalidatePath(`/`);
-    revalidatePath(`/vehicles/${validatedFields.data.vehicleId}`);
 }
 
 const MaintenanceSchema = z.object({
@@ -128,9 +130,12 @@ const MaintenanceSchema = z.object({
   nextDueMileage: z.coerce.number().optional(),
 });
 
-export async function createMaintenance(formData: FormData) {
+export async function createMaintenance(userId: string, formData: FormData) {
     if (!checkFirebaseConfig()) {
       return { message: MISSING_ENV_VARS_MESSAGE };
+    }
+     if (!userId) {
+        return { message: 'Utilisateur non authentifié.' };
     }
     
     const rawData = Object.fromEntries(formData.entries());
@@ -151,7 +156,7 @@ export async function createMaintenance(formData: FormData) {
             ...validatedFields.data,
             ...(validatedFields.data.nextDueMileage && { nextDueMileage: Number(validatedFields.data.nextDueMileage) }),
         };
-        await addMaintenance(dataToSave);
+        await addMaintenance(dataToSave, userId);
     } catch (error) {
         console.error("Firebase Error in createMaintenance:", error);
         if (error instanceof Error && (String(error).includes('permission-denied'))) {
@@ -161,7 +166,6 @@ export async function createMaintenance(formData: FormData) {
     }
 
     revalidatePath(`/`);
-    revalidatePath(`/vehicles/${validatedFields.data.vehicleId}`);
 }
 
 const FuelLogSchema = z.object({
@@ -173,9 +177,12 @@ const FuelLogSchema = z.object({
     totalCost: z.coerce.number().min(0, 'Le coût total doit être positif.'),
 });
 
-export async function createFuelLog(formData: FormData) {
+export async function createFuelLog(userId: string, formData: FormData) {
     if (!checkFirebaseConfig()) {
       return { message: MISSING_ENV_VARS_MESSAGE };
+    }
+     if (!userId) {
+        return { message: 'Utilisateur non authentifié.' };
     }
     const validatedFields = FuelLogSchema.safeParse(Object.fromEntries(formData.entries()));
 
@@ -187,7 +194,7 @@ export async function createFuelLog(formData: FormData) {
     }
 
     try {
-        await addFuelLog(validatedFields.data);
+        await addFuelLog(validatedFields.data, userId);
     } catch (error) {
         console.error("Firebase Error in createFuelLog:", error);
         if (error instanceof Error && (String(error).includes('permission-denied'))) {
@@ -197,5 +204,4 @@ export async function createFuelLog(formData: FormData) {
     }
 
     revalidatePath(`/`);
-    revalidatePath(`/vehicles/${validatedFields.data.vehicleId}`);
 }

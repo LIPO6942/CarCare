@@ -13,14 +13,6 @@ import {
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import type { Vehicle, Repair, Maintenance, FuelLog, Deadline } from './types';
-import { 
-    sampleVehicles, 
-    getSampleRepairs, 
-    getSampleFuelLogs, 
-    getSampleDeadlines, 
-    getSampleMaintenance,
-    getSampleDataForVehicle 
-} from './sample-data';
 
 function docToType<T>(document: any): T {
     const data = document.data();
@@ -30,25 +22,20 @@ function docToType<T>(document: any): T {
     } as T;
 }
 
-export async function getVehicles(): Promise<Vehicle[]> {
+export async function getVehicles(userId: string): Promise<Vehicle[]> {
   try {
     const vehiclesCol = collection(db, 'vehicles');
-    const vehicleSnapshot = await getDocs(query(vehiclesCol, orderBy('brand')));
+    const q = query(vehiclesCol, where('userId', '==', userId), orderBy('brand'));
+    const vehicleSnapshot = await getDocs(q);
     const vehicleList = vehicleSnapshot.docs.map(d => docToType<Vehicle>(d));
-    if (vehicleList.length > 0) {
-      return vehicleList;
-    }
-    return sampleVehicles;
+    return vehicleList;
   } catch (error) {
-    console.error("Firebase error fetching vehicles. Returning sample data.", error);
-    return sampleVehicles;
+    console.error("Firebase error fetching vehicles for user. Returning empty array.", error);
+    return [];
   }
 }
 
 export async function getVehicleById(id: string): Promise<Vehicle | undefined> {
-  if (id.startsWith('sample-')) {
-    return sampleVehicles.find(v => v.id === id);
-  }
   try {
     const vehicleRef = doc(db, 'vehicles', id);
     const vehicleSnap = await getDoc(vehicleRef);
@@ -62,10 +49,11 @@ export async function getVehicleById(id: string): Promise<Vehicle | undefined> {
   }
 }
 
-export async function addVehicle(vehicleData: Omit<Vehicle, 'id'>): Promise<Vehicle> {
-    const docRef = await addDoc(collection(db, 'vehicles'), vehicleData);
+export async function addVehicle(vehicleData: Omit<Vehicle, 'id' | 'userId'>, userId: string): Promise<Vehicle> {
+    const docRef = await addDoc(collection(db, 'vehicles'), { ...vehicleData, userId });
     return {
         id: docRef.id,
+        userId,
         ...vehicleData,
     };
 }
@@ -73,9 +61,20 @@ export async function addVehicle(vehicleData: Omit<Vehicle, 'id'>): Promise<Vehi
 
 export async function deleteVehicleById(id: string): Promise<void> {
   const vehicleRef = doc(db, 'vehicles', id);
-  
+  const vehicleDoc = await getDoc(vehicleRef);
+  const vehicleData = vehicleDoc.data();
+
+  // Delete image from storage if it exists
+  if (vehicleData?.imageUrl && vehicleData.imageUrl.includes('firebasestorage')) {
+      try {
+        const imageRef = ref(storage, vehicleData.imageUrl);
+        await deleteObject(imageRef);
+      } catch (error) {
+          console.error("Error deleting image from storage, continuing with firestore deletion.", error);
+      }
+  }
+
   const batch = writeBatch(db);
-  
   batch.delete(vehicleRef);
 
   const collectionsToDelete = ['repairs', 'maintenance', 'fuelLogs', 'deadlines'];
@@ -89,9 +88,6 @@ export async function deleteVehicleById(id: string): Promise<void> {
 }
 
 async function getSubCollectionForVehicle<T>(vehicleId: string, collectionName: string, dateField: string = 'date', sortOrder: 'asc' | 'desc' = 'desc'): Promise<T[]> {
-    if (vehicleId.startsWith('sample-')) {
-      return getSampleDataForVehicle(vehicleId, collectionName as any);
-    }
     try {
         const colRef = collection(db, collectionName);
         const q = query(colRef, where('vehicleId', '==', vehicleId));
@@ -127,57 +123,54 @@ export async function getDeadlinesForVehicle(vehicleId: string): Promise<Deadlin
     return getSubCollectionForVehicle<Deadline>(vehicleId, 'deadlines', 'date', 'asc');
 }
 
-async function getAllFromCollection<T>(collectionName: string, sampleDataFn: () => T[]): Promise<T[]> {
+async function getAllFromUserCollection<T>(userId: string, collectionName: string): Promise<T[]> {
     try {
         const colRef = collection(db, collectionName);
-        const snapshot = await getDocs(colRef);
-        const data = snapshot.docs.map(d => docToType<T>(d));
-        if (data.length > 0) return data;
-        
-        // If DB is empty, check if sample vehicles are being shown. If so, show sample sub-collections too.
-        const vehicles = await getVehicles();
-        if(vehicles.some(v => v.id.startsWith('sample-'))) {
-            return sampleDataFn();
-        }
-        return []; // DB is empty and not in sample mode.
+        const q = query(colRef, where('userId', '==', userId));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(d => docToType<T>(d));
     } catch (error) {
-        console.error(`Firebase error fetching all ${collectionName}. Returning sample data.`, error);
-        return sampleDataFn();
+        console.error(`Firebase error fetching all ${collectionName} for user. Returning empty array.`, error);
+        return [];
     }
 }
 
-export async function getAllRepairs(): Promise<Repair[]> {
-    return getAllFromCollection<Repair>('repairs', getSampleRepairs);
+export async function getAllUserRepairs(userId: string): Promise<Repair[]> {
+    return getAllFromUserCollection<Repair>(userId, 'repairs');
 }
 
-export async function getAllFuelLogs(): Promise<FuelLog[]> {
-    return getAllFromCollection<FuelLog>('fuelLogs', getSampleFuelLogs);
+export async function getAllUserFuelLogs(userId: string): Promise<FuelLog[]> {
+    return getAllFromUserCollection<FuelLog>(userId, 'fuelLogs');
 }
 
-export async function getAllDeadlines(): Promise<Deadline[]> {
-    return getAllFromCollection<Deadline>('deadlines', getSampleDeadlines);
+export async function getAllUserDeadlines(userId: string): Promise<Deadline[]> {
+    return getAllFromUserCollection<Deadline>(userId, 'deadlines');
 }
 
-export async function addRepair(repairData: Omit<Repair, 'id'>): Promise<Repair> {
-    const docRef = await addDoc(collection(db, 'repairs'), repairData);
+
+export async function addRepair(repairData: Omit<Repair, 'id' | 'userId'>, userId: string): Promise<Repair> {
+    const docRef = await addDoc(collection(db, 'repairs'), { ...repairData, userId });
     return {
         id: docRef.id,
+        userId,
         ...repairData,
     };
 }
 
-export async function addMaintenance(maintenanceData: Omit<Maintenance, 'id'>): Promise<Maintenance> {
-    const docRef = await addDoc(collection(db, 'maintenance'), maintenanceData);
+export async function addMaintenance(maintenanceData: Omit<Maintenance, 'id' | 'userId'>, userId: string): Promise<Maintenance> {
+    const docRef = await addDoc(collection(db, 'maintenance'), { ...maintenanceData, userId });
     return {
         id: docRef.id,
+        userId,
         ...maintenanceData,
     };
 }
 
-export async function addFuelLog(fuelLogData: Omit<FuelLog, 'id'>): Promise<FuelLog> {
-    const docRef = await addDoc(collection(db, 'fuelLogs'), fuelLogData);
+export async function addFuelLog(fuelLogData: Omit<FuelLog, 'id' | 'userId'>, userId: string): Promise<FuelLog> {
+    const docRef = await addDoc(collection(db, 'fuelLogs'), { ...fuelLogData, userId });
     return {
         id: docRef.id,
+        userId,
         ...fuelLogData,
     };
 }

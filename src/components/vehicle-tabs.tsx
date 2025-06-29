@@ -26,6 +26,7 @@ import { Textarea } from './ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { createRepair, createMaintenance, createFuelLog } from '@/lib/actions';
 import { categorizeRepair } from '@/ai/flows/repair-categorization';
+import { useAuth } from '@/context/auth-context';
 import {
   Select,
   SelectContent,
@@ -155,6 +156,7 @@ function RepairsTab({ vehicleId, repairs }: { vehicleId: string, repairs: Repair
 function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
     const [open, setOpen] = useState(false);
     const { toast } = useToast();
+    const { user } = useAuth();
     const [description, setDescription] = useState('');
     const [category, setCategory] = useState('');
     const [isCategorizing, setIsCategorizing] = useState(false);
@@ -185,6 +187,10 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
     }
     
     async function handleSubmit(formData: FormData) {
+        if (!user) {
+            toast({ title: 'Erreur', description: 'Vous devez être connecté.', variant: 'destructive'});
+            return;
+        }
         setIsSubmitting(true);
         formData.set('vehicleId', vehicleId);
 
@@ -192,7 +198,7 @@ function AddRepairDialog({ vehicleId }: { vehicleId: string }) {
           formData.set('category', category);
         }
 
-        const result = await createRepair(formData);
+        const result = await createRepair(user.uid, formData);
         if (result?.message) {
             toast({ title: "Erreur", description: result.message, variant: 'destructive' });
         } else {
@@ -301,6 +307,7 @@ function MaintenanceTab({ vehicleId, maintenance }: { vehicleId: string, mainten
 function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
     const [open, setOpen] = useState(false);
     const { toast } = useToast();
+    const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
     const [selectedTask, setSelectedTask] = useState('');
@@ -318,6 +325,10 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (!user) {
+            toast({ title: 'Erreur', description: 'Vous devez être connecté.', variant: 'destructive'});
+            return;
+        }
         setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
         
@@ -330,7 +341,7 @@ function AddMaintenanceDialog({ vehicleId }: { vehicleId: string }) {
         formData.set('task', finalTask);
         formData.delete('customTask');
         
-        const result = await createMaintenance(formData);
+        const result = await createMaintenance(user.uid, formData);
         if (result?.message) {
             toast({ title: "Erreur", description: result.message, variant: 'destructive' });
         } else {
@@ -457,6 +468,7 @@ function FuelTab({ vehicleId, fuelLogs }: { vehicleId: string, fuelLogs: FuelLog
 function AddFuelLogDialog({ vehicleId }: { vehicleId: string }) {
     const [open, setOpen] = useState(false);
     const { toast } = useToast();
+    const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [quantity, setQuantity] = useState('');
     const [pricePerLiter, setPricePerLiter] = useState('');
@@ -465,11 +477,15 @@ function AddFuelLogDialog({ vehicleId }: { vehicleId: string }) {
     const displayTotalCost = isNaN(totalCost) ? '' : totalCost.toFixed(2);
     
     async function handleSubmit(formData: FormData) {
+        if (!user) {
+            toast({ title: 'Erreur', description: 'Vous devez être connecté.', variant: 'destructive'});
+            return;
+        }
         setIsSubmitting(true);
         formData.set('vehicleId', vehicleId);
         formData.set('totalCost', displayTotalCost);
 
-        const result = await createFuelLog(formData);
+        const result = await createFuelLog(user.uid, formData);
         if (result?.message) {
             toast({ title: "Erreur", description: result.message, variant: 'destructive' });
         } else {

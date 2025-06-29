@@ -1,5 +1,6 @@
 export type Vehicle = {
   id: string;
+  userId: string;
   brand: string;
   model: string;
   year: number;
@@ -10,6 +11,7 @@ export type Vehicle = {
 
 export type Repair = {
   id: string;
+  userId: string;
   vehicleId: string;
   date: string;
   mileage: number;
@@ -20,6 +22,7 @@ export type Repair = {
 
 export type Maintenance = {
   id:string;
+  userId: string;
   vehicleId: string;
   date: string;
   mileage: number;
@@ -31,6 +34,7 @@ export type Maintenance = {
 
 export type FuelLog = {
   id: string;
+  userId: string;
   vehicleId: string;
   date: string;
   mileage: number;
@@ -41,6 +45,7 @@ export type FuelLog = {
 
 export type Deadline = {
   id: string;
+  userId: string;
   vehicleId: string;
   name: string;
   date: string;

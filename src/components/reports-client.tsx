@@ -1,17 +1,35 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import type { Repair, FuelLog } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { DollarSign, Fuel, Wrench, Route } from 'lucide-react';
+import { useAuth } from '@/context/auth-context';
+import { getAllUserRepairs, getAllUserFuelLogs } from '@/lib/data';
+import { Skeleton } from './ui/skeleton';
 
-interface ReportsClientProps {
-  repairs: Repair[];
-  fuelLogs: FuelLog[];
-}
+export function ReportsClient() {
+  const { user } = useAuth();
+  const [repairs, setRepairs] = useState<Repair[]>([]);
+  const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-export function ReportsClient({ repairs, fuelLogs }: ReportsClientProps) {
+  useEffect(() => {
+    async function fetchData() {
+        if (!user) return;
+        setIsLoading(true);
+        const [repairsData, fuelLogsData] = await Promise.all([
+            getAllUserRepairs(user.uid),
+            getAllUserFuelLogs(user.uid)
+        ]);
+        setRepairs(repairsData);
+        setFuelLogs(fuelLogsData);
+        setIsLoading(false);
+    }
+    fetchData();
+  }, [user]);
+
   const { totalCost, totalFuelCost, totalRepairCost, costData, maxMileage } = useMemo(() => {
     const totalRepairCost = repairs.reduce((acc, r) => acc + r.cost, 0);
     const totalFuelCost = fuelLogs.reduce((acc, f) => acc + f.totalCost, 0);
@@ -41,6 +59,20 @@ export function ReportsClient({ repairs, fuelLogs }: ReportsClientProps) {
   }, [repairs, fuelLogs]);
   
   const costPerKm = maxMileage > 0 ? (totalCost / maxMileage) : 0;
+
+  if (isLoading) {
+      return (
+          <div className="grid gap-6">
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                  <Skeleton className="h-28" />
+                  <Skeleton className="h-28" />
+                  <Skeleton className="h-28" />
+                  <Skeleton className="h-28" />
+              </div>
+              <Skeleton className="h-96" />
+          </div>
+      )
+  }
 
   return (
     <div className="grid gap-6">
