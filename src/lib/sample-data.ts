@@ -10,7 +10,6 @@ export const sampleVehicles: Vehicle[] = [
     licensePlate: 'G80-POWER',
     fuelType: 'Essence',
     imageUrl: 'https://images.unsplash.com/photo-1633409332034-6e1b8a10d5b6?q=80&w=1080',
-    imagePath: '',
   },
   {
     id: 'sample-toyota-rav4',
@@ -20,7 +19,6 @@ export const sampleVehicles: Vehicle[] = [
     licensePlate: 'ECO-RIDE',
     fuelType: 'Hybride',
     imageUrl: 'https://images.unsplash.com/photo-1643482522619-5431c4b14562?q=80&w=1080',
-    imagePath: '',
   },
   {
     id: 'sample-honda-civic',
@@ -30,7 +28,6 @@ export const sampleVehicles: Vehicle[] = [
     licensePlate: 'VTEC-GO',
     fuelType: 'Essence',
     imageUrl: 'https://images.unsplash.com/photo-1619409898592-56c604343135?q=80&w=1080',
-    imagePath: '',
   },
 ];
 

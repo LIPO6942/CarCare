@@ -24,7 +24,7 @@ import { useForm } from 'react-hook-form';
 
 function SubmitButton() {
     const { pending } = useFormStatus();
-    return <Button type="submit" disabled={pending} className="w-full">{pending ? 'Génération de l\'image et ajout...' : 'Ajouter le véhicule'}</Button>;
+    return <Button type="submit" disabled={pending} className="w-full">{pending ? 'Ajout du véhicule...' : 'Ajouter le véhicule'}</Button>;
 }
 
 export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {

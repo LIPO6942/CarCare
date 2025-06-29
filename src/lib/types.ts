@@ -6,7 +6,6 @@ export type Vehicle = {
   licensePlate: string;
   fuelType: 'Essence' | 'Diesel' | 'Électrique' | 'Hybride';
   imageUrl?: string;
-  imagePath?: string;
 };
 
 export type Repair = {

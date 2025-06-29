@@ -21,7 +21,7 @@ export function AddVehicleSheet({ children }: { children: ReactNode }) {
         <SheetHeader>
           <SheetTitle>Ajouter un nouveau véhicule</SheetTitle>
           <SheetDescription>
-            Remplissez les détails de votre véhicule. Une image unique sera générée par IA en fonction de la marque et du modèle.
+            Remplissez les détails de votre véhicule pour l'ajouter à votre flotte.
           </SheetDescription>
         </SheetHeader>
         <AddVehicleForm onFormSubmit={() => setOpen(false)} />

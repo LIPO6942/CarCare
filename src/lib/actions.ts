@@ -5,10 +5,6 @@ import { z } from 'zod';
 import { addVehicle, addRepair, deleteVehicleById, addMaintenance, addFuelLog } from './data';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
-import { storage } from './firebase';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { v4 as uuidv4 } from 'uuid';
 
 const MISSING_ENV_VARS_MESSAGE = "Configuration Firebase manquante. Veuillez configurer les variables d'environnement sur votre plateforme d'hébergement (ex: Vercel) avant de modifier des données.";
 
@@ -47,30 +43,10 @@ export async function createVehicle(formData: FormData) {
     };
   }
   
-  let imageUrl = 'https://placehold.co/600x400.png';
-  let imagePath = '';
+  const imageUrl = 'https://placehold.co/600x400.png';
 
   try {
-    const imageDataUri = await generateVehicleImage({
-        brand: validatedFields.data.brand,
-        model: validatedFields.data.model,
-    });
-    
-    if (imageDataUri && imageDataUri.startsWith('data:image')) {
-        const path = `vehicle-images/${uuidv4()}.png`;
-        const storageRef = ref(storage, path);
-        await uploadString(storageRef, imageDataUri, 'data_url');
-        imageUrl = await getDownloadURL(storageRef);
-        imagePath = path;
-    } else if (imageDataUri) {
-        imageUrl = imageDataUri; 
-    }
-  } catch (error) {
-    console.error("Erreur lors de la génération ou du téléversement de l'image. Le véhicule sera créé avec une image par défaut.", error);
-  }
-
-  try {
-      await addVehicle({ ...validatedFields.data, imageUrl, imagePath });
+      await addVehicle({ ...validatedFields.data, imageUrl });
   } catch (error) {
       console.error("Firebase Error in createVehicle (addVehicle call):", error);
       if (error instanceof Error) {
@@ -99,7 +75,7 @@ export async function deleteVehicle(vehicleId: string) {
   } catch (error) {
     console.error("Firebase Error in deleteVehicle:", error);
     if (error instanceof Error && (String(error).includes('storage/unauthorized') || String(error).includes('permission-denied'))) {
-        return { message: 'Permission Refusée: L\'application n\'a pas la permission de supprimer l\'image du Storage. Vérifiez vos règles de sécurité Storage.' };
+        return { message: 'Permission Refusée: L\'application n\'a pas la permission de supprimer les données. Vérifiez vos règles de sécurité Firestore.' };
     }
     return { message: 'Erreur de la base de données: Impossible de supprimer le véhicule.' };
   }

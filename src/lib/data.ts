@@ -73,26 +73,8 @@ export async function addVehicle(vehicleData: Omit<Vehicle, 'id'>): Promise<Vehi
 
 export async function deleteVehicleById(id: string): Promise<void> {
   const vehicleRef = doc(db, 'vehicles', id);
-  const vehicleSnap = await getDoc(vehicleRef);
-
-  if (!vehicleSnap.exists()) {
-    console.log("Vehicle to delete does not exist.");
-    return;
-  }
-
-  const vehicleData = vehicleSnap.data() as Omit<Vehicle, 'id'>;
-  const imagePath = vehicleData.imagePath;
-
+  
   const batch = writeBatch(db);
-
-  if (imagePath) {
-    const imageRef = ref(storage, imagePath);
-    try {
-      await deleteObject(imageRef)
-    } catch(e) {
-       console.error("Could not delete image from storage. It might not exist or permissions are insufficient.", e);
-    }
-  }
   
   batch.delete(vehicleRef);
 
