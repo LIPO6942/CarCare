@@ -23,29 +23,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check for missing environment variables, which is a common deployment issue.
+    // This check is a safeguard against common deployment issues.
+    // It verifies that the most critical environment variables are available on the client-side.
     const requiredEnvVars = [
         'NEXT_PUBLIC_FIREBASE_API_KEY',
         'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
         'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-        'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
-        'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
-        'NEXT_PUBLIC_FIREBASE_APP_ID',
     ];
     
-    // This check only runs on the client-side, so process.env is what's available in the browser.
-    const missingVars = requiredEnvVars.filter(v => !process.env[v]);
+    const isMissingVars = requiredEnvVars.some(v => !process.env[v]);
 
-    if (missingVars.length > 0) {
-        const debugInfo = requiredEnvVars.map(v => 
-            `${v}: ${process.env[v] ? '✔️ Trouvée' : '❌ MANQUANTE'}`
-        ).join('\n');
-
-        const errorMessage = `Erreur Critique de Déploiement.\n\nL'application a confirmé que Vercel ne lui fournit PAS les variables d'environnement nécessaires. \n\nÉtat des variables:\n${debugInfo}\n\nACTION REQUISE: Allez dans les paramètres de votre projet Vercel, supprimez TOUTES les variables d'environnement NEXT_PUBLIC_..., puis ajoutez-les à nouveau une par une, en vous assurant que la case "Production" est cochée pour chacune. Puis, redéployez.`;
-        
-        setConfigError(errorMessage);
+    if (isMissingVars) {
+        console.error("Critical Firebase configuration is missing. App cannot start.");
+        setConfigError("La configuration Firebase est incomplète. L'application ne peut pas démarrer. Veuillez contacter le support technique.");
         setIsLoading(false);
-        return; // Stop further execution
+        return;
     }
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -67,12 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoading(false);
           })
           .catch((error) => {
-             const detailedError = `Erreur d'authentification Firebase : "${error.message}" (Code: ${error.code}).`;
-             const vercelHint = "Sur Vercel, cela signifie généralement que les variables d'environnement (NEXT_PUBLIC_...) ne sont pas correctement configurées ou que l'authentification 'Anonyme' n'est pas activée dans votre console Firebase.";
-             
-             const finalMessage = process.env.NEXT_PUBLIC_VERCEL_URL ? `${detailedError}\n\n${vercelHint}` : detailedError;
-
-            setConfigError(finalMessage);
+            console.error("Firebase Authentication Error:", error);
+            setConfigError("Impossible de se connecter aux services de l'application. Veuillez vérifier votre connexion internet et réessayer.");
             setIsLoading(false);
           });
       }
@@ -84,14 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (configError) {
     return (
         <div className="flex min-h-screen w-full items-center justify-center bg-background p-4">
-            <div className="w-full max-w-lg rounded-lg border-2 border-destructive/50 bg-card p-8 text-center shadow-xl whitespace-pre-wrap">
+            <div className="w-full max-w-lg rounded-lg border-2 border-destructive/50 bg-card p-8 text-center shadow-xl">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 mb-4">
                     <AlertTriangle className="h-6 w-6 text-destructive" />
                 </div>
-                <h1 className="text-2xl font-bold text-destructive">Erreur de Configuration Firebase</h1>
+                <h1 className="text-2xl font-bold text-destructive">Erreur de Connexion</h1>
                 <p className="mt-4 text-card-foreground">{configError}</p>
                 <p className="mt-6 text-sm text-muted-foreground">
-                    Veuillez vérifier votre configuration, puis redéployez votre application.
+                    Si le problème persiste, le service est peut-être temporairement indisponible.
                 </p>
             </div>
         </div>
