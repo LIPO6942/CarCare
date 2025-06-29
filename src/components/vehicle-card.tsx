@@ -82,7 +82,7 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
             <div className="relative h-48 w-full">
                {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={vehicle.imageUrl || 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1080'}
+                src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
                 alt={`${vehicle.brand} ${vehicle.model}`}
                 data-ai-hint="side view car"
                 className="absolute inset-0 h-full w-full object-cover rounded-t-lg"

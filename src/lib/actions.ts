@@ -47,7 +47,7 @@ export async function createVehicle(formData: FormData) {
     };
   }
   
-  let imageUrl = 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1080';
+  let imageUrl = 'https://placehold.co/600x400.png';
   let imagePath = '';
 
   try {
@@ -137,6 +137,7 @@ export async function createRepair(formData: FormData) {
         return { message: 'Erreur de la base de données: Impossible d\'ajouter la réparation.' };
     }
 
+    revalidatePath(`/`);
     revalidatePath(`/vehicles/${validatedFields.data.vehicleId}`);
 }
 
@@ -182,6 +183,7 @@ export async function createMaintenance(formData: FormData) {
         return { message: 'Erreur de la base de données: Impossible d\'ajouter l\'entretien.' };
     }
 
+    revalidatePath(`/`);
     revalidatePath(`/vehicles/${validatedFields.data.vehicleId}`);
 }
 
@@ -217,5 +219,6 @@ export async function createFuelLog(formData: FormData) {
         return { message: 'Erreur de la base de données: Impossible d\'ajouter le plein.' };
     }
 
+    revalidatePath(`/`);
     revalidatePath(`/vehicles/${validatedFields.data.vehicleId}`);
 }

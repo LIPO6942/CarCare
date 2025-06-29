@@ -35,10 +35,10 @@ export const sampleVehicles: Vehicle[] = [
 ];
 
 const repairs: Repair[] = [
-    { id: 'r1', vehicleId: 'sample-bmw-m3', date: '2024-05-15', mileage: 15200, description: 'Remplacement plaquettes de frein avant', category: 'brakes', cost: 750 },
-    { id: 'r2', vehicleId: 'sample-toyota-rav4', date: '2024-04-20', mileage: 30500, description: 'Réparation pneu crevé', category: 'body', cost: 50 },
-    { id: 'r3', vehicleId: 'sample-honda-civic', date: '2024-06-01', mileage: 45000, description: 'Changement de la batterie', category: 'electrical', cost: 250 },
-    { id: 'r4', vehicleId: 'sample-toyota-rav4', date: '2024-06-10', mileage: 32000, description: 'Alignement des roues', category: 'suspension', cost: 120 },
+    { id: 'r1', vehicleId: 'sample-bmw-m3', date: '2024-05-15', mileage: 15200, description: 'Remplacement plaquettes de frein avant', category: 'Freins', cost: 750 },
+    { id: 'r2', vehicleId: 'sample-toyota-rav4', date: '2024-04-20', mileage: 30500, description: 'Réparation pneu crevé', category: 'Pneus', cost: 50 },
+    { id: 'r3', vehicleId: 'sample-honda-civic', date: '2024-06-01', mileage: 45000, description: 'Changement de la batterie', category: 'Électrique', cost: 250 },
+    { id: 'r4', vehicleId: 'sample-toyota-rav4', date: '2024-06-10', mileage: 32000, description: 'Alignement des roues', category: 'Suspension', cost: 120 },
 ];
 
 const maintenance: Maintenance[] = [
