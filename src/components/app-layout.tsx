@@ -3,9 +3,11 @@ import { MobileSidebar } from './mobile-sidebar';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen w-full bg-muted/40">
-      <Sidebar />
-      <div className="flex flex-col flex-1">
+    <div className="grid min-h-screen w-full lg:grid-cols-[280px_1fr]">
+      <div className="hidden border-r bg-card lg:block">
+        <Sidebar />
+      </div>
+      <div className="flex flex-col">
         <MobileSidebar />
         {children}
       </div>

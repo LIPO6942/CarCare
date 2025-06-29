@@ -20,27 +20,24 @@ export function Sidebar() {
   if (!user) return null;
 
   return (
-    <aside className="hidden lg:flex flex-col w-64 bg-card border-r h-screen sticky top-0">
-      <div className="p-6">
+    <aside className="flex h-full max-h-screen flex-col gap-2">
+      <div className="flex h-[60px] items-center border-b px-6">
         <Logo />
       </div>
-      <nav className="flex-1 px-4">
-        <ul>
-          {navItems.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-foreground/80 transition-colors hover:bg-accent/50 hover:text-accent-foreground',
-                  (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))) && 'bg-accent text-accent-foreground font-semibold'
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                <span>{item.label}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+      <nav className="flex-1 space-y-1 p-4">
+        {navItems.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
+              (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))) && 'bg-muted text-primary'
+            )}
+          >
+            <item.icon className="h-4 w-4" />
+            <span>{item.label}</span>
+          </Link>
+        ))}
       </nav>
     </aside>
   );
