@@ -43,7 +43,7 @@ export async function createVehicle(userId: string, formData: FormData) {
   } catch (error) {
       console.error("Firebase Error in createVehicle (addVehicle call):", error);
       if ((error as any)?.code === 'permission-denied') {
-        return { message: "Erreur de permission. Assurez-vous que vos règles de sécurité Firestore sont correctes." };
+        return { message: "Erreur de permission lors de la création du véhicule. Veuillez vérifier que vos règles de sécurité Firestore sont correctement configurées et publiées." };
       }
       return { message: 'Erreur de la base de données: Impossible de créer le véhicule.' };
   }
@@ -65,7 +65,7 @@ export async function deleteVehicle(vehicleId: string, userId: string) {
   } catch (error) {
     console.error("Firebase Error in deleteVehicle:", error);
     if ((error as any)?.code === 'permission-denied' || (error as Error).message.includes('Permission denied')) {
-        return { message: "Erreur de permission. Impossible de supprimer le véhicule." };
+        return { message: "Erreur de permission lors de la suppression. Veuillez vérifier vos règles de sécurité Firestore." };
     }
     return { message: 'Erreur de la base de données: Impossible de supprimer le véhicule.' };
   }
