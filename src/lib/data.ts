@@ -61,9 +61,9 @@ export async function addVehicle(vehicleData: Omit<Vehicle, 'id' | 'userId'>, us
 }
 
 
-export async function deleteVehicleById(id: string): Promise<void> {
+export async function deleteVehicleById(id: string, userId: string): Promise<void> {
   const vehicleRef = doc(db, 'vehicles', id);
-  const vehicleDoc = await getDoc(vehicleRef);
+  const vehicleDoc = await getDoc(vehicleRef); // This read is protected by security rules
   const vehicleData = vehicleDoc.data();
 
   // Delete image from storage if it exists
@@ -81,7 +81,7 @@ export async function deleteVehicleById(id: string): Promise<void> {
 
   const collectionsToDelete = ['repairs', 'maintenance', 'fuelLogs', 'deadlines'];
   for (const colName of collectionsToDelete) {
-      const q = query(collection(db, colName), where('vehicleId', '==', id));
+      const q = query(collection(db, colName), where('vehicleId', '==', id), where('userId', '==', userId));
       const snapshot = await getDocs(q);
       snapshot.forEach(doc => batch.delete(doc.ref));
   }

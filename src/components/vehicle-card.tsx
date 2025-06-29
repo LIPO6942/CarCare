@@ -23,16 +23,29 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { deleteVehicle } from '@/lib/actions';
+import { useAuth } from '@/context/auth-context';
 
 export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOpenDetails: (vehicle: Vehicle) => void; }) {
+  const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
   async function handleDelete() {
     setIsDeleting(true);
+    
+    if (!user) {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de supprimer, utilisateur non connecté.',
+        variant: 'destructive',
+      });
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+      return;
+    }
 
-    const result = await deleteVehicle(vehicle.id);
+    const result = await deleteVehicle(vehicle.id, user.uid);
 
     if (result?.message) {
       toast({

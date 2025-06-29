@@ -51,17 +51,20 @@ export async function createVehicle(userId: string, formData: FormData) {
   revalidatePath('/');
 }
 
-export async function deleteVehicle(vehicleId: string) {
+export async function deleteVehicle(vehicleId: string, userId: string) {
   if (!vehicleId) {
     return { message: 'ID du véhicule manquant.' };
   }
+  if (!userId) {
+    return { message: 'ID utilisateur manquant.' };
+  }
   
   try {
-    await deleteVehicleById(vehicleId);
+    await deleteVehicleById(vehicleId, userId);
     revalidatePath('/');
   } catch (error) {
     console.error("Firebase Error in deleteVehicle:", error);
-    if ((error as any)?.code === 'permission-denied') {
+    if ((error as any)?.code === 'permission-denied' || (error as Error).message.includes('Permission denied')) {
         return { message: "Erreur de permission. Impossible de supprimer le véhicule." };
     }
     return { message: 'Erreur de la base de données: Impossible de supprimer le véhicule.' };
