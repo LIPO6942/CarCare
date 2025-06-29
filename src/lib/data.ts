@@ -81,10 +81,10 @@ export async function deleteVehicleById(id: string): Promise<void> {
   await deleteDoc(vehicleRef);
 }
 
-async function getSubCollectionForVehicle<T>(vehicleId: string, collectionName: string, dateField: string = 'date', sortOrder: 'asc' | 'desc' = 'desc'): Promise<T[]> {
+async function getSubCollectionForVehicle<T>(vehicleId: string, userId: string, collectionName: string, dateField: string = 'date', sortOrder: 'asc' | 'desc' = 'desc'): Promise<T[]> {
     try {
         const colRef = collection(db, collectionName);
-        const q = query(colRef, where('vehicleId', '==', vehicleId));
+        const q = query(colRef, where('vehicleId', '==', vehicleId), where('userId', '==', userId));
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(d => docToType<T>(d));
 
@@ -101,20 +101,20 @@ async function getSubCollectionForVehicle<T>(vehicleId: string, collectionName: 
     }
 }
 
-export async function getRepairsForVehicle(vehicleId: string): Promise<Repair[]> {
-  return getSubCollectionForVehicle<Repair>(vehicleId, 'repairs');
+export async function getRepairsForVehicle(vehicleId: string, userId: string): Promise<Repair[]> {
+  return getSubCollectionForVehicle<Repair>(vehicleId, userId, 'repairs');
 }
 
-export async function getMaintenanceForVehicle(vehicleId: string): Promise<Maintenance[]> {
-    return getSubCollectionForVehicle<Maintenance>(vehicleId, 'maintenance');
+export async function getMaintenanceForVehicle(vehicleId: string, userId: string): Promise<Maintenance[]> {
+    return getSubCollectionForVehicle<Maintenance>(vehicleId, userId, 'maintenance');
 }
 
-export async function getFuelLogsForVehicle(vehicleId: string): Promise<FuelLog[]> {
-    return getSubCollectionForVehicle<FuelLog>(vehicleId, 'fuelLogs');
+export async function getFuelLogsForVehicle(vehicleId: string, userId: string): Promise<FuelLog[]> {
+    return getSubCollectionForVehicle<FuelLog>(vehicleId, userId, 'fuelLogs');
 }
 
-export async function getDeadlinesForVehicle(vehicleId: string): Promise<Deadline[]> {
-    return getSubCollectionForVehicle<Deadline>(vehicleId, 'deadlines', 'date', 'asc');
+export async function getDeadlinesForVehicle(vehicleId: string, userId: string): Promise<Deadline[]> {
+    return getSubCollectionForVehicle<Deadline>(vehicleId, userId, 'deadlines', 'date', 'asc');
 }
 
 async function getAllFromUserCollection<T>(userId: string, collectionName: string): Promise<T[]> {

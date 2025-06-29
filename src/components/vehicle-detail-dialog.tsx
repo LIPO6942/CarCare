@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { VehicleTabs } from '@/components/vehicle-tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/context/auth-context';
 
 interface VehicleDetailDialogProps {
   vehicle: Vehicle | null;
@@ -15,6 +16,7 @@ interface VehicleDetailDialogProps {
 }
 
 export function VehicleDetailDialog({ vehicle, open, onOpenChange }: VehicleDetailDialogProps) {
+  const { user } = useAuth();
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
@@ -22,14 +24,14 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange }: VehicleDeta
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (vehicle && open) {
+    if (vehicle && open && user) {
       const fetchData = async () => {
         setIsLoading(true);
         const [repairsData, maintenanceData, fuelLogsData, deadlinesData] = await Promise.all([
-          getRepairsForVehicle(vehicle.id),
-          getMaintenanceForVehicle(vehicle.id),
-          getFuelLogsForVehicle(vehicle.id),
-          getDeadlinesForVehicle(vehicle.id),
+          getRepairsForVehicle(vehicle.id, user.uid),
+          getMaintenanceForVehicle(vehicle.id, user.uid),
+          getFuelLogsForVehicle(vehicle.id, user.uid),
+          getDeadlinesForVehicle(vehicle.id, user.uid),
         ]);
         setRepairs(repairsData);
         setMaintenance(maintenanceData);
@@ -39,7 +41,7 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange }: VehicleDeta
       };
       fetchData();
     }
-  }, [vehicle, open]);
+  }, [vehicle, open, user]);
 
   if (!vehicle) return null;
 
