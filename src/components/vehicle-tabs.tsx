@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useRef, type FormEvent } from 'react';
@@ -154,8 +155,8 @@ function RepairsTab({ vehicleId, repairs, onDataChange }: { vehicleId: string, r
                         <TableCell>{safeFormatDate(repair.date)}</TableCell>
                         <TableCell className="font-medium">{repair.description}</TableCell>
                         <TableCell>{repair.category}</TableCell>
-                        <TableCell>{repair.mileage.toLocaleString('fr-FR')} km</TableCell>
-                        <TableCell className="text-right">{repair.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
+                        <TableCell>{(repair.mileage ?? 0).toLocaleString('fr-FR')} km</TableCell>
+                        <TableCell className="text-right">{(repair.cost ?? 0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
                     </TableRow>
                     ))}
                 </TableBody>
@@ -334,9 +335,9 @@ function MaintenanceTab({ vehicleId, maintenance, onDataChange }: { vehicleId: s
                                 <TableCell className="font-medium">{item.task}</TableCell>
                                 <TableCell>
                                     {formattedNextDate}
-                                    {item.nextDueMileage ? `${formattedNextDate ? ' / ' : ''}${item.nextDueMileage.toLocaleString('fr-FR')} km` : ''}
+                                    {item.nextDueMileage ? `${formattedNextDate ? ' / ' : ''}${(item.nextDueMileage ?? 0).toLocaleString('fr-FR')} km` : ''}
                                 </TableCell>
-                                <TableCell className="text-right">{item.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
+                                <TableCell className="text-right">{(item.cost ?? 0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
                             </TableRow>
                           );
                         })}
@@ -532,10 +533,10 @@ function FuelTab({ vehicleId, fuelLogs, onDataChange }: { vehicleId: string, fue
                         {fuelLogs.map((log) => (
                         <TableRow key={log.id}>
                             <TableCell>{safeFormatDate(log.date)}</TableCell>
-                            <TableCell>{log.mileage.toLocaleString('fr-FR')} km</TableCell>
-                            <TableCell>{log.quantity.toFixed(2)} L</TableCell>
-                            <TableCell>{log.pricePerLiter.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
-                            <TableCell className="text-right">{log.totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
+                            <TableCell>{(log.mileage ?? 0).toLocaleString('fr-FR')} km</TableCell>
+                            <TableCell>{(log.quantity ?? 0).toFixed(2)} L</TableCell>
+                            <TableCell>{(log.pricePerLiter ?? 0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
+                            <TableCell className="text-right">{(log.totalCost ?? 0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}</TableCell>
                         </TableRow>
                         ))}
                     </TableBody>
