@@ -25,9 +25,11 @@ function docToType<T>(document: any): T {
 export async function getVehicles(userId: string): Promise<Vehicle[]> {
   try {
     const vehiclesCol = collection(db, 'vehicles');
-    const q = query(vehiclesCol, where('userId', '==', userId), orderBy('brand'));
+    const q = query(vehiclesCol, where('userId', '==', userId));
     const vehicleSnapshot = await getDocs(q);
     const vehicleList = vehicleSnapshot.docs.map(d => docToType<Vehicle>(d));
+    // Trier côté client pour éviter d'avoir besoin d'un index composite sur Firestore
+    vehicleList.sort((a, b) => a.brand.localeCompare(b.brand));
     return vehicleList;
   } catch (error) {
     console.error("Firebase error fetching vehicles for user. Returning empty array.", error);
