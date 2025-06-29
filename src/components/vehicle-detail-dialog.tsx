@@ -9,6 +9,7 @@ import { VehicleTabs } from '@/components/vehicle-tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/auth-context';
+import ErrorBoundary from './error-boundary';
 
 interface VehicleDetailDialogProps {
   vehicle: Vehicle | null;
@@ -61,47 +62,51 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
             {vehicle.year || 'N/A'} - {vehicle.licensePlate || 'N/A'}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid flex-1 items-start gap-4 overflow-y-auto p-6">
-            <Card>
-                <CardContent className="pt-6">
-                    <div className="grid gap-6 sm:grid-cols-3">
-                        <div className="relative h-60 w-full sm:col-span-1 rounded-lg bg-muted/30 flex items-center justify-center p-4">
-                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                             <img
-                              src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
-                              alt={`${vehicle.brand || ''} ${vehicle.model || ''}`}
-                              className="h-full w-full object-contain"
-                              onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
-                            />
-                        </div>
-                        <div className="sm:col-span-2">
-                            <h2 className="text-2xl font-bold mb-4">Informations Clés</h2>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div><strong className="block text-muted-foreground">Marque</strong> {vehicle.brand || 'N/A'}</div>
-                                <div><strong className="block text-muted-foreground">Modèle</strong> {vehicle.model || 'N/A'}</div>
-                                <div><strong className="block text-muted-foreground">Année</strong> {vehicle.year || 'N/A'}</div>
-                                <div><strong className="block text-muted-foreground">Plaque</strong> {vehicle.licensePlate || 'N/A'}</div>
-                                <div><strong className="block text-muted-foreground">Carburant</strong> {vehicle.fuelType || 'N/A'}</div>
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-           {isLoading ? (
-             <div className="space-y-4">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-40 w-full" />
-             </div>
-           ) : (
-            <VehicleTabs 
-                vehicleId={vehicle.id}
-                repairs={repairs} 
-                maintenance={maintenance} 
-                fuelLogs={fuelLogs}
-                deadlines={deadlines}
-                onDataChange={fetchVehicleData}
-            />
-           )}
+        <div className="flex-1 overflow-y-auto p-6">
+          <ErrorBoundary>
+            <div className="grid items-start gap-4">
+              <Card>
+                  <CardContent className="pt-6">
+                      <div className="grid gap-6 sm:grid-cols-3">
+                          <div className="relative h-60 w-full sm:col-span-1 rounded-lg bg-muted/30 flex items-center justify-center p-4">
+                               {/* eslint-disable-next-line @next/next/no-img-element */}
+                               <img
+                                src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
+                                alt={`${vehicle.brand || ''} ${vehicle.model || ''}`}
+                                className="h-full w-full object-contain"
+                                onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
+                              />
+                          </div>
+                          <div className="sm:col-span-2">
+                              <h2 className="text-2xl font-bold mb-4">Informations Clés</h2>
+                              <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div><strong className="block text-muted-foreground">Marque</strong> {vehicle.brand || 'N/A'}</div>
+                                  <div><strong className="block text-muted-foreground">Modèle</strong> {vehicle.model || 'N/A'}</div>
+                                  <div><strong className="block text-muted-foreground">Année</strong> {vehicle.year || 'N/A'}</div>
+                                  <div><strong className="block text-muted-foreground">Plaque</strong> {vehicle.licensePlate || 'N/A'}</div>
+                                  <div><strong className="block text-muted-foreground">Carburant</strong> {vehicle.fuelType || 'N/A'}</div>
+                              </div>
+                          </div>
+                      </div>
+                  </CardContent>
+              </Card>
+            {isLoading ? (
+              <div className="space-y-4">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-40 w-full" />
+              </div>
+            ) : (
+              <VehicleTabs 
+                  vehicleId={vehicle.id}
+                  repairs={repairs} 
+                  maintenance={maintenance} 
+                  fuelLogs={fuelLogs}
+                  deadlines={deadlines}
+                  onDataChange={fetchVehicleData}
+              />
+            )}
+            </div>
+          </ErrorBoundary>
         </div>
       </DialogContent>
     </Dialog>
