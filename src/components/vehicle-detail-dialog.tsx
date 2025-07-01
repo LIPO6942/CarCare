@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Vehicle, Repair, Maintenance, FuelLog } from '@/lib/types';
-import { getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle } from '@/lib/data';
+import type { Vehicle, Repair, Maintenance, FuelLog, Document } from '@/lib/types';
+import { getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle, getDocumentsForVehicle } from '@/lib/data';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { VehicleTabs } from '@/components/vehicle-tabs';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,25 +23,29 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange,
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchVehicleData = useCallback(async () => {
     if (vehicle && user) {
       setIsLoading(true);
       try {
-        const [repairsData, maintenanceData, fuelLogsData] = await Promise.all([
+        const [repairsData, maintenanceData, fuelLogsData, documentsData] = await Promise.all([
           getRepairsForVehicle(vehicle.id, user.uid),
           getMaintenanceForVehicle(vehicle.id, user.uid),
           getFuelLogsForVehicle(vehicle.id, user.uid),
+          getDocumentsForVehicle(vehicle.id, user.uid)
         ]);
         setRepairs(repairsData);
         setMaintenance(maintenanceData);
         setFuelLogs(fuelLogsData);
+        setDocuments(documentsData);
       } catch (error) {
         console.error("Failed to fetch vehicle details due to an error. Displaying empty data.", error);
         setRepairs([]);
         setMaintenance([]);
         setFuelLogs([]);
+        setDocuments([]);
       } finally {
         setIsLoading(false);
       }
@@ -55,7 +59,9 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange,
   }, [open, fetchVehicleData]);
 
   const handleDataChange = () => {
+    // This single function will be called by all child components to trigger a refetch
     fetchVehicleData();
+    // This will refetch data for the main dashboard as well
     onDataChange();
   };
 
@@ -110,6 +116,7 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange,
                   repairs={repairs} 
                   maintenance={maintenance} 
                   fuelLogs={fuelLogs}
+                  documents={documents}
                   onDataChange={handleDataChange}
                   initialTab={initialTab}
               />

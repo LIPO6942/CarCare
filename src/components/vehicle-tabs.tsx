@@ -1,38 +1,39 @@
 'use client'
 
 import { useState, useRef, type FormEvent, useEffect, useMemo, type ReactNode } from 'react';
+import Link from 'next/link';
 import { z } from "zod"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 
-import type { Repair, Maintenance, FuelLog, Vehicle } from '@/lib/types';
+import type { Repair, Maintenance, FuelLog, Vehicle, Document } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Wrench, Fuel, Calendar, Sparkles, Loader2, GaugeCircle, Tag, History } from 'lucide-react';
+import { PlusCircle, Wrench, Fuel, Calendar, Sparkles, Loader2, GaugeCircle, Tag, History, FileText, Trash2, Edit, MoreHorizontal, Download } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { addRepair, addMaintenance, addFuelLog } from '@/lib/data';
+import { 
+    addRepair, updateRepair, deleteRepair, 
+    addMaintenance, updateMaintenance, deleteMaintenance,
+    addFuelLog, updateFuelLog, deleteFuelLog,
+    addDocument, deleteDocument
+} from '@/lib/data';
 import { categorizeRepair } from '@/ai/flows/repair-categorization';
 import { useAuth } from '@/context/auth-context';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 
 interface VehicleTabsProps {
@@ -40,6 +41,7 @@ interface VehicleTabsProps {
     repairs: Repair[];
     maintenance: Maintenance[];
     fuelLogs: FuelLog[];
+    documents: Document[];
     onDataChange: () => void;
     initialTab?: string;
 }
@@ -83,35 +85,39 @@ const safeFormatCurrency = (numInput: any): string => {
 }
 
 
-export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataChange, initialTab }: VehicleTabsProps) {
+export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, documents, onDataChange, initialTab }: VehicleTabsProps) {
   
   const history = useMemo(() => {
-    const allEvents = [
-      ...repairs.map(r => ({ ...r, type: 'repair' as const, description: r.description, cost: r.cost })),
-      ...maintenance.map(m => ({ ...m, type: 'maintenance' as const, description: m.task, cost: m.cost })),
-      ...fuelLogs.map(f => ({ ...f, type: 'fuel' as const, description: `Plein de ${f.quantity} L`, cost: f.totalCost })),
-    ];
-    
-    allEvents.sort((a, b) => {
-        try {
-            const dateA = new Date(a.date).getTime();
-            const dateB = new Date(b.date).getTime();
-            return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA);
-        } catch (e) {
-            return 0;
-        }
-    });
+    try {
+        const allEvents = [
+          ...repairs.map(r => ({ ...r, type: 'repair' as const, description: r.description, cost: r.cost, eventDate: new Date(r.date) })),
+          ...maintenance.map(m => ({ ...m, type: 'maintenance' as const, description: m.task, cost: m.cost, eventDate: new Date(m.date) })),
+          ...fuelLogs.map(f => ({ ...f, type: 'fuel' as const, description: `Plein de ${f.quantity} L`, cost: f.totalCost, eventDate: new Date(f.date) })),
+        ];
+        
+        allEvents.sort((a, b) => {
+            const dateA = a.eventDate?.getTime();
+            const dateB = b.eventDate?.getTime();
+            if (isNaN(dateA) || !dateA) return 1;
+            if (isNaN(dateB) || !dateB) return -1;
+            return dateB - dateA;
+        });
+        return allEvents;
 
-    return allEvents;
+    } catch (e) {
+        console.error("Error creating history", e);
+        return [];
+    }
   }, [repairs, maintenance, fuelLogs]);
 
   return (
     <Tabs defaultValue={initialTab || 'history'} className="w-full">
-      <TabsList className="grid w-full grid-cols-4">
+      <TabsList className="grid w-full grid-cols-5">
         <TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Historique</TabsTrigger>
         <TabsTrigger value="repairs"><Wrench className="mr-2 h-4 w-4" />Réparations</TabsTrigger>
         <TabsTrigger value="maintenance"><Calendar className="mr-2 h-4 w-4" />Entretien</TabsTrigger>
         <TabsTrigger value="fuel"><Fuel className="mr-2 h-4 w-4" />Carburant</TabsTrigger>
+        <TabsTrigger value="documents"><FileText className="mr-2 h-4 w-4" />Documents</TabsTrigger>
       </TabsList>
       <TabsContent value="history">
         <HistoryTab history={history} />
@@ -125,9 +131,64 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataCha
       <TabsContent value="fuel">
         <FuelTab vehicle={vehicle} fuelLogs={fuelLogs} onDataChange={onDataChange} />
       </TabsContent>
+       <TabsContent value="documents">
+        <DocumentsTab vehicleId={vehicle.id} documents={documents} onDataChange={onDataChange} />
+      </TabsContent>
     </Tabs>
   );
 }
+
+// --- SHARED COMPONENTS ---
+
+function ActionMenu({ onEdit, onDelete }: { onEdit: () => void, onDelete: () => void }) {
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                    <span className="sr-only">Ouvrir le menu</span>
+                    <MoreHorizontal className="h-4 w-4" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={onEdit}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    <span>Modifier</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    <span>Supprimer</span>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
+function DeleteConfirmationDialog({ open, onOpenChange, onConfirm, isDeleting, title, description }: { open: boolean, onOpenChange: (open: boolean) => void, onConfirm: () => void, isDeleting: boolean, title: string, description: string }) {
+    return (
+        <AlertDialog open={open} onOpenChange={onOpenChange}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{title}</AlertDialogTitle>
+                    <AlertDialogDescription>{description}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <AlertDialogAction
+                        disabled={isDeleting}
+                        onClick={onConfirm}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                        {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        {isDeleting ? 'Suppression...' : 'Supprimer'}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
+
+// --- HISTORY TAB ---
 
 function HistoryTab({ history }: { history: any[] }) {
     const historyIcons: { [key: string]: ReactNode } = {
@@ -167,10 +228,9 @@ function HistoryTab({ history }: { history: any[] }) {
         <CardDescription>Toutes les actions effectuées sur ce véhicule, triées par date.</CardDescription>
       </CardHeader>
       <CardContent>
-          {/* Mobile View */}
           <div className="md:hidden space-y-4">
-            {history.map((item) => (
-                <div key={`${item.type}-${item.id}`} className="p-4 border rounded-lg bg-card text-card-foreground">
+            {history.map((item, index) => (
+                <div key={`${item.type}-${item.id}-${index}`} className="p-4 border rounded-lg bg-card text-card-foreground">
                     <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
                             {historyIcons[item.type]}
@@ -185,8 +245,6 @@ function HistoryTab({ history }: { history: any[] }) {
                 </div>
             ))}
           </div>
-
-          {/* Desktop View */}
           <div className="hidden md:block">
             <Table>
               <TableHeader>
@@ -199,19 +257,19 @@ function HistoryTab({ history }: { history: any[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {history.map((item) => (
-                  <TableRow key={`${item.type}-${item.id}`}>
-                    <TableCell>
-                        <div className="flex items-center gap-2">
-                            {historyIcons[item.type]}
-                            <span>{historyLabels[item.type]}</span>
-                        </div>
-                    </TableCell>
-                    <TableCell>{safeFormatDate(item.date)}</TableCell>
-                    <TableCell className="font-medium">{item.description || 'N/A'}</TableCell>
-                    <TableCell>{safeFormatNumber(item.mileage)} km</TableCell>
-                    <TableCell className="text-right">{safeFormatCurrency(item.cost)}</TableCell>
-                  </TableRow>
+                {history.map((item, index) => (
+                    <TableRow key={`${item.type}-${item.id}-${index}`}>
+                        <TableCell>
+                            <div className="flex items-center gap-2">
+                                {historyIcons[item.type]}
+                                <span>{historyLabels[item.type]}</span>
+                            </div>
+                        </TableCell>
+                        <TableCell>{safeFormatDate(item.date)}</TableCell>
+                        <TableCell className="font-medium">{item.description || 'N/A'}</TableCell>
+                        <TableCell>{safeFormatNumber(item.mileage)} km</TableCell>
+                        <TableCell className="text-right">{safeFormatCurrency(item.cost)}</TableCell>
+                    </TableRow>
                 ))}
               </TableBody>
             </Table>
@@ -222,37 +280,75 @@ function HistoryTab({ history }: { history: any[] }) {
 }
 
 
+// --- REPAIRS TAB ---
+
 function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repairs: Repair[], onDataChange: () => void }) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [itemToEdit, setItemToEdit] = useState<Repair | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<Repair | null>(null);
+  const { toast } = useToast();
+
+  const handleEdit = (repair: Repair) => {
+    setItemToEdit(repair);
+    setIsDialogOpen(true);
+  };
+  
+  const handleAdd = () => {
+    setItemToEdit(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
+    try {
+        await deleteRepair(itemToDelete.id);
+        toast({ title: 'Succès', description: 'Réparation supprimée.' });
+        onDataChange();
+        setItemToDelete(null);
+    } catch (error) {
+        toast({ title: 'Erreur', description: "Impossible de supprimer la réparation.", variant: 'destructive' });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
+
   return (
+    <>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
             <CardTitle>Journal des Réparations</CardTitle>
             <CardDescription>Historique de toutes les réparations effectuées.</CardDescription>
         </div>
-        <AddRepairDialog vehicleId={vehicle.id} onDataChange={onDataChange} />
+        <Button onClick={handleAdd}><PlusCircle className="mr-2 h-4 w-4" />Ajouter une réparation</Button>
       </CardHeader>
       <CardContent>
         {repairs.length > 0 ? (
             <div>
-                {/* Mobile View */}
                 <div className="md:hidden space-y-4">
-                {repairs.map((repair) => (
-                    <div key={repair.id} className="p-4 border rounded-lg bg-card text-card-foreground">
-                        <div className="flex justify-between items-start">
-                            <p className="font-bold text-lg">{repair.description || 'N/A'}</p>
-                            <p className="font-bold text-lg text-right">{safeFormatCurrency(repair.cost)}</p>
+                    {repairs.map((repair) => (
+                        <div key={repair.id} className="p-4 border rounded-lg bg-card text-card-foreground">
+                             <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="font-bold text-lg">{repair.description || 'N/A'}</p>
+                                    <span className="text-xs font-mono px-2 py-1 bg-muted rounded-full inline-block mt-1">
+                                        {repair.category || 'N/A'}
+                                    </span>
+                                </div>
+                                <ActionMenu onEdit={() => handleEdit(repair)} onDelete={() => setItemToDelete(repair)} />
+                            </div>
+                            <div className="mt-2 flex flex-wrap justify-between items-end gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                                <div>
+                                    <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(repair.date)}</span>
+                                    <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(repair.mileage)} km</span>
+                                </div>
+                                <p className="font-bold text-lg text-right text-foreground">{safeFormatCurrency(repair.cost)}</p>
+                            </div>
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(repair.date)}</span>
-                            <span className="flex items-center gap-1.5"><Tag size={14} /> {repair.category || 'N/A'}</span>
-                            <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(repair.mileage)} km</span>
-                        </div>
-                    </div>
-                ))}
+                    ))}
                 </div>
-
-                {/* Desktop View */}
                 <div className="hidden md:block">
                     <Table>
                         <TableHeader>
@@ -262,6 +358,7 @@ function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repa
                             <TableHead>Catégorie</TableHead>
                             <TableHead>Kilométrage</TableHead>
                             <TableHead className="text-right">Coût</TableHead>
+                            <TableHead className="w-[50px]"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -272,6 +369,7 @@ function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repa
                                     <TableCell>{repair.category || 'N/A'}</TableCell>
                                     <TableCell>{safeFormatNumber(repair.mileage)} km</TableCell>
                                     <TableCell className="text-right">{safeFormatCurrency(repair.cost)}</TableCell>
+                                    <TableCell><ActionMenu onEdit={() => handleEdit(repair)} onDelete={() => setItemToDelete(repair)} /></TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -282,17 +380,33 @@ function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repa
             <div className="text-center py-12 text-muted-foreground">
                 <Wrench className="mx-auto h-12 w-12 mb-4" />
                 <h3 className="text-lg font-semibold">Aucune réparation enregistrée</h3>
-                <p className="mb-4">Cliquez sur "Ajouter une réparation" pour commencer.</p>
-                <AddRepairDialog vehicleId={vehicle.id} onDataChange={onDataChange} />
+                <p>Cliquez sur "Ajouter une réparation" pour commencer.</p>
             </div>
         )}
       </CardContent>
     </Card>
+
+    <RepairDialog 
+        key={itemToEdit ? itemToEdit.id : 'add'}
+        open={isDialogOpen} 
+        onOpenChange={setIsDialogOpen}
+        vehicleId={vehicle.id} 
+        onDataChange={onDataChange}
+        initialData={itemToEdit}
+    />
+    <DeleteConfirmationDialog 
+        open={!!itemToDelete}
+        onOpenChange={() => setItemToDelete(null)}
+        onConfirm={handleDeleteConfirm}
+        isDeleting={isDeleting}
+        title="Supprimer la réparation ?"
+        description="Cette action est irréversible et supprimera définitivement cette entrée."
+    />
+    </>
   );
 }
 
 const RepairSchema = z.object({
-  vehicleId: z.string(),
   date: z.string().min(1, 'La date est requise.'),
   mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
   description: z.string().min(1, 'La description est requise.'),
@@ -300,17 +414,26 @@ const RepairSchema = z.object({
   cost: z.coerce.number().min(0, 'Le coût doit être positif.'),
 });
 
-function AddRepairDialog({ vehicleId, onDataChange }: { vehicleId: string, onDataChange: () => void }) {
-    const [open, setOpen] = useState(false);
+function RepairDialog({ open, onOpenChange, vehicleId, onDataChange, initialData }: { open: boolean, onOpenChange: (open: boolean) => void, vehicleId: string, onDataChange: () => void, initialData: Repair | null }) {
     const { toast } = useToast();
     const { user } = useAuth();
-    const [description, setDescription] = useState('');
-    const [category, setCategory] = useState('');
+    const [description, setDescription] = useState(initialData?.description || '');
+    const [category, setCategory] = useState(initialData?.category || '');
     const [isCategorizing, setIsCategorizing] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
 
     const repairCategories = ["Moteur", "Freins", "Électrique", "Suspension", "Carrosserie", "Intérieur", "Échappement", "Transmission", "Pneus", "Autre"];
+
+    useEffect(() => {
+        if (initialData) {
+            setDescription(initialData.description || '');
+            setCategory(initialData.category || '');
+        } else {
+            setDescription('');
+            setCategory('');
+        }
+    }, [initialData, open]);
 
     const handleCategorize = async () => {
         if (!description) {
@@ -345,10 +468,6 @@ function AddRepairDialog({ vehicleId, onDataChange }: { vehicleId: string, onDat
         }
 
         const formData = new FormData(event.currentTarget);
-        if (!formData.get('category')) {
-          formData.set('category', category);
-        }
-
         const data = Object.fromEntries(formData.entries());
         const validatedFields = RepairSchema.safeParse(data);
 
@@ -357,17 +476,19 @@ function AddRepairDialog({ vehicleId, onDataChange }: { vehicleId: string, onDat
             setIsSubmitting(false);
             return;
         }
-
+        
         try {
-            await addRepair(validatedFields.data, user.uid);
-            toast({ title: "Succès", description: "Réparation ajoutée." });
-            setOpen(false);
-            setDescription('');
-            setCategory('');
-            formRef.current?.reset();
+            if (initialData) {
+                await updateRepair(initialData.id, validatedFields.data);
+                toast({ title: "Succès", description: "Réparation mise à jour." });
+            } else {
+                await addRepair({ ...validatedFields.data, vehicleId }, user.uid);
+                toast({ title: "Succès", description: "Réparation ajoutée." });
+            }
+            onOpenChange(false);
             onDataChange();
         } catch (error) {
-            toast({ title: "Erreur", description: "Impossible d'ajouter la réparation.", variant: 'destructive' });
+            toast({ title: "Erreur", description: "Impossible d'enregistrer la réparation.", variant: 'destructive' });
         } finally {
             setIsSubmitting(false);
         }
@@ -376,20 +497,15 @@ function AddRepairDialog({ vehicleId, onDataChange }: { vehicleId: string, onDat
     if (!user) return null;
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button><PlusCircle className="mr-2 h-4 w-4" />Ajouter une réparation</Button>
-            </DialogTrigger>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Nouvelle Réparation</DialogTitle>
-                    <DialogDescription>Ajoutez les détails de la réparation effectuée.</DialogDescription>
+                    <DialogTitle>{initialData ? 'Modifier' : 'Nouvelle'} Réparation</DialogTitle>
                 </DialogHeader>
-                <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-                     <input type="hidden" name="vehicleId" value={vehicleId} />
+                <form ref={formRef} onSubmit={handleSubmit} className="space-y-4 pt-4">
                      <div className="grid grid-cols-2 gap-4">
-                        <Input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
-                        <Input name="mileage" type="number" placeholder="Kilométrage" required />
+                        <Input name="date" type="date" required defaultValue={initialData?.date || new Date().toISOString().split('T')[0]} />
+                        <Input name="mileage" type="number" placeholder="Kilométrage" required defaultValue={initialData?.mileage} />
                     </div>
                     <Textarea name="description" placeholder="Description de la réparation" required onChange={(e) => setDescription(e.target.value)} value={description} />
                     <div className="flex gap-2 items-center">
@@ -408,9 +524,9 @@ function AddRepairDialog({ vehicleId, onDataChange }: { vehicleId: string, onDat
                             <span className="hidden sm:inline">{isCategorizing ? 'Analyse...' : 'Suggérer'}</span>
                         </Button>
                     </div>
-                    <Input name="cost" type="number" step="0.01" placeholder="Coût (TND)" required />
+                    <Input name="cost" type="number" step="0.01" placeholder="Coût (TND)" required defaultValue={initialData?.cost} />
                     <DialogFooter>
-                        <DialogClose asChild><Button type="button" variant="secondary" disabled={isSubmitting}>Annuler</Button></DialogClose>
+                        <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
                         <Button type="submit" disabled={isSubmitting}>
                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Enregistrer
@@ -422,20 +538,53 @@ function AddRepairDialog({ vehicleId, onDataChange }: { vehicleId: string, onDat
     )
 }
 
+// --- MAINTENANCE TAB ---
+
 function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehicle, maintenance: Maintenance[], onDataChange: () => void }) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [itemToEdit, setItemToEdit] = useState<Maintenance | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<Maintenance | null>(null);
+  const { toast } = useToast();
+
+  const handleEdit = (item: Maintenance) => {
+    setItemToEdit(item);
+    setIsDialogOpen(true);
+  };
+  
+  const handleAdd = () => {
+    setItemToEdit(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
+    try {
+        await deleteMaintenance(itemToDelete.id);
+        toast({ title: 'Succès', description: 'Entretien supprimé.' });
+        onDataChange();
+        setItemToDelete(null);
+    } catch (error) {
+        toast({ title: 'Erreur', description: "Impossible de supprimer l'entretien.", variant: 'destructive' });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
+
     return (
+    <>
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle>Suivi de l'Entretien</CardTitle>
                     <CardDescription>Gardez un oeil sur les entretiens passés et à venir.</CardDescription>
                 </div>
-                 <AddMaintenanceDialog vehicle={vehicle} onDataChange={onDataChange} />
+                 <Button onClick={handleAdd}><PlusCircle className="mr-2 h-4 w-4" />Ajouter un entretien</Button>
             </CardHeader>
             <CardContent>
                 {maintenance.length > 0 ? (
                 <div>
-                    {/* Mobile View */}
                     <div className="md:hidden space-y-4">
                         {maintenance.map((item) => {
                             const formattedNextDate = safeFormatDate(item.nextDueDate, 'd MMM yyyy');
@@ -448,11 +597,14 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                                 <div key={item.id} className="p-4 border rounded-lg bg-card text-card-foreground">
                                     <div className="flex justify-between items-start">
                                         <p className="font-bold text-lg">{item.task || 'N/A'}</p>
-                                        <p className="font-bold text-lg text-right">{safeFormatCurrency(item.cost)}</p>
+                                        <ActionMenu onEdit={() => handleEdit(item)} onDelete={() => setItemToDelete(item)} />
                                     </div>
-                                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                                    <div className="mt-2 flex flex-wrap justify-between items-end gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                                      <div>
                                         <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(item.date)}</span>
                                         <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(item.mileage)} km</span>
+                                      </div>
+                                      <p className="font-bold text-lg text-right text-foreground">{safeFormatCurrency(item.cost)}</p>
                                     </div>
                                     <div className="mt-2 pt-2 border-t text-sm text-muted-foreground">
                                        <span className="flex items-center gap-1.5"><span className="font-medium text-foreground">Prochain:</span> {nextDueText}</span>
@@ -461,8 +613,6 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                             )
                         })}
                     </div>
-
-                    {/* Desktop View */}
                     <div className="hidden md:block">
                         <Table>
                             <TableHeader>
@@ -471,6 +621,7 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                                 <TableHead>Tâche</TableHead>
                                 <TableHead>Prochain Entretien</TableHead>
                                 <TableHead className="text-right">Coût</TableHead>
+                                <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -488,6 +639,7 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                                             {formattedNextMileage}
                                         </TableCell>
                                         <TableCell className="text-right">{safeFormatCurrency(item.cost)}</TableCell>
+                                        <TableCell><ActionMenu onEdit={() => handleEdit(item)} onDelete={() => setItemToDelete(item)} /></TableCell>
                                     </TableRow>
                                     );
                                 })}
@@ -496,20 +648,35 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                     </div>
                 </div>
                 ) : (
-                    <div className="text-center py-12 text-muted-foreground">
+                     <div className="text-center py-12 text-muted-foreground">
                         <Calendar className="mx-auto h-12 w-12 mb-4" />
                         <h3 className="text-lg font-semibold">Aucun entretien enregistré</h3>
-                        <p className="mb-4">Ajoutez un entretien pour commencer le suivi.</p>
-                        <AddMaintenanceDialog vehicle={vehicle} onDataChange={onDataChange} />
+                        <p>Ajoutez un entretien pour commencer le suivi.</p>
                     </div>
                 )}
             </CardContent>
         </Card>
+        <MaintenanceDialog
+            key={itemToEdit ? itemToEdit.id : 'add'}
+            open={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            vehicle={vehicle}
+            onDataChange={onDataChange}
+            initialData={itemToEdit}
+        />
+        <DeleteConfirmationDialog 
+            open={!!itemToDelete}
+            onOpenChange={() => setItemToDelete(null)}
+            onConfirm={handleDeleteConfirm}
+            isDeleting={isDeleting}
+            title="Supprimer l'entretien ?"
+            description="Cette action est irréversible et supprimera définitivement cette entrée."
+        />
+    </>
     )
 }
 
 const MaintenanceSchema = z.object({
-  vehicleId: z.string(),
   date: z.string().min(1, 'La date est requise.'),
   mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
   task: z.string().min(1, 'La tâche est requise.'),
@@ -518,28 +685,38 @@ const MaintenanceSchema = z.object({
   nextDueMileage: z.coerce.number().optional(),
 });
 
-function AddMaintenanceDialog({ vehicle, onDataChange }: { vehicle: Vehicle, onDataChange: () => void }) {
-    const [open, setOpen] = useState(false);
+function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialData }: { open: boolean, onOpenChange: (open: boolean) => void, vehicle: Vehicle, onDataChange: () => void, initialData: Maintenance | null }) {
     const { toast } = useToast();
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const formRef = useRef<HTMLFormElement>(null);
-    const [selectedTask, setSelectedTask] = useState('');
-    const [cost, setCost] = useState('');
+    const [selectedTask, setSelectedTask] = useState(initialData?.task || '');
+    const [cost, setCost] = useState(initialData?.cost.toString() || '');
     
     const maintenanceTasks = [
-        "Vidange",
-        "Visite technique",
-        "Assurance",
-        "Vignette",
-        "Changement des pneus",
-        "Rotation des pneus",
-        "Changement de la batterie",
-        "Entretien climatisation",
-        "Autre",
+        "Vidange", "Visite technique", "Assurance", "Vignette", "Changement des pneus",
+        "Rotation des pneus", "Changement de la batterie", "Entretien climatisation", "Autre",
     ];
+    
+    useEffect(() => {
+        if (!open) {
+            setSelectedTask('');
+            setCost('');
+            return;
+        }
+
+        if (initialData) {
+            setSelectedTask(initialData.task || '');
+            setCost(initialData.cost?.toString() || '');
+        } else {
+            setSelectedTask('');
+            setCost('');
+        }
+    }, [initialData, open]);
 
     useEffect(() => {
+        // This effect runs when selectedTask changes, but only if it's a new entry
+        if (initialData) return;
+
         if (selectedTask === 'Visite technique') {
             setCost('35');
         } else if (selectedTask === 'Vignette') {
@@ -556,7 +733,7 @@ function AddMaintenanceDialog({ vehicle, onDataChange }: { vehicle: Vehicle, onD
         } else {
             setCost('');
         }
-    }, [selectedTask, vehicle.fiscalPower, toast]);
+    }, [selectedTask, vehicle.fiscalPower, toast, initialData]);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -569,15 +746,14 @@ function AddMaintenanceDialog({ vehicle, onDataChange }: { vehicle: Vehicle, onD
         }
         
         const formData = new FormData(event.currentTarget);
-        
         const finalTask = selectedTask === 'Autre' ? formData.get('customTask') as string : selectedTask;
+
         if (!finalTask || finalTask.trim() === '') {
             toast({ title: "Erreur", description: "Veuillez sélectionner ou préciser une tâche.", variant: 'destructive' });
             setIsSubmitting(false);
             return;
         }
         formData.set('task', finalTask);
-        formData.delete('customTask');
         
         const rawData = Object.fromEntries(formData.entries());
         if (rawData.nextDueDate === '') delete rawData.nextDueDate;
@@ -592,15 +768,17 @@ function AddMaintenanceDialog({ vehicle, onDataChange }: { vehicle: Vehicle, onD
         }
 
         try {
-            await addMaintenance(validatedFields.data, user.uid);
-            toast({ title: "Succès", description: "Entretien ajouté." });
-            setOpen(false);
-            setSelectedTask('');
-            setCost('');
-            formRef.current?.reset();
+            if (initialData) {
+                await updateMaintenance(initialData.id, validatedFields.data);
+                toast({ title: "Succès", description: "Entretien mis à jour." });
+            } else {
+                await addMaintenance({ ...validatedFields.data, vehicleId: vehicle.id }, user.uid);
+                toast({ title: "Succès", description: "Entretien ajouté." });
+            }
+            onOpenChange(false);
             onDataChange();
         } catch (error) {
-            toast({ title: "Erreur", description: "Impossible d'ajouter l'entretien.", variant: 'destructive' });
+            toast({ title: "Erreur", description: "Impossible d'enregistrer l'entretien.", variant: 'destructive' });
         } finally {
             setIsSubmitting(false);
         }
@@ -609,27 +787,22 @@ function AddMaintenanceDialog({ vehicle, onDataChange }: { vehicle: Vehicle, onD
     if (!user) return null;
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button><PlusCircle className="mr-2 h-4 w-4" />Ajouter un entretien</Button>
-            </DialogTrigger>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Nouvel Entretien</DialogTitle>
-                    <DialogDescription>Ajoutez les détails de l'entretien réalisé.</DialogDescription>
+                    <DialogTitle>{initialData ? 'Modifier' : 'Nouvel'} Entretien</DialogTitle>
                 </DialogHeader>
-                <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-                    <input type="hidden" name="vehicleId" value={vehicle.id} />
+                <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                     <div className="space-y-2">
                         <label>Date & Kilométrage</label>
                         <div className="grid grid-cols-2 gap-4">
-                            <Input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
-                            <Input name="mileage" type="number" placeholder="Kilométrage" required />
+                            <Input name="date" type="date" required defaultValue={initialData?.date || new Date().toISOString().split('T')[0]} />
+                            <Input name="mileage" type="number" placeholder="Kilométrage" required defaultValue={initialData?.mileage} />
                         </div>
                     </div>
                      <div className="space-y-2">
                         <label>Tâche d'entretien</label>
-                        <Select onValueChange={setSelectedTask} value={selectedTask} required>
+                        <Select onValueChange={setSelectedTask} value={selectedTask} name="task" required>
                             <SelectTrigger>
                                 <SelectValue placeholder="Sélectionnez une tâche" />
                             </SelectTrigger>
@@ -643,6 +816,7 @@ function AddMaintenanceDialog({ vehicle, onDataChange }: { vehicle: Vehicle, onD
                                 placeholder="Précisez la tâche" 
                                 required 
                                 className="mt-2"
+                                defaultValue={initialData?.task && !maintenanceTasks.includes(initialData.task) ? initialData.task : ''}
                              />
                         )}
                     </div>
@@ -654,13 +828,13 @@ function AddMaintenanceDialog({ vehicle, onDataChange }: { vehicle: Vehicle, onD
                     <fieldset className="border p-4 rounded-md">
                         <legend className="text-sm font-medium px-1">Prochain entretien (Optionnel)</legend>
                         <div className="grid grid-cols-2 gap-4 pt-2">
-                            <Input name="nextDueDate" type="date" />
-                            <Input name="nextDueMileage" type="number" placeholder="Prochain kilométrage" />
+                            <Input name="nextDueDate" type="date" defaultValue={initialData?.nextDueDate?.split('T')[0]} />
+                            <Input name="nextDueMileage" type="number" placeholder="Prochain kilométrage" defaultValue={initialData?.nextDueMileage} />
                         </div>
                     </fieldset>
                     
                     <DialogFooter>
-                        <DialogClose asChild><Button type="button" variant="secondary" disabled={isSubmitting}>Annuler</Button></DialogClose>
+                        <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
                         <Button type="submit" disabled={isSubmitting}>
                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Enregistrer
@@ -672,8 +846,9 @@ function AddMaintenanceDialog({ vehicle, onDataChange }: { vehicle: Vehicle, onD
     )
 }
 
+// --- FUEL TAB ---
+
 const FuelLogSchema = z.object({
-    vehicleId: z.string(),
     date: z.string().min(1, 'La date est requise.'),
     mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
     quantity: z.coerce.number().gt(0, 'La quantité doit être supérieure à 0.'),
@@ -682,39 +857,68 @@ const FuelLogSchema = z.object({
 });
 
 function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLogs: FuelLog[], onDataChange: () => void }) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [itemToEdit, setItemToEdit] = useState<FuelLog | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<FuelLog | null>(null);
+  const { toast } = useToast();
+
+  const handleEdit = (item: FuelLog) => {
+    setItemToEdit(item);
+    setIsDialogOpen(true);
+  };
+  
+  const handleAdd = () => {
+    setItemToEdit(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
+    try {
+        await deleteFuelLog(itemToDelete.id);
+        toast({ title: 'Succès', description: 'Plein de carburant supprimé.' });
+        onDataChange();
+        setItemToDelete(null);
+    } catch (error) {
+        toast({ title: 'Erreur', description: "Impossible de supprimer le plein.", variant: 'destructive' });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
+
     return (
+    <>
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle>Suivi du Carburant</CardTitle>
                     <CardDescription>Consultez l'historique de vos pleins de carburant.</CardDescription>
                 </div>
-                <AddFuelLogDialog vehicleId={vehicle.id} onDataChange={onDataChange} />
+                <Button onClick={handleAdd}><PlusCircle className="mr-2 h-4 w-4" />Ajouter un plein</Button>
             </CardHeader>
             <CardContent>
                 {fuelLogs.length > 0 ? (
                 <div>
-                    {/* Mobile View */}
                     <div className="md:hidden space-y-4">
                         {fuelLogs.map((log) => (
                             <div key={log.id} className="p-4 border rounded-lg bg-card text-card-foreground">
                                 <div className="flex justify-between items-start">
-                                    <div className="flex items-center gap-2">
-                                        <Fuel size={20} className="text-primary"/>
-                                        <p className="font-bold text-lg">Plein de carburant</p>
-                                    </div>
-                                    <p className="font-bold text-lg text-right">{safeFormatCurrency(log.totalCost)}</p>
+                                    <p className="font-bold text-lg">Plein de carburant</p>
+                                    <ActionMenu onEdit={() => handleEdit(log)} onDelete={() => setItemToDelete(log)} />
                                 </div>
-                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                                    <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(log.date)}</span>
-                                    <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(log.mileage)} km</span>
-                                    <span className="flex items-center gap-1.5">{safeFormatNumber(log.quantity)} L à {safeFormatCurrency(log.pricePerLiter)}/L</span>
+                                <div className="mt-2 flex flex-wrap justify-between items-end gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                                    <div>
+                                        <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(log.date)}</span>
+                                        <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(log.mileage)} km</span>
+                                        <span className="flex items-center gap-1.5">{safeFormatNumber(log.quantity)} L à {safeFormatCurrency(log.pricePerLiter)}/L</span>
+                                    </div>
+                                    <p className="font-bold text-lg text-right text-foreground">{safeFormatCurrency(log.totalCost)}</p>
                                 </div>
                             </div>
                         ))}
                     </div>
-
-                    {/* Desktop View */}
                     <div className="hidden md:block">
                         <Table>
                             <TableHeader>
@@ -724,6 +928,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                                 <TableHead>Quantité</TableHead>
                                 <TableHead>Prix/L</TableHead>
                                 <TableHead className="text-right">Coût Total</TableHead>
+                                <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -734,6 +939,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                                         <TableCell>{safeFormatNumber(log.quantity)} L</TableCell>
                                         <TableCell>{safeFormatCurrency(log.pricePerLiter)}</TableCell>
                                         <TableCell className="text-right">{safeFormatCurrency(log.totalCost)}</TableCell>
+                                        <TableCell><ActionMenu onEdit={() => handleEdit(log)} onDelete={() => setItemToDelete(log)} /></TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -744,26 +950,54 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                     <div className="text-center py-12 text-muted-foreground">
                         <Fuel className="mx-auto h-12 w-12 mb-4" />
                         <h3 className="text-lg font-semibold">Aucun plein enregistré</h3>
-                        <p className="mb-4">Ajoutez un plein pour suivre votre consommation.</p>
-                        <AddFuelLogDialog vehicleId={vehicle.id} onDataChange={onDataChange} />
+                        <p>Ajoutez un plein pour suivre votre consommation.</p>
                     </div>
                 )}
             </CardContent>
         </Card>
+        <FuelLogDialog
+            key={itemToEdit ? itemToEdit.id : 'add'}
+            open={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            vehicleId={vehicle.id}
+            onDataChange={onDataChange}
+            initialData={itemToEdit}
+        />
+        <DeleteConfirmationDialog 
+            open={!!itemToDelete}
+            onOpenChange={() => setItemToDelete(null)}
+            onConfirm={handleDeleteConfirm}
+            isDeleting={isDeleting}
+            title="Supprimer le plein ?"
+            description="Cette action est irréversible et supprimera définitivement cette entrée."
+        />
+    </>
     )
 }
 
-function AddFuelLogDialog({ vehicleId, onDataChange }: { vehicleId: string, onDataChange: () => void }) {
-    const [open, setOpen] = useState(false);
+function FuelLogDialog({ open, onOpenChange, vehicleId, onDataChange, initialData }: { open: boolean, onOpenChange: (open: boolean) => void, vehicleId: string, onDataChange: () => void, initialData: FuelLog | null }) {
     const { toast } = useToast();
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [quantity, setQuantity] = useState('');
-    const [pricePerLiter, setPricePerLiter] = useState('2.5');
-    const formRef = useRef<HTMLFormElement>(null);
+    const [quantity, setQuantity] = useState(initialData?.quantity.toString() || '');
+    const [pricePerLiter, setPricePerLiter] = useState(initialData?.pricePerLiter.toString() || '2.5');
 
-    const totalCost = parseFloat(quantity) * parseFloat(pricePerLiter);
-    const displayTotalCost = isNaN(totalCost) ? '' : totalCost.toFixed(2);
+    useEffect(() => {
+        if (initialData) {
+            setQuantity(initialData.quantity.toString());
+            setPricePerLiter(initialData.pricePerLiter.toString());
+        } else {
+            setQuantity('');
+            setPricePerLiter('2.5');
+        }
+    }, [initialData, open]);
+    
+    const totalCost = useMemo(() => {
+        const q = parseFloat(quantity);
+        const p = parseFloat(pricePerLiter);
+        if (isNaN(q) || isNaN(p)) return 0;
+        return q * p;
+    }, [quantity, pricePerLiter]);
     
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -776,8 +1010,7 @@ function AddFuelLogDialog({ vehicleId, onDataChange }: { vehicleId: string, onDa
         }
 
         const formData = new FormData(event.currentTarget);
-        formData.set('totalCost', displayTotalCost);
-
+        formData.set('totalCost', totalCost.toFixed(2));
         const validatedFields = FuelLogSchema.safeParse(Object.fromEntries(formData.entries()));
 
         if (!validatedFields.success) {
@@ -787,12 +1020,14 @@ function AddFuelLogDialog({ vehicleId, onDataChange }: { vehicleId: string, onDa
         }
         
         try {
-            await addFuelLog(validatedFields.data, user.uid);
-            toast({ title: "Succès", description: "Plein de carburant ajouté." });
-            setOpen(false);
-            setQuantity('');
-            setPricePerLiter('2.5');
-            formRef.current?.reset();
+            if (initialData) {
+                await updateFuelLog(initialData.id, validatedFields.data);
+                toast({ title: "Succès", description: "Plein mis à jour." });
+            } else {
+                await addFuelLog({ ...validatedFields.data, vehicleId }, user.uid);
+                toast({ title: "Succès", description: "Plein de carburant ajouté." });
+            }
+            onOpenChange(false);
             onDataChange();
         } catch (error) {
             toast({ title: "Erreur", description: "Impossible d'ajouter le plein.", variant: 'destructive' });
@@ -804,20 +1039,15 @@ function AddFuelLogDialog({ vehicleId, onDataChange }: { vehicleId: string, onDa
     if (!user) return null;
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button><PlusCircle className="mr-2 h-4 w-4" />Ajouter un plein</Button>
-            </DialogTrigger>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Nouveau Plein de Carburant</DialogTitle>
-                    <DialogDescription>Ajoutez les détails de votre passage à la station.</DialogDescription>
+                    <DialogTitle>{initialData ? 'Modifier le' : 'Nouveau'} Plein de Carburant</DialogTitle>
                 </DialogHeader>
-                <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-                    <input type="hidden" name="vehicleId" value={vehicleId} />
+                <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <Input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
-                        <Input name="mileage" type="number" placeholder="Kilométrage" required />
+                        <Input name="date" type="date" required defaultValue={initialData?.date || new Date().toISOString().split('T')[0]} />
+                        <Input name="mileage" type="number" placeholder="Kilométrage" required defaultValue={initialData?.mileage} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <Input name="quantity" type="number" step="0.01" placeholder="Quantité (L)" required value={quantity} onChange={e => setQuantity(e.target.value)} />
@@ -825,10 +1055,181 @@ function AddFuelLogDialog({ vehicleId, onDataChange }: { vehicleId: string, onDa
                     </div>
                      <div className="space-y-2">
                         <label htmlFor="totalCost">Coût total (TND)</label>
-                        <Input id="totalCost" name="totalCost" type="number" value={displayTotalCost} readOnly className="bg-muted" />
+                        <Input id="totalCost" type="number" value={totalCost.toFixed(2)} readOnly className="bg-muted" />
                     </div>
                     <DialogFooter>
-                        <DialogClose asChild><Button type="button" variant="secondary" disabled={isSubmitting}>Annuler</Button></DialogClose>
+                        <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Enregistrer
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+// --- DOCUMENTS TAB ---
+
+function DocumentsTab({ vehicleId, documents, onDataChange }: { vehicleId: string, documents: Document[], onDataChange: () => void }) {
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<Document | null>(null);
+    const { toast } = useToast();
+
+    const handleDeleteConfirm = async () => {
+        if (!itemToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deleteDocument(itemToDelete.id, itemToDelete.filePath);
+            toast({ title: 'Succès', description: 'Document supprimé.' });
+            onDataChange();
+            setItemToDelete(null);
+        } catch (error) {
+            toast({ title: 'Erreur', description: "Impossible de supprimer le document.", variant: 'destructive' });
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+    
+    return (
+        <>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Documents du Véhicule</CardTitle>
+                        <CardDescription>Stockez et consultez tous vos documents importants.</CardDescription>
+                    </div>
+                    <Button onClick={() => setIsDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Ajouter un document</Button>
+                </CardHeader>
+                <CardContent>
+                    {documents.length > 0 ? (
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {documents.map((doc) => (
+                                <Card key={doc.id} className="group relative">
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2 text-lg">
+                                            <FileText className="h-5 w-5 text-primary" />
+                                            <span className="truncate">{doc.name}</span>
+                                        </CardTitle>
+                                        <CardDescription>{doc.type} - Ajouté le {safeFormatDate(doc.createdAt)}</CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="flex gap-2">
+                                            <Button asChild variant="secondary" className="flex-1">
+                                                <Link href={doc.url} target="_blank" rel="noopener noreferrer">
+                                                    <Download className="mr-2 h-4 w-4"/> Voir
+                                                </Link>
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setItemToDelete(doc)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-12 text-muted-foreground">
+                            <FileText className="mx-auto h-12 w-12 mb-4" />
+                            <h3 className="text-lg font-semibold">Aucun document</h3>
+                            <p>Ajoutez les documents importants de votre véhicule.</p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+            <AddDocumentDialog
+                open={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+                vehicleId={vehicleId}
+                onDataChange={onDataChange}
+            />
+            <DeleteConfirmationDialog 
+                open={!!itemToDelete}
+                onOpenChange={() => setItemToDelete(null)}
+                onConfirm={handleDeleteConfirm}
+                isDeleting={isDeleting}
+                title="Supprimer le document ?"
+                description="Cette action est irréversible et supprimera définitivement le fichier."
+            />
+        </>
+    );
+}
+
+function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { open: boolean, onOpenChange: (open: boolean) => void, vehicleId: string, onDataChange: () => void }) {
+    const { toast } = useToast();
+    const { user } = useAuth();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [file, setFile] = useState<File | null>(null);
+    const [docType, setDocType] = useState<Document['type'] | ''>('');
+
+    const documentTypes: Document['type'][] = ['Carte Grise', 'Assurance', 'Facture', 'Visite Technique', 'Autre'];
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (event.target.files && event.target.files[0]) {
+            setFile(event.target.files[0]);
+        }
+    };
+
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!file || !docType) {
+            toast({ title: 'Erreur', description: 'Veuillez sélectionner un fichier et un type de document.', variant: 'destructive' });
+            return;
+        }
+        if (!user) {
+            toast({ title: "Erreur", description: "Utilisateur non authentifié.", variant: 'destructive' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        const formData = new FormData(event.currentTarget);
+        const name = formData.get('name') as string || file.name;
+
+        try {
+            await addDocument(vehicleId, user.uid, file, { name, type: docType });
+            toast({ title: "Succès", description: "Document ajouté." });
+            onOpenChange(false);
+            onDataChange();
+            setFile(null);
+            setDocType('');
+        } catch (error) {
+             toast({ title: "Erreur", description: "Impossible d'ajouter le document.", variant: 'destructive' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Ajouter un document</DialogTitle>
+                    <DialogDescription>Téléchargez un fichier (PDF, image) lié à votre véhicule.</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                        <label htmlFor="file-upload">Fichier</label>
+                        <Input id="file-upload" type="file" required onChange={handleFileChange} />
+                    </div>
+                     <div className="space-y-2">
+                        <label>Type de document</label>
+                        <Select onValueChange={(value) => setDocType(value as Document['type'])} value={docType} required>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Sélectionnez un type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {documentTypes.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <label htmlFor="doc-name">Nom du document (optionnel)</label>
+                        <Input id="doc-name" name="name" placeholder="Ex: Facture garage du 15/05" />
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
                         <Button type="submit" disabled={isSubmitting}>
                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Enregistrer

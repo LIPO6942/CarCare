@@ -11,9 +11,11 @@ import {
   orderBy,
   writeBatch,
   Timestamp,
+  updateDoc,
 } from 'firebase/firestore';
-import { ref, deleteObject } from 'firebase/storage';
-import type { Vehicle, Repair, Maintenance, FuelLog } from './types';
+import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
+import type { Vehicle, Repair, Maintenance, FuelLog, Document } from './types';
+import { v4 as uuidv4 } from 'uuid';
 
 function docToType<T>(document: any): T {
     const data = document.data();
@@ -72,10 +74,21 @@ export async function addVehicle(vehicleData: Omit<Vehicle, 'id' | 'userId'>, us
 export async function deleteVehicleById(id: string): Promise<void> {
     const batch = writeBatch(db);
     const vehicleRef = doc(db, 'vehicles', id);
-    batch.delete(vehicleRef);
+    
+    // First, delete associated files from Storage
+    const docQuery = query(collection(db, 'documents'), where('vehicleId', '==', id));
+    const docSnapshot = await getDocs(docQuery);
+    for (const doc of docSnapshot.docs) {
+        const data = doc.data() as Omit<Document, 'id'>;
+        if (data.filePath) {
+            const fileRef = ref(storage, data.filePath);
+            // Don't block deletion if a single file fails to delete
+            await deleteObject(fileRef).catch(err => console.error("Non-critical: could not delete storage file during vehicle deletion", err));
+        }
+    }
 
-    // Find and delete all related sub-collection documents
-    const collectionsToDelete = ['repairs', 'maintenance', 'fuelLogs'];
+    // Then, batch delete all Firestore documents
+    const collectionsToDelete = ['repairs', 'maintenance', 'fuelLogs', 'documents'];
     for (const collectionName of collectionsToDelete) {
         const colRef = collection(db, collectionName);
         const q = query(colRef, where('vehicleId', '==', id));
@@ -85,6 +98,7 @@ export async function deleteVehicleById(id: string): Promise<void> {
         });
     }
 
+    batch.delete(vehicleRef);
     await batch.commit();
 }
 
@@ -129,6 +143,11 @@ export async function getFuelLogsForVehicle(vehicleId: string, userId: string): 
     return getSubCollectionForVehicle<FuelLog>(vehicleId, userId, 'fuelLogs');
 }
 
+export async function getDocumentsForVehicle(vehicleId: string, userId: string): Promise<Document[]> {
+    return getSubCollectionForVehicle<Document>(vehicleId, userId, 'documents', 'createdAt');
+}
+
+
 async function getAllFromUserCollection<T>(userId: string, collectionName: string): Promise<T[]> {
     try {
         const colRef = collection(db, collectionName);
@@ -153,34 +172,89 @@ export async function getAllUserMaintenance(userId: string): Promise<Maintenance
     return getAllFromUserCollection<Maintenance>(userId, 'maintenance');
 }
 
-
+// --- Add Functions ---
 export async function addRepair(repairData: Omit<Repair, 'id' | 'userId'>, userId: string): Promise<Repair> {
     const docRef = await addDoc(collection(db, 'repairs'), { ...repairData, userId });
-    return {
-        id: docRef.id,
-        userId,
-        ...repairData,
-    };
+    return { id: docRef.id, userId, ...repairData };
 }
 
 export async function addMaintenance(maintenanceData: Omit<Maintenance, 'id' | 'userId'>, userId: string): Promise<Maintenance> {
     const docRef = await addDoc(collection(db, 'maintenance'), { ...maintenanceData, userId });
-    return {
-        id: docRef.id,
-        userId,
-        ...maintenanceData,
-    };
+    return { id: docRef.id, userId, ...maintenanceData };
 }
 
 export async function addFuelLog(fuelLogData: Omit<FuelLog, 'id' | 'userId'>, userId: string): Promise<FuelLog> {
     const docRef = await addDoc(collection(db, 'fuelLogs'), { ...fuelLogData, userId });
-    return {
-        id: docRef.id,
-        userId,
-        ...fuelLogData,
-    };
+    return { id: docRef.id, userId, ...fuelLogData };
 }
 
+export async function addDocument(
+  vehicleId: string,
+  userId: string,
+  file: File,
+  documentInfo: { name: string; type: Document['type'] }
+): Promise<Document> {
+  const filePath = `documents/${userId}/${vehicleId}/${uuidv4()}-${file.name}`;
+  const fileRef = ref(storage, filePath);
+  await uploadBytes(fileRef, file);
+  const url = await getDownloadURL(fileRef);
+
+  const docData = {
+    userId,
+    vehicleId,
+    name: documentInfo.name,
+    type: documentInfo.type,
+    url,
+    filePath,
+    createdAt: new Date().toISOString(),
+  };
+
+  const docRef = await addDoc(collection(db, 'documents'), docData);
+  return { id: docRef.id, ...docData };
+}
+
+
+// --- Update Functions ---
+export async function updateRepair(id: string, data: Partial<Omit<Repair, 'id' | 'userId' | 'vehicleId'>>): Promise<void> {
+  await updateDoc(doc(db, 'repairs', id), data);
+}
+
+export async function updateMaintenance(id:string, data: Partial<Omit<Maintenance, 'id'|'userId'|'vehicleId'>>): Promise<void> {
+    await updateDoc(doc(db, 'maintenance', id), data);
+}
+
+export async function updateFuelLog(id: string, data: Partial<Omit<FuelLog, 'id' | 'userId' | 'vehicleId'>>): Promise<void> {
+    await updateDoc(doc(db, 'fuelLogs', id), data);
+}
+
+
+// --- Delete Functions ---
+export async function deleteRepair(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'repairs', id));
+}
+
+export async function deleteMaintenance(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'maintenance', id));
+}
+
+export async function deleteFuelLog(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'fuelLogs', id));
+}
+
+export async function deleteDocument(docId: string, filePath: string): Promise<void> {
+    const fileRef = ref(storage, filePath);
+    try {
+        await deleteObject(fileRef);
+    } catch (error: any) {
+        if (error.code !== 'storage/object-not-found') {
+            console.error("Error deleting file from storage", error);
+            throw error;
+        }
+    }
+    await deleteDoc(doc(db, 'documents', docId));
+}
+
+// --- Sample Data ---
 export async function createSampleDataForUser(userId: string): Promise<void> {
   const brand = 'Peugeot';
   const model = '308';
