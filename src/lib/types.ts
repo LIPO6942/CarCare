@@ -42,11 +42,3 @@ export type FuelLog = {
   pricePerLiter: number;
   totalCost: number;
 };
-
-export type Deadline = {
-  id: string;
-  userId: string;
-  vehicleId: string;
-  name: string;
-  date: string;
-};

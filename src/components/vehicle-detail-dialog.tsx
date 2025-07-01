@@ -1,9 +1,10 @@
 
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Vehicle, Repair, Maintenance, FuelLog, Deadline } from '@/lib/types';
-import { getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle, getDeadlinesForVehicle } from '@/lib/data';
+import type { Vehicle, Repair, Maintenance, FuelLog } from '@/lib/types';
+import { getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle } from '@/lib/data';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { VehicleTabs } from '@/components/vehicle-tabs';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,30 +24,26 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
-  const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchVehicleData = useCallback(async () => {
     if (vehicle && user) {
       setIsLoading(true);
       try {
-        const [repairsData, maintenanceData, fuelLogsData, deadlinesData] = await Promise.all([
+        const [repairsData, maintenanceData, fuelLogsData] = await Promise.all([
           getRepairsForVehicle(vehicle.id, user.uid),
           getMaintenanceForVehicle(vehicle.id, user.uid),
           getFuelLogsForVehicle(vehicle.id, user.uid),
-          getDeadlinesForVehicle(vehicle.id, user.uid),
         ]);
         setRepairs(repairsData);
         setMaintenance(maintenanceData);
         setFuelLogs(fuelLogsData);
-        setDeadlines(deadlinesData);
       } catch (error) {
         console.error("Failed to fetch vehicle details due to an error. Displaying empty data.", error);
         // Reset state to empty arrays to prevent rendering stale or invalid data
         setRepairs([]);
         setMaintenance([]);
         setFuelLogs([]);
-        setDeadlines([]);
       } finally {
         setIsLoading(false);
       }
@@ -114,7 +111,6 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
                   repairs={repairs} 
                   maintenance={maintenance} 
                   fuelLogs={fuelLogs}
-                  deadlines={deadlines}
                   onDataChange={handleDataChange}
               />
             )}

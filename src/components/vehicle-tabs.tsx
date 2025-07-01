@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { useState, useRef, type FormEvent } from 'react';
@@ -6,7 +7,7 @@ import { z } from "zod"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 
-import type { Repair, Maintenance, FuelLog, Deadline } from '@/lib/types';
+import type { Repair, Maintenance, FuelLog } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -41,7 +42,6 @@ interface VehicleTabsProps {
     repairs: Repair[];
     maintenance: Maintenance[];
     fuelLogs: FuelLog[];
-    deadlines: Deadline[];
     onDataChange: () => void;
 }
 
@@ -76,32 +76,36 @@ const safeFormatDate = (dateInput: any, formatString: string = 'P') => {
 
 // Helper to safely format numbers and avoid crashes
 const safeFormatNumber = (numInput: any): string => {
-    const num = Number(numInput);
-    if (isNaN(num)) return '0';
-    return num.toLocaleString('fr-FR');
+    try {
+        const num = Number(numInput);
+        if (isNaN(num)) return 'N/A';
+        return num.toLocaleString('fr-FR');
+    } catch {
+        return 'N/A';
+    }
 }
 
 const safeFormatCurrency = (numInput: any): string => {
-    const num = Number(numInput);
-    if (isNaN(num)) return '0,00 TND';
-    return num.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
+    try {
+        const num = Number(numInput);
+        if (isNaN(num)) return 'N/A';
+        return num.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
+    } catch {
+        return 'N/A';
+    }
 }
 
 
-export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, deadlines, onDataChange }: VehicleTabsProps) {
+export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, onDataChange }: VehicleTabsProps) {
   
   return (
-    <Tabs defaultValue="deadlines">
-      <TabsList className="grid w-full grid-cols-4">
-        <TabsTrigger value="deadlines"><Bell className="mr-2 h-4 w-4" />Échéances</TabsTrigger>
+    <Tabs defaultValue="repairs">
+      <TabsList className="grid w-full grid-cols-3">
         <TabsTrigger value="repairs"><Wrench className="mr-2 h-4 w-4" />Réparations</TabsTrigger>
         <TabsTrigger value="maintenance"><Calendar className="mr-2 h-4 w-4" />Entretien</TabsTrigger>
         <TabsTrigger value="fuel"><Fuel className="mr-2 h-4 w-4" />Carburant</TabsTrigger>
       </TabsList>
       
-      <TabsContent value="deadlines">
-        <DeadlinesTab deadlines={deadlines} />
-      </TabsContent>
       <TabsContent value="repairs">
         <RepairsTab vehicleId={vehicleId} repairs={repairs} onDataChange={onDataChange} />
       </TabsContent>
@@ -113,57 +117,6 @@ export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, deadlin
       </TabsContent>
     </Tabs>
   );
-}
-
-function DeadlinesTab({ deadlines }: { deadlines: Deadline[] }) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set to start of day for accurate comparison
-
-    // Pre-filter to ensure date is valid before comparison
-    const upcoming = deadlines
-        .filter(d => {
-            try {
-              if (!d.date) return false;
-              let date;
-              if (typeof d.date === 'object' && d.date !== null && typeof (d.date as any).toDate === 'function') {
-                  date = (d.date as any).toDate();
-              } else {
-                  date = new Date(d.date);
-              }
-              if (isNaN(date.getTime())) return false;
-              return date >= today;
-            } catch {
-              return false;
-            }
-        })
-        .sort((a, b) => {
-            const dateA = new Date(a.date).getTime();
-            const dateB = new Date(b.date).getTime();
-            return dateA - dateB;
-        });
-
-    return (
-        <Card>
-          <CardHeader>
-            <CardTitle>Échéances à venir</CardTitle>
-            <CardDescription>Suivez les dates importantes comme le contrôle technique.</CardDescription>
-          </CardHeader>
-          <CardContent>
-             {upcoming.length > 0 ? (
-                <div className="space-y-4">
-                    {upcoming.map((deadline) => (
-                         <div key={deadline.id} className="flex items-center justify-between p-4 border rounded-lg bg-background">
-                            <div className="font-medium">{deadline.name || 'N/A'}</div>
-                            <div className="text-sm text-muted-foreground">{safeFormatDate(deadline.date, 'd MMM yyyy')}</div>
-                        </div>
-                    ))}
-                </div>
-             ) : (
-                <p className="text-center text-muted-foreground py-8">Aucune échéance à venir.</p>
-             )}
-          </CardContent>
-        </Card>
-    )
 }
 
 function RepairsTab({ vehicleId, repairs, onDataChange }: { vehicleId: string, repairs: Repair[], onDataChange: () => void }) {
@@ -209,15 +162,22 @@ function RepairsTab({ vehicleId, repairs, onDataChange }: { vehicleId: string, r
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {repairs.map((repair) => (
-                                <TableRow key={repair.id}>
-                                    <TableCell>{safeFormatDate(repair.date)}</TableCell>
-                                    <TableCell className="font-medium">{repair.description || 'N/A'}</TableCell>
-                                    <TableCell>{repair.category || 'N/A'}</TableCell>
-                                    <TableCell>{safeFormatNumber(repair.mileage)} km</TableCell>
-                                    <TableCell className="text-right">{safeFormatCurrency(repair.cost)}</TableCell>
-                                </TableRow>
-                            ))}
+                            {repairs.map((repair) => {
+                                try {
+                                    return (
+                                        <TableRow key={repair.id}>
+                                            <TableCell>{safeFormatDate(repair.date)}</TableCell>
+                                            <TableCell className="font-medium">{repair.description || 'N/A'}</TableCell>
+                                            <TableCell>{repair.category || 'N/A'}</TableCell>
+                                            <TableCell>{safeFormatNumber(repair.mileage)} km</TableCell>
+                                            <TableCell className="text-right">{safeFormatCurrency(repair.cost)}</TableCell>
+                                        </TableRow>
+                                    );
+                                } catch (e) {
+                                    console.error("Failed to render repair row:", repair, e);
+                                    return null;
+                                }
+                            })}
                         </TableBody>
                     </Table>
                 </div>
@@ -382,27 +342,32 @@ function MaintenanceTab({ vehicleId, maintenance, onDataChange }: { vehicleId: s
                     {/* Mobile View */}
                     <div className="md:hidden space-y-4">
                         {maintenance.map((item) => {
-                            const formattedNextDate = safeFormatDate(item.nextDueDate);
-                            const nextMileage = Number(item.nextDueMileage);
-                            const formattedNextMileage = isNaN(nextMileage) || nextMileage === 0 ? '' : `${nextMileage.toLocaleString('fr-FR')} km`;
-                            let nextDueText = [formattedNextDate, formattedNextMileage].filter(v => v && v !== 'N/A').join(' / ');
-                            if (!nextDueText) nextDueText = "N/A";
-                            
-                            return (
-                                <div key={item.id} className="p-4 border rounded-lg bg-card text-card-foreground">
-                                    <div className="flex justify-between items-start">
-                                        <p className="font-bold text-lg">{item.task || 'N/A'}</p>
-                                        <p className="font-bold text-lg text-right">{safeFormatCurrency(item.cost)}</p>
+                             try {
+                                const formattedNextDate = safeFormatDate(item.nextDueDate, 'd MMM yyyy');
+                                const nextMileage = Number(item.nextDueMileage);
+                                const formattedNextMileage = isNaN(nextMileage) || nextMileage === 0 ? '' : `${nextMileage.toLocaleString('fr-FR')} km`;
+                                let nextDueText = [formattedNextDate, formattedNextMileage].filter(v => v && v !== 'N/A' && v !== 'Date invalide').join(' / ');
+                                if (!nextDueText) nextDueText = "N/A";
+                                
+                                return (
+                                    <div key={item.id} className="p-4 border rounded-lg bg-card text-card-foreground">
+                                        <div className="flex justify-between items-start">
+                                            <p className="font-bold text-lg">{item.task || 'N/A'}</p>
+                                            <p className="font-bold text-lg text-right">{safeFormatCurrency(item.cost)}</p>
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                                            <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(item.date)}</span>
+                                            <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(item.mileage)} km</span>
+                                        </div>
+                                        <div className="mt-2 pt-2 border-t text-sm text-muted-foreground">
+                                           <span className="flex items-center gap-1.5"><span className="font-medium text-foreground">Prochain:</span> {nextDueText}</span>
+                                        </div>
                                     </div>
-                                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                                        <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(item.date)}</span>
-                                        <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(item.mileage)} km</span>
-                                    </div>
-                                    <div className="mt-2 pt-2 border-t text-sm text-muted-foreground">
-                                       <span className="flex items-center gap-1.5"><span className="font-medium text-foreground">Prochain:</span> {nextDueText}</span>
-                                    </div>
-                                </div>
-                            )
+                                )
+                            } catch (e) {
+                                console.error("Failed to render maintenance card:", item, e);
+                                return null;
+                            }
                         })}
                     </div>
 
@@ -419,21 +384,26 @@ function MaintenanceTab({ vehicleId, maintenance, onDataChange }: { vehicleId: s
                             </TableHeader>
                             <TableBody>
                                 {maintenance.map((item) => {
-                                    const formattedNextDate = safeFormatDate(item.nextDueDate);
-                                    const nextMileage = Number(item.nextDueMileage);
-                                    const formattedNextMileage = isNaN(nextMileage) || nextMileage === 0 ? '' : `${nextMileage.toLocaleString('fr-FR')} km`;
-                                    return (
-                                    <TableRow key={item.id}>
-                                        <TableCell>{safeFormatDate(item.date)}</TableCell>
-                                        <TableCell className="font-medium">{item.task || 'N/A'}</TableCell>
-                                        <TableCell>
-                                            {formattedNextDate !== 'N/A' ? formattedNextDate : ''}
-                                            {formattedNextDate !== 'N/A' && formattedNextMileage ? ' / ' : ''}
-                                            {formattedNextMileage}
-                                        </TableCell>
-                                        <TableCell className="text-right">{safeFormatCurrency(item.cost)}</TableCell>
-                                    </TableRow>
-                                    );
+                                   try {
+                                        const formattedNextDate = safeFormatDate(item.nextDueDate, 'd MMM yyyy');
+                                        const nextMileage = Number(item.nextDueMileage);
+                                        const formattedNextMileage = isNaN(nextMileage) || nextMileage === 0 ? '' : `${nextMileage.toLocaleString('fr-FR')} km`;
+                                        return (
+                                        <TableRow key={item.id}>
+                                            <TableCell>{safeFormatDate(item.date)}</TableCell>
+                                            <TableCell className="font-medium">{item.task || 'N/A'}</TableCell>
+                                            <TableCell>
+                                                {formattedNextDate !== 'N/A' && formattedNextDate !== 'Date invalide' ? formattedNextDate : ''}
+                                                {formattedNextDate !== 'N/A' && formattedNextDate !== 'Date invalide' && formattedNextMileage ? ' / ' : ''}
+                                                {formattedNextMileage}
+                                            </TableCell>
+                                            <TableCell className="text-right">{safeFormatCurrency(item.cost)}</TableCell>
+                                        </TableRow>
+                                        );
+                                    } catch (e) {
+                                        console.error("Failed to render maintenance row:", item, e);
+                                        return null;
+                                    }
                                 })}
                             </TableBody>
                         </Table>
@@ -471,13 +441,14 @@ function AddMaintenanceDialog({ vehicleId, onDataChange }: { vehicleId: string, 
     const [selectedTask, setSelectedTask] = useState('');
     
     const maintenanceTasks = [
-        "Vidange huile moteur et filtre",
+        "Vidange",
+        "Visite technique",
+        "Assurance",
         "Changement des pneus",
         "Contrôle des freins",
         "Rotation des pneus",
         "Changement de la batterie",
         "Entretien climatisation",
-        "Contrôle technique",
         "Autre",
     ];
 
@@ -618,22 +589,29 @@ function FuelTab({ vehicleId, fuelLogs, onDataChange }: { vehicleId: string, fue
                 <div>
                     {/* Mobile View */}
                     <div className="md:hidden space-y-4">
-                        {fuelLogs.map((log) => (
-                             <div key={log.id} className="p-4 border rounded-lg bg-card text-card-foreground">
-                                <div className="flex justify-between items-start">
-                                    <div className="flex items-center gap-2">
-                                        <Fuel size={20} className="text-primary"/>
-                                        <p className="font-bold text-lg">Plein de carburant</p>
+                        {fuelLogs.map((log) => {
+                             try {
+                                return (
+                                    <div key={log.id} className="p-4 border rounded-lg bg-card text-card-foreground">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex items-center gap-2">
+                                                <Fuel size={20} className="text-primary"/>
+                                                <p className="font-bold text-lg">Plein de carburant</p>
+                                            </div>
+                                            <p className="font-bold text-lg text-right">{safeFormatCurrency(log.totalCost)}</p>
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                                            <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(log.date)}</span>
+                                            <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(log.mileage)} km</span>
+                                            <span className="flex items-center gap-1.5">{safeFormatNumber(log.quantity)} L à {safeFormatCurrency(log.pricePerLiter)}/L</span>
+                                        </div>
                                     </div>
-                                    <p className="font-bold text-lg text-right">{safeFormatCurrency(log.totalCost)}</p>
-                                </div>
-                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                                    <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(log.date)}</span>
-                                    <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(log.mileage)} km</span>
-                                    <span className="flex items-center gap-1.5">{safeFormatNumber(log.quantity)} L à {safeFormatCurrency(log.pricePerLiter)}/L</span>
-                                </div>
-                            </div>
-                        ))}
+                                )
+                            } catch (e) {
+                                console.error("Failed to render fuel log card:", log, e);
+                                return null;
+                            }
+                        })}
                     </div>
 
                     {/* Desktop View */}
@@ -649,15 +627,22 @@ function FuelTab({ vehicleId, fuelLogs, onDataChange }: { vehicleId: string, fue
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {fuelLogs.map((log) => (
-                                    <TableRow key={log.id}>
-                                        <TableCell>{safeFormatDate(log.date)}</TableCell>
-                                        <TableCell>{safeFormatNumber(log.mileage)} km</TableCell>
-                                        <TableCell>{safeFormatNumber(log.quantity)} L</TableCell>
-                                        <TableCell>{safeFormatCurrency(log.pricePerLiter)}</TableCell>
-                                        <TableCell className="text-right">{safeFormatCurrency(log.totalCost)}</TableCell>
-                                    </TableRow>
-                                ))}
+                                {fuelLogs.map((log) => {
+                                    try {
+                                        return (
+                                            <TableRow key={log.id}>
+                                                <TableCell>{safeFormatDate(log.date)}</TableCell>
+                                                <TableCell>{safeFormatNumber(log.mileage)} km</TableCell>
+                                                <TableCell>{safeFormatNumber(log.quantity)} L</TableCell>
+                                                <TableCell>{safeFormatCurrency(log.pricePerLiter)}</TableCell>
+                                                <TableCell className="text-right">{safeFormatCurrency(log.totalCost)}</TableCell>
+                                            </TableRow>
+                                        )
+                                    } catch (e) {
+                                        console.error("Failed to render fuel log row:", log, e);
+                                        return null;
+                                    }
+                                })}
                             </TableBody>
                         </Table>
                     </div>
@@ -681,7 +666,7 @@ function AddFuelLogDialog({ vehicleId, onDataChange }: { vehicleId: string, onDa
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [quantity, setQuantity] = useState('');
-    const [pricePerLiter, setPricePerLiter] = useState('');
+    const [pricePerLiter, setPricePerLiter] = useState('2.5');
     const formRef = useRef<HTMLFormElement>(null);
 
     const totalCost = parseFloat(quantity) * parseFloat(pricePerLiter);
@@ -713,7 +698,7 @@ function AddFuelLogDialog({ vehicleId, onDataChange }: { vehicleId: string, onDa
             toast({ title: "Succès", description: "Plein de carburant ajouté." });
             setOpen(false);
             setQuantity('');
-            setPricePerLiter('');
+            setPricePerLiter('2.5');
             formRef.current?.reset();
             onDataChange();
         } catch (error) {
@@ -743,7 +728,7 @@ function AddFuelLogDialog({ vehicleId, onDataChange }: { vehicleId: string, onDa
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <Input name="quantity" type="number" step="0.01" placeholder="Quantité (L)" required value={quantity} onChange={e => setQuantity(e.target.value)} />
-                        <Input name="pricePerLiter" type="number" step="0.01" placeholder="Prix / Litre" required value={pricePerLiter} onChange={e => setPricePerLiter(e.target.value)} />
+                        <Input name="pricePerLiter" type="number" step="0.001" placeholder="Prix / Litre" required value={pricePerLiter} onChange={e => setPricePerLiter(e.target.value)} />
                     </div>
                      <div className="space-y-2">
                         <label htmlFor="totalCost">Coût total (TND)</label>

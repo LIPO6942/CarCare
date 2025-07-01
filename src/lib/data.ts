@@ -13,7 +13,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
-import type { Vehicle, Repair, Maintenance, FuelLog, Deadline } from './types';
+import type { Vehicle, Repair, Maintenance, FuelLog } from './types';
 
 function docToType<T>(document: any): T {
     const data = document.data();
@@ -70,10 +70,22 @@ export async function addVehicle(vehicleData: Omit<Vehicle, 'id' | 'userId'>, us
 
 
 export async function deleteVehicleById(id: string): Promise<void> {
-  const vehicleRef = doc(db, 'vehicles', id);
-  // Pour le débogage, nous ne supprimons que le document de la base de données pour isoler les erreurs de permission.
-  // La suppression de l'image du stockage est temporairement désactivée.
-  await deleteDoc(vehicleRef);
+    const batch = writeBatch(db);
+    const vehicleRef = doc(db, 'vehicles', id);
+    batch.delete(vehicleRef);
+
+    // Find and delete all related sub-collection documents
+    const collectionsToDelete = ['repairs', 'maintenance', 'fuelLogs'];
+    for (const collectionName of collectionsToDelete) {
+        const colRef = collection(db, collectionName);
+        const q = query(colRef, where('vehicleId', '==', id));
+        const snapshot = await getDocs(q);
+        snapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+    }
+
+    await batch.commit();
 }
 
 async function getSubCollectionForVehicle<T>(vehicleId: string, userId: string, collectionName: string, dateField: string = 'date', sortOrder: 'asc' | 'desc' = 'desc'): Promise<T[]> {
@@ -112,10 +124,6 @@ export async function getFuelLogsForVehicle(vehicleId: string, userId: string): 
     return getSubCollectionForVehicle<FuelLog>(vehicleId, userId, 'fuelLogs');
 }
 
-export async function getDeadlinesForVehicle(vehicleId: string, userId: string): Promise<Deadline[]> {
-    return getSubCollectionForVehicle<Deadline>(vehicleId, userId, 'deadlines', 'date', 'asc');
-}
-
 async function getAllFromUserCollection<T>(userId: string, collectionName: string): Promise<T[]> {
     try {
         const colRef = collection(db, collectionName);
@@ -136,8 +144,8 @@ export async function getAllUserFuelLogs(userId: string): Promise<FuelLog[]> {
     return getAllFromUserCollection<FuelLog>(userId, 'fuelLogs');
 }
 
-export async function getAllUserDeadlines(userId: string): Promise<Deadline[]> {
-    return getAllFromUserCollection<Deadline>(userId, 'deadlines');
+export async function getAllUserMaintenance(userId: string): Promise<Maintenance[]> {
+    return getAllFromUserCollection<Maintenance>(userId, 'maintenance');
 }
 
 
@@ -185,28 +193,46 @@ export async function createSampleDataForUser(userId: string): Promise<void> {
   const vehicle = await addVehicle(vehicleData, userId);
 
   const now = new Date();
-  const nextYear = new Date(now);
-  nextYear.setFullYear(now.getFullYear() + 1);
-  const nextMonth = new Date(now);
-  nextMonth.setMonth(now.getMonth() + 1);
   const oneMonthAgo = new Date(now);
   oneMonthAgo.setMonth(now.getMonth() - 1);
   const oneWeekAgo = new Date(now);
   oneWeekAgo.setDate(now.getDate() - 7);
   
-  await addDoc(collection(db, 'deadlines'), {
-    userId,
-    vehicleId: vehicle.id,
-    name: 'Contrôle Technique',
-    date: nextYear.toISOString().split('T')[0],
-  });
+  const nextTechInspection = new Date(now);
+  nextTechInspection.setFullYear(now.getFullYear() + 1);
   
-  await addDoc(collection(db, 'deadlines'), {
-    userId,
+  const nextInsurance = new Date(now);
+  nextInsurance.setMonth(now.getMonth() + 6);
+  
+  const nextOilChange = new Date(now);
+  nextOilChange.setMonth(now.getMonth() + 3);
+
+  await addMaintenance({
     vehicleId: vehicle.id,
-    name: 'Assurance',
-    date: nextMonth.toISOString().split('T')[0],
-  });
+    date: oneMonthAgo.toISOString().split('T')[0],
+    mileage: 15000,
+    task: 'Visite technique',
+    cost: 80,
+    nextDueDate: nextTechInspection.toISOString().split('T')[0],
+  }, userId);
+
+  await addMaintenance({
+    vehicleId: vehicle.id,
+    date: oneMonthAgo.toISOString().split('T')[0],
+    mileage: 15000,
+    task: 'Assurance',
+    cost: 600,
+    nextDueDate: nextInsurance.toISOString().split('T')[0],
+  }, userId);
+  
+  await addMaintenance({
+    vehicleId: vehicle.id,
+    date: oneMonthAgo.toISOString().split('T')[0],
+    mileage: 15000,
+    task: 'Vidange',
+    cost: 120,
+    nextDueDate: nextOilChange.toISOString().split('T')[0],
+  }, userId);
 
   await addRepair({
     vehicleId: vehicle.id,

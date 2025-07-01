@@ -1,7 +1,8 @@
+
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import type { Vehicle, Repair, Deadline, FuelLog } from '@/lib/types';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import type { Vehicle, Repair, Maintenance, FuelLog } from '@/lib/types';
 import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { AddVehicleSheet } from '@/components/add-vehicle-sheet';
@@ -14,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RepairSummaryChart } from '@/components/repair-summary-chart';
 import { VehicleCard } from '@/components/vehicle-card';
 import { VehicleDetailDialog } from '@/components/vehicle-detail-dialog';
-import { getVehicles, getAllUserRepairs, getAllUserDeadlines, getAllUserFuelLogs } from '@/lib/data';
+import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
 
@@ -37,7 +38,7 @@ export function DashboardClient() {
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [repairs, setRepairs] = useState<Repair[]>([]);
-  const [deadlines, setDeadlines] = useState<Deadline[]>([]);
+  const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -47,15 +48,15 @@ export function DashboardClient() {
   const fetchData = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
-    const [vehiclesData, repairsData, deadlinesData, fuelLogsData] = await Promise.all([
+    const [vehiclesData, repairsData, maintenanceData, fuelLogsData] = await Promise.all([
       getVehicles(user.uid),
       getAllUserRepairs(user.uid),
-      getAllUserDeadlines(user.uid),
+      getAllUserMaintenance(user.uid),
       getAllUserFuelLogs(user.uid),
     ]);
     setVehicles(vehiclesData);
     setRepairs(repairsData);
-    setDeadlines(deadlinesData);
+    setMaintenance(maintenanceData);
     setFuelLogs(fuelLogsData);
     setIsLoading(false);
   }, [user]);
@@ -64,7 +65,7 @@ export function DashboardClient() {
     if (user) {
         fetchData();
     }
-  }, [user]);
+  }, [user, fetchData]);
 
 
   const handleOpenDetails = (vehicle: Vehicle) => {
@@ -76,10 +77,24 @@ export function DashboardClient() {
   const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
   const totalFuelCost = fuelLogs.reduce((sum, f) => sum + f.totalCost, 0);
   
-  const upcomingDeadlines = deadlines
-    .map(d => ({ ...d, date: new Date(d.date) }))
-    .filter(d => d.date >= new Date())
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  const upcomingDeadlines = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadlineTasks = ["Vidange", "Visite technique", "Assurance"];
+
+    return maintenance
+      .filter(m => 
+        deadlineTasks.includes(m.task) && 
+        m.nextDueDate && 
+        new Date(m.nextDueDate) >= today
+      )
+      .map(m => ({
+        name: m.task,
+        date: new Date(m.nextDueDate!),
+        vehicleId: m.vehicleId
+      }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [maintenance]);
 
   const nextDeadline = upcomingDeadlines[0];
 
@@ -88,7 +103,7 @@ export function DashboardClient() {
         <AppLayout>
             <DashboardHeader title="Tableau de Bord" description="Chargement de vos données..." />
             <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
-                 <div className="grid gap-6 grid-cols-2 lg:grid-cols-4">
+                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                     <Skeleton className="h-28" />
                     <Skeleton className="h-28" />
                     <Skeleton className="h-28" />
@@ -119,7 +134,7 @@ export function DashboardClient() {
           </AddVehicleSheet>
         </DashboardHeader>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
-           <div className="grid gap-6 grid-cols-2 lg:grid-cols-4">
+           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title="Total des Véhicules"
                 value={totalVehicles}
