@@ -7,6 +7,7 @@ export type Vehicle = {
   licensePlate: string;
   fuelType: 'Essence' | 'Diesel' | 'Électrique' | 'Hybride';
   imageUrl?: string;
+  fiscalPower?: number;
 };
 
 export type Repair = {

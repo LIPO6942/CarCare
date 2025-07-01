@@ -1,18 +1,16 @@
-
-
 'use client'
 
-import { useState, useRef, type FormEvent } from 'react';
+import { useState, useRef, type FormEvent, useEffect } from 'react';
 import { z } from "zod"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 
-import type { Repair, Maintenance, FuelLog } from '@/lib/types';
+import type { Repair, Maintenance, FuelLog, Vehicle } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Wrench, Fuel, Calendar, Bell, Sparkles, Loader2, GaugeCircle, Tag } from 'lucide-react';
+import { PlusCircle, Wrench, Fuel, Calendar, Sparkles, Loader2, GaugeCircle, Tag } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -38,7 +36,7 @@ import {
 } from "@/components/ui/select"
 
 interface VehicleTabsProps {
-    vehicleId: string;
+    vehicle: Vehicle;
     repairs: Repair[];
     maintenance: Maintenance[];
     fuelLogs: FuelLog[];
@@ -96,7 +94,7 @@ const safeFormatCurrency = (numInput: any): string => {
 }
 
 
-export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, onDataChange }: VehicleTabsProps) {
+export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataChange }: VehicleTabsProps) {
   
   return (
     <Tabs defaultValue="repairs">
@@ -107,19 +105,19 @@ export function VehicleTabs({ vehicleId, repairs, maintenance, fuelLogs, onDataC
       </TabsList>
       
       <TabsContent value="repairs">
-        <RepairsTab vehicleId={vehicleId} repairs={repairs} onDataChange={onDataChange} />
+        <RepairsTab vehicle={vehicle} repairs={repairs} onDataChange={onDataChange} />
       </TabsContent>
       <TabsContent value="maintenance">
-        <MaintenanceTab vehicleId={vehicleId} maintenance={maintenance} onDataChange={onDataChange} />
+        <MaintenanceTab vehicle={vehicle} maintenance={maintenance} onDataChange={onDataChange} />
       </TabsContent>
       <TabsContent value="fuel">
-        <FuelTab vehicleId={vehicleId} fuelLogs={fuelLogs} onDataChange={onDataChange} />
+        <FuelTab vehicle={vehicle} fuelLogs={fuelLogs} onDataChange={onDataChange} />
       </TabsContent>
     </Tabs>
   );
 }
 
-function RepairsTab({ vehicleId, repairs, onDataChange }: { vehicleId: string, repairs: Repair[], onDataChange: () => void }) {
+function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repairs: Repair[], onDataChange: () => void }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -127,26 +125,32 @@ function RepairsTab({ vehicleId, repairs, onDataChange }: { vehicleId: string, r
             <CardTitle>Journal des Réparations</CardTitle>
             <CardDescription>Historique de toutes les réparations effectuées.</CardDescription>
         </div>
-        <AddRepairDialog vehicleId={vehicleId} onDataChange={onDataChange} />
+        <AddRepairDialog vehicleId={vehicle.id} onDataChange={onDataChange} />
       </CardHeader>
       <CardContent>
         {repairs.length > 0 ? (
             <div>
                 {/* Mobile View */}
                 <div className="md:hidden space-y-4">
-                {repairs.map((repair) => (
-                    <div key={repair.id} className="p-4 border rounded-lg bg-card text-card-foreground">
-                        <div className="flex justify-between items-start">
-                            <p className="font-bold text-lg">{repair.description || 'N/A'}</p>
-                            <p className="font-bold text-lg text-right">{safeFormatCurrency(repair.cost)}</p>
+                {repairs.map((repair) => {
+                    try {
+                        return (
+                        <div key={repair.id} className="p-4 border rounded-lg bg-card text-card-foreground">
+                            <div className="flex justify-between items-start">
+                                <p className="font-bold text-lg">{repair.description || 'N/A'}</p>
+                                <p className="font-bold text-lg text-right">{safeFormatCurrency(repair.cost)}</p>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                                <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(repair.date)}</span>
+                                <span className="flex items-center gap-1.5"><Tag size={14} /> {repair.category || 'N/A'}</span>
+                                <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(repair.mileage)} km</span>
+                            </div>
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(repair.date)}</span>
-                            <span className="flex items-center gap-1.5"><Tag size={14} /> {repair.category || 'N/A'}</span>
-                            <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(repair.mileage)} km</span>
-                        </div>
-                    </div>
-                ))}
+                    )} catch (e) {
+                         console.error("Failed to render repair card:", repair, e);
+                         return null;
+                    }
+                })}
                 </div>
 
                 {/* Desktop View */}
@@ -187,7 +191,7 @@ function RepairsTab({ vehicleId, repairs, onDataChange }: { vehicleId: string, r
                 <Wrench className="mx-auto h-12 w-12 mb-4" />
                 <h3 className="text-lg font-semibold">Aucune réparation enregistrée</h3>
                 <p className="mb-4">Cliquez sur "Ajouter une réparation" pour commencer.</p>
-                <AddRepairDialog vehicleId={vehicleId} onDataChange={onDataChange} />
+                <AddRepairDialog vehicleId={vehicle.id} onDataChange={onDataChange} />
             </div>
         )}
       </CardContent>
@@ -326,7 +330,7 @@ function AddRepairDialog({ vehicleId, onDataChange }: { vehicleId: string, onDat
     )
 }
 
-function MaintenanceTab({ vehicleId, maintenance, onDataChange }: { vehicleId: string, maintenance: Maintenance[], onDataChange: () => void }) {
+function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehicle, maintenance: Maintenance[], onDataChange: () => void }) {
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -334,7 +338,7 @@ function MaintenanceTab({ vehicleId, maintenance, onDataChange }: { vehicleId: s
                     <CardTitle>Suivi de l'Entretien</CardTitle>
                     <CardDescription>Gardez un oeil sur les entretiens passés et à venir.</CardDescription>
                 </div>
-                 <AddMaintenanceDialog vehicleId={vehicleId} onDataChange={onDataChange} />
+                 <AddMaintenanceDialog vehicle={vehicle} onDataChange={onDataChange} />
             </CardHeader>
             <CardContent>
                 {maintenance.length > 0 ? (
@@ -414,7 +418,7 @@ function MaintenanceTab({ vehicleId, maintenance, onDataChange }: { vehicleId: s
                         <Calendar className="mx-auto h-12 w-12 mb-4" />
                         <h3 className="text-lg font-semibold">Aucun entretien enregistré</h3>
                         <p className="mb-4">Ajoutez un entretien pour commencer le suivi.</p>
-                        <AddMaintenanceDialog vehicleId={vehicleId} onDataChange={onDataChange} />
+                        <AddMaintenanceDialog vehicle={vehicle} onDataChange={onDataChange} />
                     </div>
                 )}
             </CardContent>
@@ -432,25 +436,45 @@ const MaintenanceSchema = z.object({
   nextDueMileage: z.coerce.number().optional(),
 });
 
-function AddMaintenanceDialog({ vehicleId, onDataChange }: { vehicleId: string, onDataChange: () => void }) {
+function AddMaintenanceDialog({ vehicle, onDataChange }: { vehicle: Vehicle, onDataChange: () => void }) {
     const [open, setOpen] = useState(false);
     const { toast } = useToast();
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
     const [selectedTask, setSelectedTask] = useState('');
+    const [cost, setCost] = useState('');
     
     const maintenanceTasks = [
         "Vidange",
         "Visite technique",
         "Assurance",
+        "Vignette",
         "Changement des pneus",
-        "Contrôle des freins",
         "Rotation des pneus",
         "Changement de la batterie",
         "Entretien climatisation",
         "Autre",
     ];
+
+    useEffect(() => {
+        if (selectedTask === 'Visite technique') {
+            setCost('35');
+        } else if (selectedTask === 'Vignette') {
+            const power = vehicle.fiscalPower;
+            if (power) {
+                if (power <= 4) setCost('60');
+                else if (power >= 5 && power <= 7) setCost('120');
+                else if (power === 8) setCost('180');
+                else setCost(''); // Reset if power is outside defined ranges
+            } else {
+                toast({ title: 'Info', description: "Puissance fiscale non définie pour ce véhicule."});
+                setCost('');
+            }
+        } else {
+            setCost(''); // Reset cost for other tasks
+        }
+    }, [selectedTask, vehicle.fiscalPower, toast]);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -490,6 +514,7 @@ function AddMaintenanceDialog({ vehicleId, onDataChange }: { vehicleId: string, 
             toast({ title: "Succès", description: "Entretien ajouté." });
             setOpen(false);
             setSelectedTask('');
+            setCost('');
             formRef.current?.reset();
             onDataChange();
         } catch (error) {
@@ -512,7 +537,7 @@ function AddMaintenanceDialog({ vehicleId, onDataChange }: { vehicleId: string, 
                     <DialogDescription>Ajoutez les détails de l'entretien réalisé.</DialogDescription>
                 </DialogHeader>
                 <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-                    <input type="hidden" name="vehicleId" value={vehicleId} />
+                    <input type="hidden" name="vehicleId" value={vehicle.id} />
                     <div className="space-y-2">
                         <label>Date & Kilométrage</label>
                         <div className="grid grid-cols-2 gap-4">
@@ -541,7 +566,7 @@ function AddMaintenanceDialog({ vehicleId, onDataChange }: { vehicleId: string, 
                     </div>
                     <div className="space-y-2">
                         <label htmlFor="cost">Coût de l'entretien (TND)</label>
-                        <Input id="cost" name="cost" type="number" step="0.01" placeholder="Coût (TND)" required />
+                        <Input id="cost" name="cost" type="number" step="0.01" placeholder="Coût (TND)" required value={cost} onChange={e => setCost(e.target.value)} />
                     </div>
 
                     <fieldset className="border p-4 rounded-md">
@@ -574,7 +599,7 @@ const FuelLogSchema = z.object({
     totalCost: z.coerce.number().min(0, 'Le coût total doit être positif.'),
 });
 
-function FuelTab({ vehicleId, fuelLogs, onDataChange }: { vehicleId: string, fuelLogs: FuelLog[], onDataChange: () => void }) {
+function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLogs: FuelLog[], onDataChange: () => void }) {
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -582,7 +607,7 @@ function FuelTab({ vehicleId, fuelLogs, onDataChange }: { vehicleId: string, fue
                     <CardTitle>Suivi du Carburant</CardTitle>
                     <CardDescription>Consultez l'historique de vos pleins de carburant.</CardDescription>
                 </div>
-                <AddFuelLogDialog vehicleId={vehicleId} onDataChange={onDataChange} />
+                <AddFuelLogDialog vehicleId={vehicle.id} onDataChange={onDataChange} />
             </CardHeader>
             <CardContent>
                 {fuelLogs.length > 0 ? (
@@ -652,7 +677,7 @@ function FuelTab({ vehicleId, fuelLogs, onDataChange }: { vehicleId: string, fue
                         <Fuel className="mx-auto h-12 w-12 mb-4" />
                         <h3 className="text-lg font-semibold">Aucun plein enregistré</h3>
                         <p className="mb-4">Ajoutez un plein pour suivre votre consommation.</p>
-                        <AddFuelLogDialog vehicleId={vehicleId} onDataChange={onDataChange} />
+                        <AddFuelLogDialog vehicleId={vehicle.id} onDataChange={onDataChange} />
                     </div>
                 )}
             </CardContent>

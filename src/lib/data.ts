@@ -96,13 +96,18 @@ async function getSubCollectionForVehicle<T>(vehicleId: string, userId: string, 
         const data = snapshot.docs.map(d => docToType<T>(d));
 
         data.sort((a: any, b: any) => {
-            const dateA = a[dateField] ? new Date(a[dateField]).getTime() : 0;
-            const dateB = b[dateField] ? new Date(b[dateField]).getTime() : 0;
-
-            const validA = isNaN(dateA) ? 0 : dateA;
-            const validB = isNaN(dateB) ? 0 : dateB;
-
-            return sortOrder === 'desc' ? validB - validA : validA - validB;
+            try {
+                const dateA = a[dateField] ? new Date(a[dateField]).getTime() : 0;
+                const dateB = b[dateField] ? new Date(b[dateField]).getTime() : 0;
+    
+                const validA = isNaN(dateA) ? 0 : dateA;
+                const validB = isNaN(dateB) ? 0 : dateB;
+    
+                return sortOrder === 'desc' ? validB - validA : validA - validB;
+            } catch (e) {
+                console.error(`Error sorting ${collectionName}. Invalid date found.`, {a, b});
+                return 0; // Don't crash on invalid date during sort
+            }
         });
         return data;
 
@@ -189,6 +194,7 @@ export async function createSampleDataForUser(userId: string): Promise<void> {
     licensePlate: 'XX-123-YY',
     fuelType: 'Essence' as const,
     imageUrl: logoUrl,
+    fiscalPower: 6,
   };
   const vehicle = await addVehicle(vehicleData, userId);
 
@@ -212,7 +218,7 @@ export async function createSampleDataForUser(userId: string): Promise<void> {
     date: oneMonthAgo.toISOString().split('T')[0],
     mileage: 15000,
     task: 'Visite technique',
-    cost: 80,
+    cost: 35,
     nextDueDate: nextTechInspection.toISOString().split('T')[0],
   }, userId);
 

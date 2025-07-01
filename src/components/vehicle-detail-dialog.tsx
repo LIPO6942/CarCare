@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -95,6 +93,7 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
                                   <div><strong className="block text-muted-foreground">Année</strong> {vehicle.year || 'N/A'}</div>
                                   <div><strong className="block text-muted-foreground">Plaque</strong> {vehicle.licensePlate || 'N/A'}</div>
                                   <div><strong className="block text-muted-foreground">Carburant</strong> {vehicle.fuelType || 'N/A'}</div>
+                                  <div><strong className="block text-muted-foreground">Puissance Fiscale</strong> {vehicle.fiscalPower ? `${vehicle.fiscalPower} CV` : 'N/A'}</div>
                               </div>
                           </div>
                       </div>
@@ -107,7 +106,7 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
               </div>
             ) : (
               <VehicleTabs 
-                  vehicleId={vehicle.id}
+                  vehicle={vehicle}
                   repairs={repairs} 
                   maintenance={maintenance} 
                   fuelLogs={fuelLogs}

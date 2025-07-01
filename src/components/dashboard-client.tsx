@@ -21,7 +21,7 @@ import { Skeleton } from './ui/skeleton';
 
 function StatCard({ title, value, icon: Icon, description }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string }) {
   return (
-    <Card>
+    <Card className="transition-all hover:shadow-md hover:-translate-y-1">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <Icon className="h-4 w-4 text-muted-foreground" />
@@ -192,7 +192,7 @@ export function DashboardClient() {
             </div>
         </main>
       </AppLayout>
-      <VehicleDetailDialog vehicle={selectedVehicle} open={isDetailOpen} onOpenChange={setIsDetailOpen} onDataChange={fetchData} />
+      {selectedVehicle && <VehicleDetailDialog vehicle={selectedVehicle} open={isDetailOpen} onOpenChange={setIsDetailOpen} onDataChange={fetchData} />}
     </>
   );
 }

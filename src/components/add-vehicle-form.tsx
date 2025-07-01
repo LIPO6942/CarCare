@@ -22,6 +22,7 @@ const VehicleSchema = z.object({
   year: z.coerce.number().min(1900, 'Année invalide.').max(new Date().getFullYear() + 1, 'Année invalide.'),
   licensePlate: z.string().min(1, 'La plaque d\'immatriculation est requise.'),
   fuelType: z.enum(['Essence', 'Diesel', 'Électrique', 'Hybride']),
+  fiscalPower: z.coerce.number().min(1, 'Puissance invalide.').max(50, 'Puissance invalide.'),
 });
 
 
@@ -97,9 +98,15 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
                 <Input id="model" name="model" placeholder="ex: 308" required />
             </div>
         </div>
-        <div className="space-y-2">
-            <label htmlFor="year">Année</label>
-            <Input id="year" name="year" type="number" placeholder="ex: 2021" required />
+        <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <label htmlFor="year">Année</label>
+                <Input id="year" name="year" type="number" placeholder="ex: 2021" required />
+            </div>
+            <div className="space-y-2">
+                <label htmlFor="fiscalPower">Puissance Fiscale (CV)</label>
+                <Input id="fiscalPower" name="fiscalPower" type="number" placeholder="ex: 6" required />
+            </div>
         </div>
         <div className="space-y-2">
             <label htmlFor="licensePlate">Plaque d'immatriculation</label>
