@@ -14,10 +14,11 @@ interface VehicleDetailDialogProps {
   vehicle: Vehicle | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onDataChange: () => void; // To refresh dashboard data when this dialog makes a change
+  onDataChange: () => void;
+  initialTab?: string;
 }
 
-export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange }: VehicleDetailDialogProps) {
+export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange, initialTab }: VehicleDetailDialogProps) {
   const { user } = useAuth();
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
@@ -38,7 +39,6 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
         setFuelLogs(fuelLogsData);
       } catch (error) {
         console.error("Failed to fetch vehicle details due to an error. Displaying empty data.", error);
-        // Reset state to empty arrays to prevent rendering stale or invalid data
         setRepairs([]);
         setMaintenance([]);
         setFuelLogs([]);
@@ -55,8 +55,8 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
   }, [open, fetchVehicleData]);
 
   const handleDataChange = () => {
-    fetchVehicleData(); // Re-fetch data for the dialog
-    onDataChange(); // And refresh the dashboard
+    fetchVehicleData();
+    onDataChange();
   };
 
   if (!vehicle) return null;
@@ -111,6 +111,7 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange 
                   maintenance={maintenance} 
                   fuelLogs={fuelLogs}
                   onDataChange={handleDataChange}
+                  initialTab={initialTab}
               />
             )}
             </div>

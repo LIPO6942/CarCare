@@ -1,14 +1,13 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, type ComponentType } from 'react';
 import type { Vehicle, Repair, Maintenance, FuelLog } from '@/lib/types';
 import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { AddVehicleSheet } from '@/components/add-vehicle-sheet';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Car, Wrench, Bell, Fuel } from 'lucide-react';
-import type { ComponentType } from 'react';
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,19 +17,31 @@ import { VehicleDetailDialog } from '@/components/vehicle-detail-dialog';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
+import { cn } from '@/lib/utils';
 
-function StatCard({ title, value, icon: Icon, description }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string }) {
+
+function StatCard({ title, value, icon: Icon, description, onClick, disabled }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, onClick?: () => void, disabled?: boolean }) {
+  const isClickable = !!onClick && !disabled;
   return (
-    <Card className="transition-all hover:shadow-md hover:-translate-y-1">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {description && <p className="text-xs text-muted-foreground">{description}</p>}
-      </CardContent>
-    </Card>
+    <button
+      onClick={onClick}
+      disabled={!isClickable}
+      className={cn(
+        "text-left w-full",
+        isClickable && "transition-all hover:shadow-md hover:-translate-y-1"
+      )}
+    >
+      <Card className="h-full">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{value}</div>
+          {description && <p className="text-xs text-muted-foreground">{description}</p>}
+        </CardContent>
+      </Card>
+    </button>
   );
 }
 
@@ -44,6 +55,7 @@ export function DashboardClient() {
   
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [initialTab, setInitialTab] = useState('history');
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -68,8 +80,9 @@ export function DashboardClient() {
   }, [user, fetchData]);
 
 
-  const handleOpenDetails = (vehicle: Vehicle) => {
+  const handleOpenDetails = (vehicle: Vehicle, tab: string = 'history') => {
     setSelectedVehicle(vehicle);
+    setInitialTab(tab);
     setIsDetailOpen(true);
   };
 
@@ -140,24 +153,38 @@ export function DashboardClient() {
                 value={totalVehicles}
                 icon={Car}
                 description="Nombre de véhicules gérés"
+                disabled
               />
               <StatCard
                 title="Coût des Réparations"
                 value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
                 icon={Wrench}
-                description="Total des réparations"
+                description="Voir l'historique des réparations"
+                onClick={() => vehicles.length > 0 && handleOpenDetails(vehicles[0], 'repairs')}
+                disabled={vehicles.length === 0}
               />
               <StatCard
                 title="Coût du Carburant"
                 value={`${totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
                 icon={Fuel}
-                description="Total des pleins"
+                description="Voir l'historique des pleins"
+                onClick={() => vehicles.length > 0 && handleOpenDetails(vehicles[0], 'fuel')}
+                disabled={vehicles.length === 0}
               />
               <StatCard
                 title={nextDeadline ? nextDeadline.name : "Échéances à Venir"}
                 value={nextDeadline ? format(nextDeadline.date, 'd MMM yyyy', { locale: fr }) : "Aucune"}
                 icon={Bell}
-                description={nextDeadline ? "Prochaine échéance" : "Aucune échéance à venir"}
+                description={nextDeadline ? "Voir l'échéance" : "Aucune échéance à venir"}
+                onClick={() => {
+                  if (nextDeadline) {
+                    const vehicleForDeadline = vehicles.find(v => v.id === nextDeadline.vehicleId);
+                    if (vehicleForDeadline) {
+                        handleOpenDetails(vehicleForDeadline, 'maintenance');
+                    }
+                  }
+                }}
+                disabled={!nextDeadline}
               />
             </div>
 
@@ -168,7 +195,7 @@ export function DashboardClient() {
                 {vehicles.length > 0 ? (
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {vehicles.map((vehicle) => (
-                    <VehicleCard key={vehicle.id} vehicle={vehicle} onOpenDetails={handleOpenDetails} />
+                    <VehicleCard key={vehicle.id} vehicle={vehicle} onOpenDetails={() => handleOpenDetails(vehicle)} />
                     ))}
                 </div>
                 ) : (
@@ -192,7 +219,7 @@ export function DashboardClient() {
             </div>
         </main>
       </AppLayout>
-      {selectedVehicle && <VehicleDetailDialog vehicle={selectedVehicle} open={isDetailOpen} onOpenChange={setIsDetailOpen} onDataChange={fetchData} />}
+      {selectedVehicle && <VehicleDetailDialog vehicle={selectedVehicle} open={isDetailOpen} onOpenChange={setIsDetailOpen} onDataChange={fetchData} initialTab={initialTab} />}
     </>
   );
 }

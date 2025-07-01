@@ -128,7 +128,7 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
         </CardContent>
         <CardFooter>
           <Button onClick={() => onOpenDetails(vehicle)} className="w-full">
-            Voir les détails
+            Voir l'historique
           </Button>
         </CardFooter>
       </Card>
