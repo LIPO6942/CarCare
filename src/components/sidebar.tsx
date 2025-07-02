@@ -22,8 +22,9 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-full max-h-screen flex-col gap-2">
-      <div className="flex h-[60px] items-center border-b px-6">
+      <div className="flex h-[60px] items-center gap-2 border-b px-6">
         <Logo />
+        <span className="text-xl font-bold text-foreground">CarCare Pro</span>
       </div>
       <nav className="flex-1 space-y-1 p-4">
         {navItems.map((item) => (

@@ -38,8 +38,9 @@ export function MobileSidebar() {
             <SheetDescription className="sr-only">
                 Menu de navigation principal
             </SheetDescription>
-            <div className="p-4 border-b">
-                <Logo />
+            <div className="p-4 border-b flex items-center gap-2">
+              <Logo />
+              <span className="text-xl font-bold text-foreground">CarCare Pro</span>
             </div>
             <nav className="grid gap-2 text-lg font-medium flex-1 p-4">
               {navItems.map((item) => (

@@ -114,7 +114,7 @@ export function DashboardClient() {
   if (isLoading) {
     return (
         <AppLayout>
-            <DashboardHeader title="Tableau de Bord" description="Chargement de vos données..." />
+            <DashboardHeader title="Tableau de Bord" description="Chargement de vos données..." showLogo={true} />
             <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                     <Skeleton className="h-28" />
@@ -138,6 +138,7 @@ export function DashboardClient() {
         <DashboardHeader
           title="Tableau de Bord"
           description="Vue d'ensemble de votre flotte de véhicules."
+          showLogo={true}
         >
           <AddVehicleSheet onVehicleAdded={fetchData}>
             <Button>
