@@ -15,6 +15,8 @@ import {
 import { addVehicle } from '@/lib/data';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
+import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
+
 
 const VehicleSchema = z.object({
   brand: z.string().min(1, 'La marque est requise.'),
@@ -58,10 +60,17 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
     }
 
     try {
-        const brandDomain = validatedFields.data.brand.toLowerCase().replace(/ /g, '') + '.com';
-        const logoUrl = `https://logo.clearbit.com/${brandDomain}`;
+        let imageUrl = 'https://placehold.co/600x400.png';
+        try {
+            imageUrl = await generateVehicleImage({ 
+                brand: validatedFields.data.brand, 
+                model: validatedFields.data.model 
+            });
+        } catch (aiError) {
+            console.warn("AI image generation failed, falling back to placeholder.", aiError);
+        }
 
-        await addVehicle({ ...validatedFields.data, imageUrl: logoUrl }, user.uid);
+        await addVehicle({ ...validatedFields.data, imageUrl }, user.uid);
         
         toast({
           title: 'Succès',
