@@ -28,8 +28,8 @@ import {
     addRepair, updateRepair, deleteRepair, 
     addMaintenance, updateMaintenance, deleteMaintenance,
     addFuelLog, updateFuelLog, deleteFuelLog,
-    addDocument, deleteDocument
 } from '@/lib/data';
+import { addLocalDocument, deleteLocalDocument } from '@/lib/local-db';
 import { categorizeRepair } from '@/ai/flows/repair-categorization';
 import { useAuth } from '@/context/auth-context';
 import {
@@ -1076,13 +1076,28 @@ function DocumentsTab({ vehicleId, documents, onDataChange }: { vehicleId: strin
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<Document | null>(null);
+    const [objectUrls, setObjectUrls] = useState<Map<number, string>>(new Map());
     const { toast } = useToast();
+
+    useEffect(() => {
+        const newUrls = new Map<number, string>();
+        documents.forEach(doc => {
+            if (doc.file instanceof File) {
+                newUrls.set(doc.id, URL.createObjectURL(doc.file));
+            }
+        });
+        setObjectUrls(newUrls);
+
+        return () => {
+            newUrls.forEach(url => URL.revokeObjectURL(url));
+        };
+    }, [documents]);
 
     const handleDeleteConfirm = async () => {
         if (!itemToDelete) return;
         setIsDeleting(true);
         try {
-            await deleteDocument(itemToDelete.id, itemToDelete.filePath);
+            await deleteLocalDocument(itemToDelete.id);
             toast({ title: 'Succès', description: 'Document supprimé.' });
             onDataChange();
             setItemToDelete(null);
@@ -1106,7 +1121,9 @@ function DocumentsTab({ vehicleId, documents, onDataChange }: { vehicleId: strin
                 <CardContent>
                     {documents.length > 0 ? (
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {documents.map((doc) => (
+                            {documents.map((doc) => {
+                                const docUrl = objectUrls.get(doc.id);
+                                return (
                                 <Card key={doc.id} className="group relative">
                                     <CardHeader>
                                         <CardTitle className="flex items-center gap-2 text-lg">
@@ -1117,8 +1134,8 @@ function DocumentsTab({ vehicleId, documents, onDataChange }: { vehicleId: strin
                                     </CardHeader>
                                     <CardContent>
                                         <div className="flex gap-2">
-                                            <Button asChild variant="secondary" className="flex-1">
-                                                <Link href={doc.url} target="_blank" rel="noopener noreferrer">
+                                            <Button asChild variant="secondary" className="flex-1" disabled={!docUrl}>
+                                                <Link href={docUrl || '#'} target="_blank" rel="noopener noreferrer">
                                                     <Download className="mr-2 h-4 w-4"/> Voir
                                                 </Link>
                                             </Button>
@@ -1128,7 +1145,7 @@ function DocumentsTab({ vehicleId, documents, onDataChange }: { vehicleId: strin
                                         </div>
                                     </CardContent>
                                 </Card>
-                            ))}
+                            )})}
                         </div>
                     ) : (
                         <div className="text-center py-12 text-muted-foreground">
@@ -1151,7 +1168,7 @@ function DocumentsTab({ vehicleId, documents, onDataChange }: { vehicleId: strin
                 onConfirm={handleDeleteConfirm}
                 isDeleting={isDeleting}
                 title="Supprimer le document ?"
-                description="Cette action est irréversible et supprimera définitivement le fichier."
+                description="Cette action est irréversible et supprimera définitivement le fichier localement."
             />
         </>
     );
@@ -1159,7 +1176,6 @@ function DocumentsTab({ vehicleId, documents, onDataChange }: { vehicleId: strin
 
 function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { open: boolean, onOpenChange: (open: boolean) => void, vehicleId: string, onDataChange: () => void }) {
     const { toast } = useToast();
-    const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [docType, setDocType] = useState<Document['type'] | ''>('');
@@ -1168,7 +1184,6 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
     const documentTypes: Document['type'][] = ['Carte Grise', 'Assurance', 'Facture', 'Visite Technique', 'Autre'];
 
     useEffect(() => {
-        // Reset state when the dialog is closed to prevent stale data
         if (!open) {
             setFile(null);
             setDocType('');
@@ -1190,23 +1205,19 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
             toast({ title: 'Erreur', description: 'Veuillez sélectionner un fichier et un type de document.', variant: 'destructive' });
             return;
         }
-        if (!user) {
-            toast({ title: "Erreur", description: "Utilisateur non authentifié.", variant: 'destructive' });
-            return;
-        }
 
         setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
         const name = formData.get('name') as string || file.name;
 
         try {
-            await addDocument(vehicleId, user.uid, file, { name, type: docType });
-            toast({ title: "Succès", description: "Document ajouté." });
+            await addLocalDocument(vehicleId, file, { name, type: docType });
+            toast({ title: "Succès", description: "Document ajouté localement." });
             onOpenChange(false);
             onDataChange();
         } catch (error) {
-             const errorMessage = error instanceof Error ? error.message : "Impossible d'ajouter le document. Veuillez vérifier votre connexion ou les permissions.";
-             toast({ title: "Erreur de téléversement", description: errorMessage, variant: 'destructive' });
+             const errorMessage = error instanceof Error ? error.message : "Impossible d'ajouter le document localement.";
+             toast({ title: "Erreur de stockage local", description: errorMessage, variant: 'destructive' });
         } finally {
             setIsSubmitting(false);
         }
@@ -1217,7 +1228,7 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Ajouter un document</DialogTitle>
-                    <DialogDescription>Téléchargez un fichier (PDF, image) lié à votre véhicule.</DialogDescription>
+                    <DialogDescription>Téléchargez un fichier (PDF, image) qui sera stocké dans votre navigateur.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                     <div className="space-y-2">

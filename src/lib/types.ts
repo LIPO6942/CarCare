@@ -45,12 +45,10 @@ export type FuelLog = {
 };
 
 export type Document = {
-  id: string;
-  userId: string;
+  id: number; // This will be the IndexedDB key
   vehicleId: string;
   name: string;
   type: 'Carte Grise' | 'Assurance' | 'Facture' | 'Visite Technique' | 'Autre';
-  url: string;
-  filePath: string; // The path in Firebase Storage, needed for deletion
+  file: File;
   createdAt: string;
 };

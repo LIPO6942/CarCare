@@ -1,4 +1,4 @@
-import { db, storage } from './firebase';
+import { db } from './firebase';
 import {
   collection,
   getDocs,
@@ -13,8 +13,8 @@ import {
   Timestamp,
   updateDoc,
 } from 'firebase/firestore';
-import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
-import type { Vehicle, Repair, Maintenance, FuelLog, Document } from './types';
+import type { Vehicle, Repair, Maintenance, FuelLog } from './types';
+import { deleteLocalDocumentsForVehicle } from './local-db';
 
 function docToType<T>(document: any): T {
     const data = document.data();
@@ -74,20 +74,11 @@ export async function deleteVehicleById(id: string): Promise<void> {
     const batch = writeBatch(db);
     const vehicleRef = doc(db, 'vehicles', id);
     
-    // First, delete associated files from Storage
-    const docQuery = query(collection(db, 'documents'), where('vehicleId', '==', id));
-    const docSnapshot = await getDocs(docQuery);
-    for (const doc of docSnapshot.docs) {
-        const data = doc.data() as Omit<Document, 'id'>;
-        if (data.filePath) {
-            const fileRef = ref(storage, data.filePath);
-            // Don't block deletion if a single file fails to delete
-            await deleteObject(fileRef).catch(err => console.error("Non-critical: could not delete storage file during vehicle deletion", err));
-        }
-    }
+    // Delete associated local documents from IndexedDB
+    await deleteLocalDocumentsForVehicle(id);
 
     // Then, batch delete all Firestore documents
-    const collectionsToDelete = ['repairs', 'maintenance', 'fuelLogs', 'documents'];
+    const collectionsToDelete = ['repairs', 'maintenance', 'fuelLogs'];
     for (const collectionName of collectionsToDelete) {
         const colRef = collection(db, collectionName);
         const q = query(colRef, where('vehicleId', '==', id));
@@ -142,10 +133,6 @@ export async function getFuelLogsForVehicle(vehicleId: string, userId: string): 
     return getSubCollectionForVehicle<FuelLog>(vehicleId, userId, 'fuelLogs');
 }
 
-export async function getDocumentsForVehicle(vehicleId: string, userId: string): Promise<Document[]> {
-    return getSubCollectionForVehicle<Document>(vehicleId, userId, 'documents', 'createdAt');
-}
-
 
 async function getAllFromUserCollection<T>(userId: string, collectionName: string): Promise<T[]> {
     try {
@@ -187,42 +174,6 @@ export async function addFuelLog(fuelLogData: Omit<FuelLog, 'id' | 'userId'>, us
     return { id: docRef.id, userId, ...fuelLogData };
 }
 
-export async function addDocument(
-  vehicleId: string,
-  userId: string,
-  file: File,
-  documentInfo: { name: string; type: Document['type'] }
-): Promise<Document> {
-  try {
-    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '');
-    const filePath = `documents/${userId}/${vehicleId}/${Date.now()}-${safeFileName}`;
-    const fileRef = ref(storage, filePath);
-    
-    await uploadBytes(fileRef, file);
-    const url = await getDownloadURL(fileRef);
-
-    const docData = {
-      userId,
-      vehicleId,
-      name: documentInfo.name,
-      type: documentInfo.type,
-      url,
-      filePath,
-      createdAt: new Date().toISOString(),
-    };
-
-    const docRef = await addDoc(collection(db, 'documents'), docData);
-    return { id: docRef.id, ...docData };
-  } catch (error: any) {
-    console.error("Firebase Storage/Firestore Error in addDocument:", error);
-    if (error.code === 'storage/unauthorized' || error.code === 'storage/retry-limit-exceeded') {
-      throw new Error("Erreur de permission. Veuillez mettre à jour les règles de sécurité dans votre console Firebase (section Storage > Règles).");
-    }
-    throw new Error("Une erreur réseau ou de configuration a empêché le téléversement.");
-  }
-}
-
-
 // --- Update Functions ---
 export async function updateRepair(id: string, data: Partial<Omit<Repair, 'id' | 'userId' | 'vehicleId'>>): Promise<void> {
   await updateDoc(doc(db, 'repairs', id), data);
@@ -250,33 +201,18 @@ export async function deleteFuelLog(id: string): Promise<void> {
   await deleteDoc(doc(db, 'fuelLogs', id));
 }
 
-export async function deleteDocument(docId: string, filePath: string): Promise<void> {
-    const fileRef = ref(storage, filePath);
-    try {
-        await deleteObject(fileRef);
-    } catch (error: any) {
-        if (error.code !== 'storage/object-not-found') {
-            console.error("Error deleting file from storage", error);
-            throw error;
-        }
-    }
-    await deleteDoc(doc(db, 'documents', docId));
-}
-
 // --- Sample Data ---
 export async function createSampleDataForUser(userId: string): Promise<void> {
   const brand = 'Peugeot';
   const model = '308';
-  const brandDomain = brand.toLowerCase().replace(/ /g, '') + '.com';
-  const logoUrl = `https://logo.clearbit.com/${brandDomain}`;
-
+  
   const vehicleData = {
     brand,
     model,
     year: 2021,
     licensePlate: 'XX-123-YY',
     fuelType: 'Essence' as const,
-    imageUrl: logoUrl,
+    imageUrl: 'https://placehold.co/600x400.png',
     fiscalPower: 6,
   };
   const vehicle = await addVehicle(vehicleData, userId);

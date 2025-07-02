@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Vehicle, Repair, Maintenance, FuelLog, Document } from '@/lib/types';
-import { getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle, getDocumentsForVehicle } from '@/lib/data';
+import { getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle } from '@/lib/data';
+import { getLocalDocumentsForVehicle } from '@/lib/local-db';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { VehicleTabs } from '@/components/vehicle-tabs';
 import { Card, CardContent } from '@/components/ui/card';
@@ -34,7 +35,7 @@ export function VehicleDetailDialog({ vehicle, open, onOpenChange, onDataChange,
           getRepairsForVehicle(vehicle.id, user.uid),
           getMaintenanceForVehicle(vehicle.id, user.uid),
           getFuelLogsForVehicle(vehicle.id, user.uid),
-          getDocumentsForVehicle(vehicle.id, user.uid)
+          getLocalDocumentsForVehicle(vehicle.id)
         ]);
         setRepairs(repairsData);
         setMaintenance(maintenanceData);
