@@ -1163,8 +1163,20 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [docType, setDocType] = useState<Document['type'] | ''>('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const documentTypes: Document['type'][] = ['Carte Grise', 'Assurance', 'Facture', 'Visite Technique', 'Autre'];
+
+    useEffect(() => {
+        // Reset state when the dialog is closed to prevent stale data
+        if (!open) {
+            setFile(null);
+            setDocType('');
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    }, [open]);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.files && event.target.files[0]) {
@@ -1192,10 +1204,9 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
             toast({ title: "Succès", description: "Document ajouté." });
             onOpenChange(false);
             onDataChange();
-            setFile(null);
-            setDocType('');
         } catch (error) {
-             toast({ title: "Erreur", description: "Impossible d'ajouter le document.", variant: 'destructive' });
+             const errorMessage = error instanceof Error ? error.message : "Impossible d'ajouter le document. Veuillez vérifier votre connexion ou les permissions.";
+             toast({ title: "Erreur de téléversement", description: errorMessage, variant: 'destructive' });
         } finally {
             setIsSubmitting(false);
         }
@@ -1211,7 +1222,7 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
                 <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                     <div className="space-y-2">
                         <label htmlFor="file-upload">Fichier</label>
-                        <Input id="file-upload" type="file" required onChange={handleFileChange} />
+                        <Input id="file-upload" type="file" required onChange={handleFileChange} ref={fileInputRef} />
                     </div>
                      <div className="space-y-2">
                         <label>Type de document</label>

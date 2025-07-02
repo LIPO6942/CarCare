@@ -194,23 +194,33 @@ export async function addDocument(
   file: File,
   documentInfo: { name: string; type: Document['type'] }
 ): Promise<Document> {
-  const filePath = `documents/${userId}/${vehicleId}/${uuidv4()}-${file.name}`;
-  const fileRef = ref(storage, filePath);
-  await uploadBytes(fileRef, file);
-  const url = await getDownloadURL(fileRef);
+  try {
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '');
+    const filePath = `documents/${userId}/${vehicleId}/${uuidv4()}-${safeFileName}`;
+    const fileRef = ref(storage, filePath);
+    
+    await uploadBytes(fileRef, file);
+    const url = await getDownloadURL(fileRef);
 
-  const docData = {
-    userId,
-    vehicleId,
-    name: documentInfo.name,
-    type: documentInfo.type,
-    url,
-    filePath,
-    createdAt: new Date().toISOString(),
-  };
+    const docData = {
+      userId,
+      vehicleId,
+      name: documentInfo.name,
+      type: documentInfo.type,
+      url,
+      filePath,
+      createdAt: new Date().toISOString(),
+    };
 
-  const docRef = await addDoc(collection(db, 'documents'), docData);
-  return { id: docRef.id, ...docData };
+    const docRef = await addDoc(collection(db, 'documents'), docData);
+    return { id: docRef.id, ...docData };
+  } catch (error: any) {
+    console.error("Firebase Storage/Firestore Error in addDocument:", error);
+    if (error.code === 'storage/unauthorized') {
+      throw new Error("Erreur de permission. Veuillez vérifier la configuration de vos règles de sécurité Firebase Storage pour autoriser les écritures authentifiées.");
+    }
+    throw new Error("Une erreur réseau ou de configuration a empêché le téléversement.");
+  }
 }
 
 
