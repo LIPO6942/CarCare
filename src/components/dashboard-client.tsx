@@ -21,8 +21,13 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 
-function StatCard({ title, value, icon: Icon, description, href, disabled }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, href?: string, disabled?: boolean }) {
+function StatCard({ title, value, icon: Icon, description, href, disabled, isLoading }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, href?: string, disabled?: boolean, isLoading?: boolean }) {
   const isClickable = !!href && !disabled;
+  
+  if (isLoading) {
+    return <Skeleton className="h-28" />;
+  }
+  
   const content = (
       <Card className="h-full">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -58,22 +63,29 @@ export function DashboardClient() {
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isVehiclesLoading, setIsVehiclesLoading] = useState(true);
+  const [isStatsLoading, setIsStatsLoading] = useState(true);
   
   const fetchData = useCallback(async () => {
     if (!user) return;
-    setIsLoading(true);
-    const [vehiclesData, repairsData, maintenanceData, fuelLogsData] = await Promise.all([
-      getVehicles(user.uid),
+    setIsVehiclesLoading(true);
+    setIsStatsLoading(true);
+    
+    // Phase 1: Fetch vehicles for a quick initial render
+    const vehiclesData = await getVehicles(user.uid);
+    setVehicles(vehiclesData);
+    setIsVehiclesLoading(false);
+
+    // Phase 2: Fetch all other data for stats
+    const [repairsData, maintenanceData, fuelLogsData] = await Promise.all([
       getAllUserRepairs(user.uid),
       getAllUserMaintenance(user.uid),
       getAllUserFuelLogs(user.uid),
     ]);
-    setVehicles(vehiclesData);
     setRepairs(repairsData);
     setMaintenance(maintenanceData);
     setFuelLogs(fuelLogsData);
-    setIsLoading(false);
+    setIsStatsLoading(false);
   }, [user]);
 
   useEffect(() => {
@@ -82,16 +94,16 @@ export function DashboardClient() {
     }
   }, [user, fetchData]);
 
-  const totalVehicles = vehicles.length;
-  const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
-  const totalFuelCost = fuelLogs.reduce((sum, f) => sum + f.totalCost, 0);
-  
-  const upcomingDeadlines = useMemo(() => {
+  const { totalVehicles, totalRepairCost, totalFuelCost, nextDeadline } = useMemo(() => {
+    const totalVehicles = vehicles.length;
+    const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
+    const totalFuelCost = fuelLogs.reduce((sum, f) => sum + f.totalCost, 0);
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const deadlineTasks = ["Vidange", "Visite technique", "Assurance"];
 
-    return maintenance
+    const upcomingDeadlines = maintenance
       .filter(m => 
         deadlineTasks.includes(m.task) && 
         m.nextDueDate && 
@@ -103,11 +115,17 @@ export function DashboardClient() {
         vehicleId: m.vehicleId
       }))
       .sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [maintenance]);
 
-  const nextDeadline = upcomingDeadlines[0];
+    return {
+        totalVehicles,
+        totalRepairCost,
+        totalFuelCost,
+        nextDeadline: upcomingDeadlines[0],
+    }
+  }, [vehicles, repairs, maintenance, fuelLogs]);
 
-  if (isLoading) {
+
+  if (isVehiclesLoading) {
     return (
         <AppLayout>
             <DashboardHeader title="Tableau de Bord" description="Chargement de vos données..." showLogo={true} />
@@ -151,6 +169,7 @@ export function DashboardClient() {
                 icon={Car}
                 description="Nombre de véhicules gérés"
                 disabled
+                isLoading={isStatsLoading}
               />
               <StatCard
                 title="Coût des Réparations"
@@ -159,6 +178,7 @@ export function DashboardClient() {
                 description="Voir l'historique des réparations"
                 href={vehicles.length > 0 ? `/vehicle/${vehicles[0].id}?tab=repairs` : undefined}
                 disabled={vehicles.length === 0}
+                isLoading={isStatsLoading}
               />
               <StatCard
                 title="Coût du Carburant"
@@ -167,6 +187,7 @@ export function DashboardClient() {
                 description="Voir l'historique des pleins"
                 href={vehicles.length > 0 ? `/vehicle/${vehicles[0].id}?tab=fuel` : undefined}
                 disabled={vehicles.length === 0}
+                isLoading={isStatsLoading}
               />
                <StatCard
                 title={nextDeadline ? nextDeadline.name : "Échéances à Venir"}
@@ -179,6 +200,7 @@ export function DashboardClient() {
                     return vehicleForDeadline ? `/vehicle/${vehicleForDeadline.id}?tab=maintenance` : undefined;
                 })()}
                 disabled={!nextDeadline}
+                isLoading={isStatsLoading}
               />
             </div>
 

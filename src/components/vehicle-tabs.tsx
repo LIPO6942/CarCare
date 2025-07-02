@@ -112,7 +112,7 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataCha
   return (
     <Tabs defaultValue={initialTab || 'history'} className="w-full">
       <div className="w-full overflow-x-auto pb-1 no-scrollbar">
-        <TabsList className="grid w-full grid-cols-4 min-w-[500px] sm:min-w-0">
+        <TabsList>
             <TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Historique</TabsTrigger>
             <TabsTrigger value="repairs"><Wrench className="mr-2 h-4 w-4" />Réparations</TabsTrigger>
             <TabsTrigger value="maintenance"><Calendar className="mr-2 h-4 w-4" />Entretien</TabsTrigger>
@@ -425,7 +425,7 @@ function RepairDialog({ open, onOpenChange, vehicleId, onDataChange, initialData
     const [isSubmitting, setIsSubmitting] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
 
-    const repairCategories = ["Moteur", "Freins", "Électrique", "Suspension", "Carrosserie", "Intérieur", "Échappement", "Transmission", "Pneus", "Autre"];
+    const repairCategories = ["Moteur", "Freins", "Électrique", "Suspension", "Carrosserie", "Intérieur", "Échappement", "Transmission", "Pneus", "Batterie", "Climatisation", "Autre"];
 
     useEffect(() => {
         if (initialData) {
@@ -700,10 +700,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
     const [selectedTask, setSelectedTask] = useState(initialData?.task || '');
     const [cost, setCost] = useState(initialData?.cost.toString() || '');
     
-    const maintenanceTasks = [
-        "Vidange", "Visite technique", "Assurance", "Vignette", "Changement des pneus",
-        "Rotation des pneus", "Changement de la batterie", "Entretien climatisation", "Autre",
-    ];
+    const maintenanceTasks = ["Vidange", "Visite technique", "Assurance", "Vignette", "Autre"];
     
     useEffect(() => {
         if (!open) {
