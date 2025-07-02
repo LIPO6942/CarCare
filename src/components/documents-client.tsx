@@ -49,7 +49,7 @@ export function DocumentsClient() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Document | null>(null);
-  const [objectUrls, setObjectUrls] = useState<Map<number, string>>(new Map());
+  const [objectUrls, setObjectUrls] = useState<Map<number, { recto: string; verso?: string }>>(new Map());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -81,16 +81,28 @@ export function DocumentsClient() {
   }, [selectedVehicleId]);
 
   useEffect(() => {
-    const newUrls = new Map<number, string>();
+    const newUrls = new Map<number, { recto: string, verso?: string }>();
     documents.forEach(doc => {
-        if (doc.file instanceof File) {
-            newUrls.set(doc.id, URL.createObjectURL(doc.file));
+        const urls: { recto: string, verso?: string } = {} as any;
+        if (doc.fileRecto instanceof File) {
+            urls.recto = URL.createObjectURL(doc.fileRecto);
+        }
+        if (doc.fileVerso instanceof File) {
+            urls.verso = URL.createObjectURL(doc.fileVerso);
+        }
+        if (urls.recto) {
+            newUrls.set(doc.id, urls);
         }
     });
     setObjectUrls(newUrls);
 
     return () => {
-        newUrls.forEach(url => URL.revokeObjectURL(url));
+        newUrls.forEach(urlObj => {
+            URL.revokeObjectURL(urlObj.recto);
+            if (urlObj.verso) {
+                URL.revokeObjectURL(urlObj.verso);
+            }
+        });
     };
   }, [documents]);
 
@@ -177,7 +189,7 @@ export function DocumentsClient() {
               ) : documents.length > 0 ? (
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       {documents.map((doc) => {
-                          const docUrl = objectUrls.get(doc.id);
+                          const docUrls = objectUrls.get(doc.id);
                           return (
                           <Card key={doc.id} className="group relative">
                               <CardHeader>
@@ -189,12 +201,19 @@ export function DocumentsClient() {
                               </CardHeader>
                               <CardContent>
                                   <div className="flex gap-2">
-                                      <Button asChild variant="secondary" className="flex-1" disabled={!docUrl}>
-                                          <Link href={docUrl || '#'} target="_blank" rel="noopener noreferrer">
-                                              <Download className="mr-2 h-4 w-4"/> Voir
+                                      <Button asChild variant="secondary" className="flex-1" disabled={!docUrls?.recto}>
+                                          <Link href={docUrls?.recto || '#'} target="_blank" rel="noopener noreferrer">
+                                              <Download className="mr-2 h-4 w-4"/> Voir Recto
                                           </Link>
                                       </Button>
-                                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setItemToDelete(doc)}>
+                                      {docUrls?.verso && (
+                                        <Button asChild variant="secondary" className="flex-1">
+                                            <Link href={docUrls.verso} target="_blank" rel="noopener noreferrer">
+                                                <Download className="mr-2 h-4 w-4"/> Verso
+                                            </Link>
+                                        </Button>
+                                      )}
+                                      <Button variant="ghost" size="icon" className="text-destructive absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setItemToDelete(doc)}>
                                           <Trash2 className="h-4 w-4" />
                                       </Button>
                                   </div>
@@ -234,41 +253,41 @@ export function DocumentsClient() {
 function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { open: boolean, onOpenChange: (open: boolean) => void, vehicleId: string, onDataChange: () => void }) {
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<{ recto: File | null; verso: File | null }>({ recto: null, verso: null });
     const [docType, setDocType] = useState<Document['type'] | ''>('');
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const fileInputRectoRef = useRef<HTMLInputElement>(null);
+    const fileInputVersoRef = useRef<HTMLInputElement>(null);
 
-    const documentTypes: Document['type'][] = ['Carte Grise', 'Assurance', 'Facture', 'Visite Technique', 'Autre'];
+    const documentTypes: Document['type'][] = ['Carte Grise', 'Assurance', 'Facture', 'Visite Technique', 'Permis de Conduite', 'Autre'];
 
     useEffect(() => {
         if (!open) {
-            setFile(null);
+            setFiles({ recto: null, verso: null });
             setDocType('');
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
+            if (fileInputRectoRef.current) fileInputRectoRef.current.value = '';
+            if (fileInputVersoRef.current) fileInputVersoRef.current.value = '';
         }
     }, [open]);
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, side: 'recto' | 'verso') => {
         if (event.target.files && event.target.files[0]) {
-            setFile(event.target.files[0]);
+            setFiles(prev => ({ ...prev, [side]: event.target.files![0] }));
         }
     };
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (!file || !docType) {
-            toast({ title: 'Erreur', description: 'Veuillez sélectionner un fichier et un type de document.', variant: 'destructive' });
+        if (!files.recto || !docType) {
+            toast({ title: 'Erreur', description: 'Veuillez sélectionner un fichier (recto) et un type de document.', variant: 'destructive' });
             return;
         }
 
         setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
-        const name = formData.get('name') as string || file.name;
+        const name = formData.get('name') as string || files.recto.name.replace(/\.[^/.]+$/, "");
 
         try {
-            await addLocalDocument(vehicleId, file, { name, type: docType });
+            await addLocalDocument(vehicleId, files, { name, type: docType });
             toast({ title: "Succès", description: "Document ajouté localement." });
             onOpenChange(false);
             onDataChange();
@@ -285,14 +304,14 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Ajouter un document</DialogTitle>
-                    <DialogDescription>Téléchargez un fichier (PDF, image) qui sera stocké dans votre navigateur.</DialogDescription>
+                    <DialogDescription>Téléchargez les fichiers (PDF, image) qui seront stockés dans votre navigateur.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-                    <div className="space-y-2">
-                        <label htmlFor="file-upload">Fichier</label>
-                        <Input id="file-upload" type="file" required onChange={handleFileChange} ref={fileInputRef} />
-                    </div>
                      <div className="space-y-2">
+                        <label htmlFor="doc-name">Nom du document</label>
+                        <Input id="doc-name" name="name" placeholder="Ex: Facture garage du 15/05" required/>
+                    </div>
+                    <div className="space-y-2">
                         <label>Type de document</label>
                         <Select onValueChange={(value) => setDocType(value as Document['type'])} value={docType} required>
                             <SelectTrigger>
@@ -304,9 +323,14 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
                         </Select>
                     </div>
                     <div className="space-y-2">
-                        <label htmlFor="doc-name">Nom du document (optionnel)</label>
-                        <Input id="doc-name" name="name" placeholder="Ex: Facture garage du 15/05" />
+                        <label htmlFor="file-upload-recto">Fichier Recto (obligatoire)</label>
+                        <Input id="file-upload-recto" type="file" required onChange={(e) => handleFileChange(e, 'recto')} ref={fileInputRectoRef} />
                     </div>
+                     <div className="space-y-2">
+                        <label htmlFor="file-upload-verso">Fichier Verso (optionnel)</label>
+                        <Input id="file-upload-verso" type="file" onChange={(e) => handleFileChange(e, 'verso')} ref={fileInputVersoRef} />
+                    </div>
+
                     <DialogFooter>
                         <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
                         <Button type="submit" disabled={isSubmitting}>

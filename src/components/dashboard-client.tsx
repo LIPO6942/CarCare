@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, type ComponentType } from 'react';
+import { useRouter } from 'next/navigation';
 import type { Vehicle, Repair, Maintenance, FuelLog } from '@/lib/types';
 import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
@@ -13,24 +14,16 @@ import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RepairSummaryChart } from '@/components/repair-summary-chart';
 import { VehicleCard } from '@/components/vehicle-card';
-import { VehicleDetailDialog } from '@/components/vehicle-detail-dialog';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 
-function StatCard({ title, value, icon: Icon, description, onClick, disabled }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, onClick?: () => void, disabled?: boolean }) {
-  const isClickable = !!onClick && !disabled;
-  return (
-    <button
-      onClick={onClick}
-      disabled={!isClickable}
-      className={cn(
-        "text-left w-full",
-        isClickable && "transition-all hover:shadow-md hover:-translate-y-1"
-      )}
-    >
+function StatCard({ title, value, icon: Icon, description, href, disabled }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, href?: string, disabled?: boolean }) {
+  const isClickable = !!href && !disabled;
+  const content = (
       <Card className="h-full">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">{title}</CardTitle>
@@ -41,22 +34,32 @@ function StatCard({ title, value, icon: Icon, description, onClick, disabled }: 
           {description && <p className="text-xs text-muted-foreground">{description}</p>}
         </CardContent>
       </Card>
-    </button>
+  )
+
+  if (isClickable) {
+    return (
+        <Link href={href} target="_blank" rel="noopener noreferrer" className={cn("text-left w-full", isClickable && "transition-all hover:shadow-md hover:-translate-y-1")}>
+            {content}
+        </Link>
+    )
+  }
+
+  return (
+    <div className={cn("text-left w-full", disabled && "opacity-50")}>
+       {content}
+    </div>
   );
 }
 
 export function DashboardClient() {
   const { user } = useAuth();
+  const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [initialTab, setInitialTab] = useState('history');
-
   const fetchData = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
@@ -78,13 +81,6 @@ export function DashboardClient() {
         fetchData();
     }
   }, [user, fetchData]);
-
-
-  const handleOpenDetails = (vehicle: Vehicle, tab: string = 'history') => {
-    setSelectedVehicle(vehicle);
-    setInitialTab(tab);
-    setIsDetailOpen(true);
-  };
 
   const totalVehicles = vehicles.length;
   const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
@@ -161,7 +157,7 @@ export function DashboardClient() {
                 value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
                 icon={Wrench}
                 description="Voir l'historique des réparations"
-                onClick={() => vehicles.length > 0 && handleOpenDetails(vehicles[0], 'repairs')}
+                href={vehicles.length > 0 ? `/vehicle/${vehicles[0].id}?tab=repairs` : undefined}
                 disabled={vehicles.length === 0}
               />
               <StatCard
@@ -169,22 +165,19 @@ export function DashboardClient() {
                 value={`${totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
                 icon={Fuel}
                 description="Voir l'historique des pleins"
-                onClick={() => vehicles.length > 0 && handleOpenDetails(vehicles[0], 'fuel')}
+                href={vehicles.length > 0 ? `/vehicle/${vehicles[0].id}?tab=fuel` : undefined}
                 disabled={vehicles.length === 0}
               />
-              <StatCard
+               <StatCard
                 title={nextDeadline ? nextDeadline.name : "Échéances à Venir"}
                 value={nextDeadline ? format(nextDeadline.date, 'd MMM yyyy', { locale: fr }) : "Aucune"}
                 icon={Bell}
                 description={nextDeadline ? "Voir l'échéance" : "Aucune échéance à venir"}
-                onClick={() => {
-                  if (nextDeadline) {
+                href={(() => {
+                    if (!nextDeadline) return undefined;
                     const vehicleForDeadline = vehicles.find(v => v.id === nextDeadline.vehicleId);
-                    if (vehicleForDeadline) {
-                        handleOpenDetails(vehicleForDeadline, 'maintenance');
-                    }
-                  }
-                }}
+                    return vehicleForDeadline ? `/vehicle/${vehicleForDeadline.id}?tab=maintenance` : undefined;
+                })()}
                 disabled={!nextDeadline}
               />
             </div>
@@ -196,7 +189,7 @@ export function DashboardClient() {
                 {vehicles.length > 0 ? (
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {vehicles.map((vehicle) => (
-                    <VehicleCard key={vehicle.id} vehicle={vehicle} onOpenDetails={() => handleOpenDetails(vehicle)} />
+                    <VehicleCard key={vehicle.id} vehicle={vehicle} />
                     ))}
                 </div>
                 ) : (
@@ -220,7 +213,6 @@ export function DashboardClient() {
             </div>
         </main>
       </AppLayout>
-      {selectedVehicle && <VehicleDetailDialog vehicle={selectedVehicle} open={isDetailOpen} onOpenChange={setIsDetailOpen} onDataChange={fetchData} initialTab={initialTab} />}
     </>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { Vehicle } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,9 +26,8 @@ import { useToast } from '@/hooks/use-toast';
 import { deleteVehicleById } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 
-export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOpenDetails: (vehicle: Vehicle) => void; }) {
+export function VehicleCard({ vehicle }: { vehicle: Vehicle; }) {
   const { user } = useAuth();
-  const router = useRouter();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
@@ -53,8 +52,8 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
         title: 'Succès',
         description: 'Le véhicule a été supprimé.',
       });
-      // Refresh the page to reflect the deletion
-      router.refresh();
+      // The dashboard will refetch data automatically after a successful deletion.
+      // A full page refresh might not be necessary if the parent component handles state updates.
     } catch(error) {
       console.error("Firebase Error in deleteVehicle:", error);
       toast({
@@ -63,7 +62,6 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
         variant: 'destructive',
       });
     }
-
 
     setIsDeleting(false);
     setShowDeleteDialog(false);
@@ -90,26 +88,29 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          <button 
-            onClick={() => onOpenDetails(vehicle)} 
+          <Link 
+            href={`/vehicle/${vehicle.id}`} 
+            target="_blank" 
+            rel="noopener noreferrer"
             className="w-full text-left cursor-pointer block rounded-t-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            aria-label={`Voir les détails pour ${vehicle.brand} ${vehicle.model}`}
           >
              <div className="relative h-48 w-full bg-muted/30 rounded-t-lg flex items-center justify-center p-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
-                alt={`${vehicle.brand || ''} ${vehicle.model || ''}`}
+                alt={`Photo de ${vehicle.brand || ''} ${vehicle.model || ''}`}
                 className="h-full w-full object-contain"
                 onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
               />
             </div>
-          </button>
+          </Link>
         </CardHeader>
         <CardContent className="flex-1 pt-6">
           <CardTitle className="text-xl mb-2">
-            <button onClick={() => onOpenDetails(vehicle)} className="hover:text-primary text-left">
+            <Link href={`/vehicle/${vehicle.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary text-left">
               {vehicle.brand || 'Marque inconnue'} {vehicle.model || ''}
-            </button>
+            </Link>
           </CardTitle>
           <div className="text-muted-foreground space-y-2 text-sm">
             <div className="flex items-center gap-2">
@@ -127,9 +128,11 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
           </div>
         </CardContent>
         <CardFooter>
-          <Button onClick={() => onOpenDetails(vehicle)} className="w-full">
-            Voir l'historique
-          </Button>
+            <Button asChild className="w-full">
+                <Link href={`/vehicle/${vehicle.id}`} target="_blank" rel="noopener noreferrer">
+                    Voir l'historique
+                </Link>
+            </Button>
         </CardFooter>
       </Card>
       

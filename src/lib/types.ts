@@ -48,7 +48,8 @@ export type Document = {
   id: number; // This will be the IndexedDB key
   vehicleId: string;
   name: string;
-  type: 'Carte Grise' | 'Assurance' | 'Facture' | 'Visite Technique' | 'Autre';
-  file: File;
+  type: 'Carte Grise' | 'Assurance' | 'Facture' | 'Visite Technique' | 'Permis de Conduite' | 'Autre';
+  fileRecto: File;
+  fileVerso?: File;
   createdAt: string;
 };

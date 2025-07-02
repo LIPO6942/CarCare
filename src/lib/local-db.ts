@@ -27,7 +27,7 @@ function getDb(): Promise<IDBPDatabase> {
 
 export async function addLocalDocument(
   vehicleId: string,
-  file: File,
+  files: { recto: File; verso?: File | null },
   documentInfo: { name: string; type: Document['type'] }
 ): Promise<void> {
     const db = await getDb();
@@ -35,7 +35,8 @@ export async function addLocalDocument(
         vehicleId,
         name: documentInfo.name,
         type: documentInfo.type,
-        file: file,
+        fileRecto: files.recto,
+        fileVerso: files.verso || undefined,
         createdAt: new Date().toISOString(),
     };
     await db.add(STORE_NAME, docData);

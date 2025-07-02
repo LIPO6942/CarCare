@@ -119,7 +119,7 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
         </div>
         <div className="space-y-2">
             <label htmlFor="licensePlate">Plaque d'immatriculation</label>
-            <Input id="licensePlate" name="licensePlate" placeholder="ex: AA-123-BB" required />
+            <Input id="licensePlate" name="licensePlate" placeholder="ex: 1234 TU 200" required />
         </div>
         <div className="space-y-2">
             <label htmlFor="fuelType">Type de carburant</label>
