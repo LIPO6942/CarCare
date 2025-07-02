@@ -15,7 +15,6 @@ import {
 } from 'firebase/firestore';
 import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { Vehicle, Repair, Maintenance, FuelLog, Document } from './types';
-import { v4 as uuidv4 } from 'uuid';
 
 function docToType<T>(document: any): T {
     const data = document.data();
@@ -196,7 +195,7 @@ export async function addDocument(
 ): Promise<Document> {
   try {
     const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '');
-    const filePath = `documents/${userId}/${vehicleId}/${uuidv4()}-${safeFileName}`;
+    const filePath = `documents/${userId}/${vehicleId}/${Date.now()}-${safeFileName}`;
     const fileRef = ref(storage, filePath);
     
     await uploadBytes(fileRef, file);
