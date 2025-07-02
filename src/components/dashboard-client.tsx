@@ -101,7 +101,7 @@ export function DashboardClient() {
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const deadlineTasks = ["Vidange", "Visite technique", "Assurance"];
+    const deadlineTasks = ["Vidange", "Visite technique", "Paiement Assurance"];
 
     const upcomingDeadlines = maintenance
       .filter(m => 

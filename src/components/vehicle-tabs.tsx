@@ -700,7 +700,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
     const [selectedTask, setSelectedTask] = useState(initialData?.task || '');
     const [cost, setCost] = useState(initialData?.cost.toString() || '');
     
-    const maintenanceTasks = ["Vidange", "Visite technique", "Assurance", "Vignette", "Autre"];
+    const maintenanceTasks = ["Vidange", "Vignette", "Visite technique", "Paiement Assurance"];
     
     useEffect(() => {
         if (!open) {
@@ -751,14 +751,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
         }
         
         const formData = new FormData(event.currentTarget);
-        const finalTask = selectedTask === 'Autre' ? formData.get('customTask') as string : selectedTask;
-
-        if (!finalTask || finalTask.trim() === '') {
-            toast({ title: "Erreur", description: "Veuillez sélectionner ou préciser une tâche.", variant: 'destructive' });
-            setIsSubmitting(false);
-            return;
-        }
-        formData.set('task', finalTask);
+        formData.set('task', selectedTask);
         
         const rawData = Object.fromEntries(formData.entries());
         if (rawData.nextDueDate === '') delete rawData.nextDueDate;
@@ -807,7 +800,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                     </div>
                      <div className="space-y-2">
                         <label>Tâche d'entretien</label>
-                        <Select onValueChange={setSelectedTask} value={selectedTask} name="task" required>
+                        <Select onValueChange={setSelectedTask} value={selectedTask} required>
                             <SelectTrigger>
                                 <SelectValue placeholder="Sélectionnez une tâche" />
                             </SelectTrigger>
@@ -815,15 +808,6 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                                 {maintenanceTasks.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                             </SelectContent>
                         </Select>
-                        {selectedTask === 'Autre' && (
-                             <Input 
-                                name="customTask" 
-                                placeholder="Précisez la tâche" 
-                                required 
-                                className="mt-2"
-                                defaultValue={initialData?.task && !maintenanceTasks.includes(initialData.task) ? initialData.task : ''}
-                             />
-                        )}
                     </div>
                     <div className="space-y-2">
                         <label htmlFor="cost">Coût de l'entretien (TND)</label>

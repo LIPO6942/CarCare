@@ -245,7 +245,7 @@ export async function createSampleDataForUser(userId: string): Promise<void> {
     vehicleId: vehicle.id,
     date: oneMonthAgo.toISOString().split('T')[0],
     mileage: 15000,
-    task: 'Assurance',
+    task: 'Paiement Assurance',
     cost: 600,
     nextDueDate: nextInsurance.toISOString().split('T')[0],
   }, userId);
