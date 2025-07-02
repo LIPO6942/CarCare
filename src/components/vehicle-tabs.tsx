@@ -112,13 +112,15 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, documents
 
   return (
     <Tabs defaultValue={initialTab || 'history'} className="w-full">
-      <TabsList className="grid w-full grid-cols-5">
-        <TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Historique</TabsTrigger>
-        <TabsTrigger value="repairs"><Wrench className="mr-2 h-4 w-4" />Réparations</TabsTrigger>
-        <TabsTrigger value="maintenance"><Calendar className="mr-2 h-4 w-4" />Entretien</TabsTrigger>
-        <TabsTrigger value="fuel"><Fuel className="mr-2 h-4 w-4" />Carburant</TabsTrigger>
-        <TabsTrigger value="documents"><FileText className="mr-2 h-4 w-4" />Documents</TabsTrigger>
-      </TabsList>
+      <div className="w-full overflow-x-auto pb-1 no-scrollbar">
+        <TabsList className="grid w-full grid-cols-5 min-w-[600px] sm:min-w-0">
+            <TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Historique</TabsTrigger>
+            <TabsTrigger value="repairs"><Wrench className="mr-2 h-4 w-4" />Réparations</TabsTrigger>
+            <TabsTrigger value="maintenance"><Calendar className="mr-2 h-4 w-4" />Entretien</TabsTrigger>
+            <TabsTrigger value="fuel"><Fuel className="mr-2 h-4 w-4" />Carburant</TabsTrigger>
+            <TabsTrigger value="documents"><FileText className="mr-2 h-4 w-4" />Documents</TabsTrigger>
+        </TabsList>
+      </div>
       <TabsContent value="history">
         <HistoryTab history={history} />
       </TabsContent>
@@ -231,16 +233,21 @@ function HistoryTab({ history }: { history: any[] }) {
           <div className="md:hidden space-y-4">
             {history.map((item, index) => (
                 <div key={`${item.type}-${item.id}-${index}`} className="p-4 border rounded-lg bg-card text-card-foreground">
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start mb-3">
                         <div className="flex items-center gap-3">
-                            {historyIcons[item.type]}
-                            <p className="font-bold text-lg">{item.description || 'N/A'}</p>
+                            <div className="flex-shrink-0">{historyIcons[item.type]}</div>
+                            <div>
+                                <p className="font-semibold text-base leading-tight">{item.description || 'N/A'}</p>
+                                <span className="text-xs text-muted-foreground">{historyLabels[item.type]}</span>
+                            </div>
                         </div>
-                        <p className="font-bold text-lg text-right">{safeFormatCurrency(item.cost)}</p>
+                        <p className="font-bold text-lg text-foreground pl-2">{safeFormatCurrency(item.cost)}</p>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(item.date)}</span>
-                        <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(item.mileage)} km</span>
+                    <div className="flex items-end">
+                        <div className="text-sm text-muted-foreground space-y-1">
+                            <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(item.date)}</span>
+                            <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(item.mileage)} km</span>
+                        </div>
                     </div>
                 </div>
             ))}
@@ -330,21 +337,21 @@ function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repa
                 <div className="md:hidden space-y-4">
                     {repairs.map((repair) => (
                         <div key={repair.id} className="p-4 border rounded-lg bg-card text-card-foreground">
-                             <div className="flex justify-between items-start">
+                            <div className="flex justify-between items-start mb-3">
                                 <div>
-                                    <p className="font-bold text-lg">{repair.description || 'N/A'}</p>
-                                    <span className="text-xs font-mono px-2 py-1 bg-muted rounded-full inline-block mt-1">
-                                        {repair.category || 'N/A'}
-                                    </span>
+                                    <p className="font-semibold text-base leading-tight">{repair.description || 'N/A'}</p>
+                                    <span className="text-xs text-muted-foreground">{repair.category || 'N/A'}</span>
                                 </div>
-                                <ActionMenu onEdit={() => handleEdit(repair)} onDelete={() => setItemToDelete(repair)} />
+                                <div className="flex-shrink-0 pl-2">
+                                    <ActionMenu onEdit={() => handleEdit(repair)} onDelete={() => setItemToDelete(repair)} />
+                                </div>
                             </div>
-                            <div className="mt-2 flex flex-wrap justify-between items-end gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                                <div>
+                            <div className="flex justify-between items-end">
+                                <div className="text-sm text-muted-foreground space-y-1">
                                     <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(repair.date)}</span>
                                     <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(repair.mileage)} km</span>
                                 </div>
-                                <p className="font-bold text-lg text-right text-foreground">{safeFormatCurrency(repair.cost)}</p>
+                                <p className="font-bold text-lg text-foreground">{safeFormatCurrency(repair.cost)}</p>
                             </div>
                         </div>
                     ))}
@@ -595,20 +602,26 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                             
                             return (
                                 <div key={item.id} className="p-4 border rounded-lg bg-card text-card-foreground">
-                                    <div className="flex justify-between items-start">
-                                        <p className="font-bold text-lg">{item.task || 'N/A'}</p>
-                                        <ActionMenu onEdit={() => handleEdit(item)} onDelete={() => setItemToDelete(item)} />
+                                    <div className="flex justify-between items-start mb-3">
+                                        <p className="font-semibold text-base leading-tight">{item.task || 'N/A'}</p>
+                                        <div className="flex-shrink-0 pl-2">
+                                            <ActionMenu onEdit={() => handleEdit(item)} onDelete={() => setItemToDelete(item)} />
+                                        </div>
                                     </div>
-                                    <div className="mt-2 flex flex-wrap justify-between items-end gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                                      <div>
-                                        <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(item.date)}</span>
-                                        <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(item.mileage)} km</span>
-                                      </div>
-                                      <p className="font-bold text-lg text-right text-foreground">{safeFormatCurrency(item.cost)}</p>
+
+                                    <div className="flex justify-between items-end">
+                                        <div className="text-sm text-muted-foreground space-y-1">
+                                            <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(item.date)}</span>
+                                            <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(item.mileage)} km</span>
+                                        </div>
+                                        <p className="font-bold text-lg text-foreground">{safeFormatCurrency(item.cost)}</p>
                                     </div>
-                                    <div className="mt-2 pt-2 border-t text-sm text-muted-foreground">
-                                       <span className="flex items-center gap-1.5"><span className="font-medium text-foreground">Prochain:</span> {nextDueText}</span>
-                                    </div>
+                                    
+                                    {nextDueText !== "N/A" && (
+                                        <div className="pt-3 mt-3 border-t text-sm text-muted-foreground">
+                                            <span className="flex items-center gap-1.5"><span className="font-medium text-foreground">Prochain:</span> {nextDueText}</span>
+                                        </div>
+                                    )}
                                 </div>
                             )
                         })}
@@ -903,18 +916,23 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                 <div>
                     <div className="md:hidden space-y-4">
                         {fuelLogs.map((log) => (
-                            <div key={log.id} className="p-4 border rounded-lg bg-card text-card-foreground">
-                                <div className="flex justify-between items-start">
-                                    <p className="font-bold text-lg">Plein de carburant</p>
-                                    <ActionMenu onEdit={() => handleEdit(log)} onDelete={() => setItemToDelete(log)} />
-                                </div>
-                                <div className="mt-2 flex flex-wrap justify-between items-end gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                           <div key={log.id} className="p-4 border rounded-lg bg-card text-card-foreground">
+                                <div className="flex justify-between items-start mb-3">
                                     <div>
+                                        <p className="font-semibold text-base leading-tight">Plein de carburant</p>
+                                        <span className="text-xs text-muted-foreground">{safeFormatNumber(log.quantity)} L @ {safeFormatCurrency(log.pricePerLiter)}/L</span>
+                                    </div>
+                                    <div className="flex-shrink-0 pl-2">
+                                        <ActionMenu onEdit={() => handleEdit(log)} onDelete={() => setItemToDelete(log)} />
+                                    </div>
+                                </div>
+                                
+                                <div className="flex justify-between items-end">
+                                    <div className="text-sm text-muted-foreground space-y-1">
                                         <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(log.date)}</span>
                                         <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(log.mileage)} km</span>
-                                        <span className="flex items-center gap-1.5">{safeFormatNumber(log.quantity)} L à {safeFormatCurrency(log.pricePerLiter)}/L</span>
                                     </div>
-                                    <p className="font-bold text-lg text-right text-foreground">{safeFormatCurrency(log.totalCost)}</p>
+                                    <p className="font-bold text-lg text-foreground">{safeFormatCurrency(log.totalCost)}</p>
                                 </div>
                             </div>
                         ))}
