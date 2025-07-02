@@ -215,8 +215,8 @@ export async function addDocument(
     return { id: docRef.id, ...docData };
   } catch (error: any) {
     console.error("Firebase Storage/Firestore Error in addDocument:", error);
-    if (error.code === 'storage/unauthorized') {
-      throw new Error("Erreur de permission. Veuillez vérifier la configuration de vos règles de sécurité Firebase Storage pour autoriser les écritures authentifiées.");
+    if (error.code === 'storage/unauthorized' || error.code === 'storage/retry-limit-exceeded') {
+      throw new Error("Erreur de permission. Veuillez vérifier vos règles de sécurité Firebase Storage. Assurez-vous d'autoriser les écritures pour les utilisateurs connectés.");
     }
     throw new Error("Une erreur réseau ou de configuration a empêché le téléversement.");
   }
