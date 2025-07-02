@@ -28,12 +28,6 @@ const generateVehicleImageFlow = ai.defineFlow(
     outputSchema: z.string(),
   },
   async ({brand, model}) => {
-    // This feature was temporarily disabled in favor of local storage.
-    // For now, we will just return a placeholder.
-    // In a real scenario, you would re-enable image generation once cloud storage is configured.
-    return 'https://placehold.co/600x400.png';
-
-    /*
     const {media} = await ai.generate({
       model: 'googleai/gemini-2.0-flash-preview-image-generation',
       prompt: `Generate a photorealistic image of a ${brand} ${model} car, side view, in a clean, studio-like environment with a neutral background.`,
@@ -48,6 +42,5 @@ const generateVehicleImageFlow = ai.defineFlow(
     }
 
     return media.url;
-    */
   }
 );

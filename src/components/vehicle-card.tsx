@@ -98,7 +98,7 @@ export function VehicleCard({ vehicle, onOpenDetails }: { vehicle: Vehicle; onOp
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
-                alt={`${vehicle.brand || ''} ${vehicle.model || ''} logo`}
+                alt={`${vehicle.brand || ''} ${vehicle.model || ''}`}
                 className="h-full w-full object-contain"
                 onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
               />
