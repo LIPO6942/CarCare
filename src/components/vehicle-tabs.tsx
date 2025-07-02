@@ -698,6 +698,10 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedTask, setSelectedTask] = useState(initialData?.task || '');
+    
+    // States for linked inputs
+    const [mileage, setMileage] = useState(initialData?.mileage.toString() || '');
+    const [nextDueMileage, setNextDueMileage] = useState(initialData?.nextDueMileage?.toString() || '');
     const [cost, setCost] = useState(initialData?.cost.toString() || '');
     
     const maintenanceTasks = ["Vidange", "Vignette", "Visite technique", "Paiement Assurance"];
@@ -706,20 +710,36 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
         if (!open) {
             setSelectedTask('');
             setCost('');
+            setMileage('');
+            setNextDueMileage('');
             return;
         }
 
         if (initialData) {
             setSelectedTask(initialData.task || '');
             setCost(initialData.cost?.toString() || '');
+            setMileage(initialData.mileage?.toString() || '');
+            setNextDueMileage(initialData.nextDueMileage?.toString() || '');
         } else {
             setSelectedTask('');
             setCost('');
+            setMileage('');
+            setNextDueMileage('');
         }
     }, [initialData, open]);
-
+    
+    // Auto-calculate next due mileage for "Vidange" on new entries
     useEffect(() => {
-        // This effect runs when selectedTask changes, but only if it's a new entry
+        if (!initialData && selectedTask === 'Vidange') {
+            const currentMileage = parseInt(mileage, 10);
+            if (!isNaN(currentMileage) && currentMileage > 0) {
+                setNextDueMileage((currentMileage + 10000).toString());
+            }
+        }
+    }, [mileage, selectedTask, initialData]);
+
+    // Auto-fill cost for certain tasks on new entries
+    useEffect(() => {
         if (initialData) return;
 
         if (selectedTask === 'Visite technique') {
@@ -735,7 +755,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                 toast({ title: 'Info', description: "Puissance fiscale non définie pour ce véhicule."});
                 setCost('');
             }
-        } else {
+        } else if (selectedTask !== 'Vidange' && selectedTask !== 'Paiement Assurance') {
             setCost('');
         }
     }, [selectedTask, vehicle.fiscalPower, toast, initialData]);
@@ -795,7 +815,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                         <label>Date & Kilométrage</label>
                         <div className="grid grid-cols-2 gap-4">
                             <Input name="date" type="date" required defaultValue={initialData?.date || new Date().toISOString().split('T')[0]} />
-                            <Input name="mileage" type="number" placeholder="Kilométrage" required defaultValue={initialData?.mileage} />
+                            <Input name="mileage" type="number" placeholder="Kilométrage" required value={mileage} onChange={e => setMileage(e.target.value)} />
                         </div>
                     </div>
                      <div className="space-y-2">
@@ -818,7 +838,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                         <legend className="text-sm font-medium px-1">Prochain entretien (Optionnel)</legend>
                         <div className="grid grid-cols-2 gap-4 pt-2">
                             <Input name="nextDueDate" type="date" defaultValue={initialData?.nextDueDate?.split('T')[0]} />
-                            <Input name="nextDueMileage" type="number" placeholder="Prochain kilométrage" defaultValue={initialData?.nextDueMileage} />
+                            <Input name="nextDueMileage" type="number" placeholder="Prochain kilométrage" value={nextDueMileage} onChange={e => setNextDueMileage(e.target.value)} />
                         </div>
                     </fieldset>
                     

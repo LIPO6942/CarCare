@@ -58,7 +58,7 @@ function VehicleDetailContent({ vehicleId }: { vehicleId: string }) {
         <>
             <DashboardHeader title="Chargement..." description="Veuillez patienter..." />
             <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-4">
-                <Skeleton className="h-52 w-full" />
+                <Skeleton className="h-40 w-full" />
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-64 w-full" />
             </main>
@@ -88,8 +88,8 @@ function VehicleDetailContent({ vehicleId }: { vehicleId: string }) {
                 <div className="grid items-start gap-4">
                 <Card>
                     <CardContent className="pt-6">
-                        <div className="flex flex-col sm:flex-row gap-6 items-start">
-                             <div className="relative h-40 w-full sm:w-40 flex-shrink-0 rounded-lg bg-muted/30 flex items-center justify-center p-2 mx-auto">
+                        <div className="flex flex-col sm:flex-row gap-4 items-center">
+                            <div className="relative h-32 w-full sm:w-32 flex-shrink-0 rounded-lg bg-muted/30 flex items-center justify-center p-2 mx-auto">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                 src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
@@ -99,14 +99,32 @@ function VehicleDetailContent({ vehicleId }: { vehicleId: string }) {
                                 />
                             </div>
                             <div className="flex-grow w-full">
-                                <h2 className="text-2xl font-bold mb-4">Informations Clés</h2>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div><strong className="block text-muted-foreground">Marque</strong> {vehicle.brand || 'N/A'}</div>
-                                    <div><strong className="block text-muted-foreground">Modèle</strong> {vehicle.model || 'N/A'}</div>
-                                    <div><strong className="block text-muted-foreground">Année</strong> {vehicle.year || 'N/A'}</div>
-                                    <div><strong className="block text-muted-foreground">Plaque</strong> {vehicle.licensePlate || 'N/A'}</div>
-                                    <div><strong className="block text-muted-foreground">Carburant</strong> {vehicle.fuelType || 'N/A'}</div>
-                                    <div><strong className="block text-muted-foreground">Puissance Fiscale</strong> {vehicle.fiscalPower ? `${vehicle.fiscalPower} CV` : 'N/A'}</div>
+                                <h2 className="text-xl font-bold mb-2">Informations Clés</h2>
+                                <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                                    <div className="flex items-baseline gap-1.5">
+                                        <strong className="text-muted-foreground font-medium">Marque:</strong>
+                                        <span className="font-semibold">{vehicle.brand || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex items-baseline gap-1.5">
+                                        <strong className="text-muted-foreground font-medium">Modèle:</strong>
+                                        <span className="font-semibold">{vehicle.model || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex items-baseline gap-1.5">
+                                        <strong className="text-muted-foreground font-medium">Année:</strong>
+                                        <span className="font-semibold">{vehicle.year || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex items-baseline gap-1.5">
+                                        <strong className="text-muted-foreground font-medium">Plaque:</strong>
+                                        <span className="font-semibold">{vehicle.licensePlate || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex items-baseline gap-1.5">
+                                        <strong className="text-muted-foreground font-medium">Carburant:</strong>
+                                        <span className="font-semibold">{vehicle.fuelType || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex items-baseline gap-1.5">
+                                        <strong className="text-muted-foreground font-medium">CV:</strong>
+                                        <span className="font-semibold">{vehicle.fiscalPower ? `${vehicle.fiscalPower}` : 'N/A'}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
