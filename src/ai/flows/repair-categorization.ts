@@ -22,7 +22,7 @@ const CategorizeRepairOutputSchema = z.object({
   category: z
     .string()
     .describe(
-      'The categorized type of repair (e.g., Moteur, Freins, Électrique, Suspension, Carrosserie, Intérieur, Échappement, Transmission, Pneus, Batterie, Climatisation, Autre).'
+      'The categorized type of repair (e.g., Moteur, Filtres, Bougies, Courroie de distribution, Freins, Électrique, Suspension, Carrosserie, Intérieur, Échappement, Transmission, Pneus, Batterie, Climatisation, Autre).'
     ),
 });
 export type CategorizeRepairOutput = z.infer<typeof CategorizeRepairOutputSchema>;
@@ -35,7 +35,7 @@ const categorizeRepairPrompt = ai.definePrompt({
   name: 'categorizeRepairPrompt',
   input: {schema: CategorizeRepairInputSchema},
   output: {schema: CategorizeRepairOutputSchema},
-  prompt: `You are an expert automotive technician. Please categorize the following car repair details into one of the following categories: Moteur, Freins, Électrique, Suspension, Carrosserie, Intérieur, Échappement, Transmission, Pneus, Batterie, Climatisation, Autre. Only respond with the category. 
+  prompt: `You are an expert automotive technician. Please categorize the following car repair details into one of the following categories: Moteur, Filtres, Bougies, Courroie de distribution, Freins, Électrique, Suspension, Carrosserie, Intérieur, Échappement, Transmission, Pneus, Batterie, Climatisation, Autre. Only respond with the category. 
 
 Repair Details: {{{repairDetails}}}`,
 });

@@ -425,7 +425,7 @@ function RepairDialog({ open, onOpenChange, vehicleId, onDataChange, initialData
     const [isSubmitting, setIsSubmitting] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
 
-    const repairCategories = ["Moteur", "Freins", "Électrique", "Suspension", "Carrosserie", "Intérieur", "Échappement", "Transmission", "Pneus", "Batterie", "Climatisation", "Autre"];
+    const repairCategories = ["Moteur", "Filtres", "Bougies", "Courroie de distribution", "Freins", "Électrique", "Suspension", "Carrosserie", "Intérieur", "Échappement", "Transmission", "Pneus", "Batterie", "Climatisation", "Autre"];
 
     useEffect(() => {
         if (initialData) {

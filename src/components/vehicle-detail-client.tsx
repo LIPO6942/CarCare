@@ -88,8 +88,8 @@ function VehicleDetailContent({ vehicleId }: { vehicleId: string }) {
                 <div className="grid items-start gap-4">
                 <Card>
                     <CardContent className="pt-6">
-                        <div className="grid gap-6 sm:grid-cols-3">
-                            <div className="relative h-60 w-full sm:col-span-1 rounded-lg bg-muted/30 flex items-center justify-center p-4">
+                        <div className="flex flex-col sm:flex-row gap-6 items-start">
+                             <div className="relative h-40 w-full sm:w-40 flex-shrink-0 rounded-lg bg-muted/30 flex items-center justify-center p-2 mx-auto">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                 src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
@@ -98,7 +98,7 @@ function VehicleDetailContent({ vehicleId }: { vehicleId: string }) {
                                 onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
                                 />
                             </div>
-                            <div className="sm:col-span-2">
+                            <div className="flex-grow w-full">
                                 <h2 className="text-2xl font-bold mb-4">Informations Clés</h2>
                                 <div className="grid grid-cols-2 gap-4 text-sm">
                                     <div><strong className="block text-muted-foreground">Marque</strong> {vehicle.brand || 'N/A'}</div>
