@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, Car, BarChart3, Bot } from 'lucide-react';
+import { Menu, Car, BarChart3, Bot, FileText } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Logo } from './logo';
@@ -14,6 +14,7 @@ const navItems = [
   { href: '/', label: 'Mes Véhicules', icon: Car },
   { href: '/reports', label: 'Rapports', icon: BarChart3 },
   { href: '/ai-assistant', label: 'Assistant IA', icon: Bot },
+  { href: '/documents', label: 'Documents', icon: FileText },
 ];
 
 export function MobileSidebar() {

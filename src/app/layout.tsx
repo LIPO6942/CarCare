@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/context/auth-context';
+import { PwaInstaller } from '@/components/pwa-installer';
 
 export const metadata: Metadata = {
   title: 'CarCare Pro',
@@ -16,6 +17,9 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#3b82f6" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -25,6 +29,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <AuthProvider>
+            <PwaInstaller />
             {children}
             <Toaster />
         </AuthProvider>

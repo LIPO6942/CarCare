@@ -11,9 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Wrench, Fuel, Calendar, Sparkles, Loader2, GaugeCircle, Tag, History, FileText, Trash2, Edit, MoreHorizontal, Download } from 'lucide-react';
+import { PlusCircle, Wrench, Fuel, Calendar, Sparkles, Loader2, GaugeCircle, History, Trash2, Edit, MoreHorizontal } from 'lucide-react';
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -29,19 +29,18 @@ import {
     addMaintenance, updateMaintenance, deleteMaintenance,
     addFuelLog, updateFuelLog, deleteFuelLog,
 } from '@/lib/data';
-import { addLocalDocument, deleteLocalDocument } from '@/lib/local-db';
 import { categorizeRepair } from '@/ai/flows/repair-categorization';
 import { useAuth } from '@/context/auth-context';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import { DialogFooter } from './ui/dialog';
 
 interface VehicleTabsProps {
     vehicle: Vehicle;
     repairs: Repair[];
     maintenance: Maintenance[];
     fuelLogs: FuelLog[];
-    documents: Document[];
     onDataChange: () => void;
     initialTab?: string;
 }
@@ -85,7 +84,7 @@ const safeFormatCurrency = (numInput: any): string => {
 }
 
 
-export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, documents, onDataChange, initialTab }: VehicleTabsProps) {
+export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataChange, initialTab }: VehicleTabsProps) {
   
   const history = useMemo(() => {
     try {
@@ -113,12 +112,11 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, documents
   return (
     <Tabs defaultValue={initialTab || 'history'} className="w-full">
       <div className="w-full overflow-x-auto pb-1 no-scrollbar">
-        <TabsList className="grid w-full grid-cols-5 min-w-[600px] sm:min-w-0">
+        <TabsList className="grid w-full grid-cols-4 min-w-[500px] sm:min-w-0">
             <TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Historique</TabsTrigger>
             <TabsTrigger value="repairs"><Wrench className="mr-2 h-4 w-4" />Réparations</TabsTrigger>
             <TabsTrigger value="maintenance"><Calendar className="mr-2 h-4 w-4" />Entretien</TabsTrigger>
             <TabsTrigger value="fuel"><Fuel className="mr-2 h-4 w-4" />Carburant</TabsTrigger>
-            <TabsTrigger value="documents"><FileText className="mr-2 h-4 w-4" />Documents</TabsTrigger>
         </TabsList>
       </div>
       <TabsContent value="history">
@@ -132,9 +130,6 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, documents
       </TabsContent>
       <TabsContent value="fuel">
         <FuelTab vehicle={vehicle} fuelLogs={fuelLogs} onDataChange={onDataChange} />
-      </TabsContent>
-       <TabsContent value="documents">
-        <DocumentsTab vehicleId={vehicle.id} documents={documents} onDataChange={onDataChange} />
       </TabsContent>
     </Tabs>
   );
@@ -1074,199 +1069,6 @@ function FuelLogDialog({ open, onOpenChange, vehicleId, onDataChange, initialDat
                      <div className="space-y-2">
                         <label htmlFor="totalCost">Coût total (TND)</label>
                         <Input id="totalCost" type="number" value={totalCost.toFixed(2)} readOnly className="bg-muted" />
-                    </div>
-                    <DialogFooter>
-                        <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
-                        <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Enregistrer
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
-// --- DOCUMENTS TAB ---
-
-function DocumentsTab({ vehicleId, documents, onDataChange }: { vehicleId: string, documents: Document[], onDataChange: () => void }) {
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState<Document | null>(null);
-    const [objectUrls, setObjectUrls] = useState<Map<number, string>>(new Map());
-    const { toast } = useToast();
-
-    useEffect(() => {
-        const newUrls = new Map<number, string>();
-        documents.forEach(doc => {
-            if (doc.file instanceof File) {
-                newUrls.set(doc.id, URL.createObjectURL(doc.file));
-            }
-        });
-        setObjectUrls(newUrls);
-
-        return () => {
-            newUrls.forEach(url => URL.revokeObjectURL(url));
-        };
-    }, [documents]);
-
-    const handleDeleteConfirm = async () => {
-        if (!itemToDelete) return;
-        setIsDeleting(true);
-        try {
-            await deleteLocalDocument(itemToDelete.id);
-            toast({ title: 'Succès', description: 'Document supprimé.' });
-            onDataChange();
-            setItemToDelete(null);
-        } catch (error) {
-            toast({ title: 'Erreur', description: "Impossible de supprimer le document.", variant: 'destructive' });
-        } finally {
-            setIsDeleting(false);
-        }
-    };
-    
-    return (
-        <>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Documents du Véhicule</CardTitle>
-                        <CardDescription>Stockez et consultez tous vos documents importants.</CardDescription>
-                    </div>
-                    <Button onClick={() => setIsDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Ajouter un document</Button>
-                </CardHeader>
-                <CardContent>
-                    {documents.length > 0 ? (
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {documents.map((doc) => {
-                                const docUrl = objectUrls.get(doc.id);
-                                return (
-                                <Card key={doc.id} className="group relative">
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center gap-2 text-lg">
-                                            <FileText className="h-5 w-5 text-primary" />
-                                            <span className="truncate">{doc.name}</span>
-                                        </CardTitle>
-                                        <CardDescription>{doc.type} - Ajouté le {safeFormatDate(doc.createdAt)}</CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="flex gap-2">
-                                            <Button asChild variant="secondary" className="flex-1" disabled={!docUrl}>
-                                                <Link href={docUrl || '#'} target="_blank" rel="noopener noreferrer">
-                                                    <Download className="mr-2 h-4 w-4"/> Voir
-                                                </Link>
-                                            </Button>
-                                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setItemToDelete(doc)}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )})}
-                        </div>
-                    ) : (
-                        <div className="text-center py-12 text-muted-foreground">
-                            <FileText className="mx-auto h-12 w-12 mb-4" />
-                            <h3 className="text-lg font-semibold">Aucun document</h3>
-                            <p>Ajoutez les documents importants de votre véhicule.</p>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-            <AddDocumentDialog
-                open={isDialogOpen}
-                onOpenChange={setIsDialogOpen}
-                vehicleId={vehicleId}
-                onDataChange={onDataChange}
-            />
-            <DeleteConfirmationDialog 
-                open={!!itemToDelete}
-                onOpenChange={() => setItemToDelete(null)}
-                onConfirm={handleDeleteConfirm}
-                isDeleting={isDeleting}
-                title="Supprimer le document ?"
-                description="Cette action est irréversible et supprimera définitivement le fichier localement."
-            />
-        </>
-    );
-}
-
-function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { open: boolean, onOpenChange: (open: boolean) => void, vehicleId: string, onDataChange: () => void }) {
-    const { toast } = useToast();
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [file, setFile] = useState<File | null>(null);
-    const [docType, setDocType] = useState<Document['type'] | ''>('');
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const documentTypes: Document['type'][] = ['Carte Grise', 'Assurance', 'Facture', 'Visite Technique', 'Autre'];
-
-    useEffect(() => {
-        if (!open) {
-            setFile(null);
-            setDocType('');
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-        }
-    }, [open]);
-
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files && event.target.files[0]) {
-            setFile(event.target.files[0]);
-        }
-    };
-
-    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        if (!file || !docType) {
-            toast({ title: 'Erreur', description: 'Veuillez sélectionner un fichier et un type de document.', variant: 'destructive' });
-            return;
-        }
-
-        setIsSubmitting(true);
-        const formData = new FormData(event.currentTarget);
-        const name = formData.get('name') as string || file.name;
-
-        try {
-            await addLocalDocument(vehicleId, file, { name, type: docType });
-            toast({ title: "Succès", description: "Document ajouté localement." });
-            onOpenChange(false);
-            onDataChange();
-        } catch (error) {
-             const errorMessage = error instanceof Error ? error.message : "Impossible d'ajouter le document localement.";
-             toast({ title: "Erreur de stockage local", description: errorMessage, variant: 'destructive' });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Ajouter un document</DialogTitle>
-                    <DialogDescription>Téléchargez un fichier (PDF, image) qui sera stocké dans votre navigateur.</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-                    <div className="space-y-2">
-                        <label htmlFor="file-upload">Fichier</label>
-                        <Input id="file-upload" type="file" required onChange={handleFileChange} ref={fileInputRef} />
-                    </div>
-                     <div className="space-y-2">
-                        <label>Type de document</label>
-                        <Select onValueChange={(value) => setDocType(value as Document['type'])} value={docType} required>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Sélectionnez un type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {documentTypes.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <label htmlFor="doc-name">Nom du document (optionnel)</label>
-                        <Input id="doc-name" name="name" placeholder="Ex: Facture garage du 15/05" />
                     </div>
                     <DialogFooter>
                         <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
