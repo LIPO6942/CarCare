@@ -28,13 +28,13 @@ function StatCard({ title, value, icon: Icon, description, href, disabled, isLoa
     return <Skeleton className="h-28" />;
   }
 
-  const iconToRender = isUrgent ? AlertTriangle : Icon;
+  const IconToRender = isUrgent ? AlertTriangle : Icon;
   
   const content = (
       <Card className={cn("h-full", isUrgent && "bg-destructive/10 border-destructive text-destructive")}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">{title}</CardTitle>
-          <iconToRender className={cn("h-4 w-4 text-muted-foreground", isUrgent && "text-destructive")} />
+          <IconToRender className={cn("h-4 w-4 text-muted-foreground", isUrgent && "text-destructive")} />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{value}</div>
