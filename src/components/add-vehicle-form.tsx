@@ -12,19 +12,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { addVehicle } from '@/lib/data';
+import { addVehicle, addMaintenance } from '@/lib/data';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
 import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 
 
-const VehicleSchema = z.object({
+const VehicleWithInspectionSchema = z.object({
   brand: z.string().min(1, 'La marque est requise.'),
   model: z.string().min(1, 'Le modèle est requis.'),
   year: z.coerce.number().min(1900, 'Année invalide.').max(new Date().getFullYear() + 1, 'Année invalide.'),
   licensePlate: z.string().min(1, 'La plaque d\'immatriculation est requise.'),
   fuelType: z.enum(['Essence', 'Diesel', 'Électrique', 'Hybride']),
   fiscalPower: z.coerce.number().min(1, 'Puissance invalide.').max(50, 'Puissance invalide.'),
+  currentMileage: z.coerce.number().min(0, "Le kilométrage ne peut pas être négatif.").optional(),
+  lastTechnicalInspectionDate: z.string().optional(),
 });
 
 
@@ -46,13 +48,17 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
     const formData = new FormData(event.currentTarget);
     const vehicleData = Object.fromEntries(formData.entries());
 
-    const validatedFields = VehicleSchema.safeParse(vehicleData);
+    // Remove empty optional fields so Zod doesn't complain
+    if (vehicleData.currentMileage === '') delete vehicleData.currentMileage;
+    if (vehicleData.lastTechnicalInspectionDate === '') delete vehicleData.lastTechnicalInspectionDate;
+
+    const validatedFields = VehicleWithInspectionSchema.safeParse(vehicleData);
 
     if (!validatedFields.success) {
       const firstError = validatedFields.error.issues[0];
       toast({
         title: 'Erreur de validation',
-        description: `Veuillez corriger le champ: ${firstError.path[0]}.`,
+        description: `${firstError.path[0]}: ${firstError.message}`,
         variant: 'destructive',
       });
       setIsSubmitting(false);
@@ -70,7 +76,23 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
             console.warn("AI image generation failed, falling back to placeholder.", aiError);
         }
 
-        await addVehicle({ ...validatedFields.data, imageUrl }, user.uid);
+        const { lastTechnicalInspectionDate, currentMileage, ...vehicleCoreData } = validatedFields.data;
+        const newVehicle = await addVehicle({ ...vehicleCoreData, imageUrl }, user.uid);
+
+        if (lastTechnicalInspectionDate && newVehicle.id) {
+            const lastDate = new Date(lastTechnicalInspectionDate);
+            const nextDueDate = new Date(lastDate);
+            nextDueDate.setFullYear(lastDate.getFullYear() + 1);
+
+            await addMaintenance({
+                vehicleId: newVehicle.id,
+                date: lastTechnicalInspectionDate,
+                mileage: currentMileage || 0,
+                task: 'Visite technique',
+                cost: 0, 
+                nextDueDate: nextDueDate.toISOString().split('T')[0],
+            }, user.uid);
+        }
         
         toast({
           title: 'Succès',
@@ -134,6 +156,14 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: () => void }) {
                     <SelectItem value="Hybride">Hybride</SelectItem>
                 </SelectContent>
             </Select>
+        </div>
+        <div className="space-y-2">
+            <label htmlFor="currentMileage">Kilométrage Actuel (Optionnel)</label>
+            <Input id="currentMileage" name="currentMileage" type="number" placeholder="ex: 85000" />
+        </div>
+        <div className="space-y-2">
+            <label htmlFor="lastTechnicalInspectionDate">Dernière Visite Technique (Optionnel)</label>
+            <Input id="lastTechnicalInspectionDate" name="lastTechnicalInspectionDate" type="date" />
         </div>
       </div>
       <Button type="submit" disabled={isSubmitting} className="w-full">

@@ -8,7 +8,7 @@ import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { AddVehicleSheet } from '@/components/add-vehicle-sheet';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Car, Wrench, Bell, Fuel } from 'lucide-react';
+import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle } from 'lucide-react';
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,18 +21,20 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 
-function StatCard({ title, value, icon: Icon, description, href, disabled, isLoading }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, href?: string, disabled?: boolean, isLoading?: boolean }) {
+function StatCard({ title, value, icon: Icon, description, href, disabled, isLoading, isUrgent }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, href?: string, disabled?: boolean, isLoading?: boolean, isUrgent?: boolean }) {
   const isClickable = !!href && !disabled;
   
   if (isLoading) {
     return <Skeleton className="h-28" />;
   }
+
+  const iconToRender = isUrgent ? AlertTriangle : Icon;
   
   const content = (
-      <Card className="h-full">
+      <Card className={cn("h-full", isUrgent && "bg-destructive/10 border-destructive text-destructive")}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">{title}</CardTitle>
-          <Icon className="h-4 w-4 text-muted-foreground" />
+          <iconToRender className={cn("h-4 w-4 text-muted-foreground", isUrgent && "text-destructive")} />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{value}</div>
@@ -94,7 +96,7 @@ export function DashboardClient() {
     }
   }, [user, fetchData]);
 
-  const { totalVehicles, totalRepairCost, totalFuelCost, nextDeadline } = useMemo(() => {
+  const { totalVehicles, totalRepairCost, totalFuelCost, nextDeadline, isDeadlineUrgent } = useMemo(() => {
     const totalVehicles = vehicles.length;
     const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
     const totalFuelCost = fuelLogs.reduce((sum, f) => sum + f.totalCost, 0);
@@ -116,11 +118,23 @@ export function DashboardClient() {
       }))
       .sort((a, b) => a.date.getTime() - b.date.getTime());
 
+    const nextDeadline = upcomingDeadlines[0];
+    let isDeadlineUrgent = false;
+
+    if (nextDeadline) {
+      const twentyDaysFromNow = new Date();
+      twentyDaysFromNow.setDate(today.getDate() + 20);
+      if (nextDeadline.date <= twentyDaysFromNow) {
+        isDeadlineUrgent = true;
+      }
+    }
+
     return {
         totalVehicles,
         totalRepairCost,
         totalFuelCost,
-        nextDeadline: upcomingDeadlines[0],
+        nextDeadline,
+        isDeadlineUrgent,
     }
   }, [vehicles, repairs, maintenance, fuelLogs]);
 
@@ -190,10 +204,10 @@ export function DashboardClient() {
                 isLoading={isStatsLoading}
               />
                <StatCard
-                title={nextDeadline ? nextDeadline.name : "Échéances à Venir"}
+                title={nextDeadline ? (isDeadlineUrgent ? "Échéance Proche !" : nextDeadline.name) : "Échéances à Venir"}
                 value={nextDeadline ? format(nextDeadline.date, 'd MMM yyyy', { locale: fr }) : "Aucune"}
                 icon={Bell}
-                description={nextDeadline ? "Voir l'échéance" : "Aucune échéance à venir"}
+                description={nextDeadline ? (isDeadlineUrgent ? `Prochaine échéance: ${nextDeadline.name}` : "Voir l'échéance") : "Aucune échéance à venir"}
                 href={(() => {
                     if (!nextDeadline) return undefined;
                     const vehicleForDeadline = vehicles.find(v => v.id === nextDeadline.vehicleId);
@@ -201,6 +215,7 @@ export function DashboardClient() {
                 })()}
                 disabled={!nextDeadline}
                 isLoading={isStatsLoading}
+                isUrgent={isDeadlineUrgent}
               />
             </div>
 
