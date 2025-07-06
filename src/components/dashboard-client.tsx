@@ -110,7 +110,14 @@ export function DashboardClient() {
     fetchData(); // Full refetch to update stats
   }
 
-  const { totalRepairCost, totalFuelCost, nextDeadline, isDeadlineUrgent } = useMemo(() => {
+  const { 
+    totalRepairCost, 
+    totalFuelCost, 
+    nextDeadline, 
+    secondNextDeadline,
+    isDeadlineUrgent,
+    isSecondDeadlineUrgent,
+  } = useMemo(() => {
     const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
     const totalFuelCost = fuelLogs.reduce((sum, f) => sum + f.totalCost, 0);
     
@@ -184,22 +191,22 @@ export function DashboardClient() {
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
     const nextDeadline = upcomingDeadlines[0] || null;
+    const secondNextDeadline = upcomingDeadlines[1] || null;
     
-    let isDeadlineUrgent = false;
-
-    if (nextDeadline) {
-      const twentyDaysFromNow = new Date();
-      twentyDaysFromNow.setDate(today.getDate() + 20);
-      if (nextDeadline.date <= twentyDaysFromNow) {
-        isDeadlineUrgent = true;
-      }
-    }
-
+    const checkUrgency = (deadline: typeof nextDeadline) => {
+        if (!deadline) return false;
+        const twentyDaysFromNow = new Date();
+        twentyDaysFromNow.setDate(today.getDate() + 20);
+        return deadline.date <= twentyDaysFromNow;
+    };
+    
     return {
         totalRepairCost,
         totalFuelCost,
         nextDeadline,
-        isDeadlineUrgent,
+        secondNextDeadline,
+        isDeadlineUrgent: checkUrgency(nextDeadline),
+        isSecondDeadlineUrgent: checkUrgency(secondNextDeadline),
     }
   }, [vehicles, repairs, maintenance, fuelLogs]);
 
@@ -248,7 +255,8 @@ export function DashboardClient() {
         <AppLayout>
             <DashboardHeader title="Tableau de Bord" description="Chargement de vos données..." showLogo={true} />
             <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
-                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                    <Skeleton className="h-32" />
                     <Skeleton className="h-32" />
                     <Skeleton className="h-32" />
                     <Skeleton className="h-32" />
@@ -284,22 +292,32 @@ export function DashboardClient() {
           </AddVehicleSheet>
         </DashboardHeader>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
-           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
-                title={nextDeadline ? (isDeadlineUrgent ? "Échéance Proche !" : nextDeadline.name) : "Prochaine Échéance"}
-                value={nextDeadline ? format(nextDeadline.date, 'd MMM yyyy', { locale: fr }) : "Aucune"}
+                title={nextDeadline ? (isDeadlineUrgent ? "Échéance Proche !" : "Prochaine Échéance") : "Prochaine Échéance"}
+                value={nextDeadline ? `${format(nextDeadline.date, 'd MMM yyyy', { locale: fr })}` : "Aucune"}
                 icon={Bell}
-                description={nextDeadline ? `Coût : ${nextDeadline.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}` : "Aucune échéance à venir"}
+                description={nextDeadline ? `${nextDeadline.name} - ${nextDeadline.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}` : "Aucune échéance à venir"}
                 onClick={() => setVehicleForDetailView(getVehicleForStat(nextDeadline?.vehicleId) || null)}
                 disabled={!nextDeadline}
                 isLoading={isStatsLoading}
                 isUrgent={isDeadlineUrgent}
               />
               <StatCard
+                title={secondNextDeadline ? (isSecondDeadlineUrgent ? "Échéance Suivante" : "Échéance Suivante") : "Échéance Suivante"}
+                value={secondNextDeadline ? `${format(secondNextDeadline.date, 'd MMM yyyy', { locale: fr })}` : "Aucune"}
+                icon={Bell}
+                description={secondNextDeadline ? `${secondNextDeadline.name} - ${secondNextDeadline.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}` : " "}
+                onClick={() => setVehicleForDetailView(getVehicleForStat(secondNextDeadline?.vehicleId) || null)}
+                disabled={!secondNextDeadline}
+                isLoading={isStatsLoading}
+                isUrgent={isSecondDeadlineUrgent}
+              />
+              <StatCard
                 title="Coût des Réparations"
                 value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
                 icon={Wrench}
-                description="Total des réparations"
+                description="Total sur tous les véhicules"
                 disabled
                 isLoading={isStatsLoading}
               />
@@ -307,7 +325,7 @@ export function DashboardClient() {
                 title="Dépenses Carburant"
                 value={`${totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
                 icon={Fuel}
-                description="Total des pleins"
+                description="Total sur tous les véhicules"
                 disabled
                 isLoading={isStatsLoading}
               />
@@ -347,7 +365,7 @@ export function DashboardClient() {
                 )}
             </div>
 
-            <RepairSummaryChart repairs={repairs} />
+            <RepairSummaryChart repairs={repairs} totalCost={totalRepairCost} />
         </main>
       </AppLayout>
 

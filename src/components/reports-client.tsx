@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useEffect, useState } from 'react';
@@ -37,21 +38,27 @@ export function ReportsClient() {
 
     const repairCategories: { [key: string]: number } = {};
     repairs.forEach(repair => {
-      repairCategories[repair.category] = (repairCategories[repair.category] || 0) + repair.cost;
+      const category = repair.category || 'Non classé';
+      repairCategories[category] = (repairCategories[category] || 0) + repair.cost;
     });
+    
+    // Create a new map to ensure "Carburant" is always first and has a distinct color
+    const aggregatedCosts = new Map<string, { cost: number; fill: string }>();
+    aggregatedCosts.set('Carburant', { cost: totalFuelCost, fill: 'hsl(var(--chart-1))' });
 
-    const costData = [
-      { name: 'Carburant', Coût: totalFuelCost, fill: 'hsl(var(--chart-1))' },
-      ...Object.entries(repairCategories).map(([name, cost]) => ({
+    Object.entries(repairCategories).forEach(([name, cost]) => {
+        aggregatedCosts.set(name, { cost, fill: 'hsl(var(--chart-2))' });
+    });
+    
+    const costData = Array.from(aggregatedCosts.entries()).map(([name, data]) => ({
         name,
-        Coût: cost,
-        fill: 'hsl(var(--chart-2))',
-      })),
-    ];
+        Coût: data.cost,
+        fill: data.fill,
+    }));
     
     const maxMileage = Math.max(
-        ...repairs.map(r => r.mileage), 
-        ...fuelLogs.map(f => f.mileage),
+        ...repairs.map(r => r.mileage || 0), 
+        ...fuelLogs.map(f => f.mileage || 0),
         0
     );
 
@@ -117,9 +124,9 @@ export function ReportsClient() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {costPerKm.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })} / km
+              {costPerKm > 0 ? `${costPerKm.toLocaleString('fr-FR', { style: 'currency', currency: 'TND', minimumFractionDigits: 2 })} / km` : 'N/A'}
             </div>
-            <p className="text-xs text-muted-foreground">Basé sur {maxMileage.toLocaleString('fr-FR')} km parcourus</p>
+            <p className="text-xs text-muted-foreground">{maxMileage > 0 ? `Basé sur ${maxMileage.toLocaleString('fr-FR')} km` : 'Données insuffisantes'}</p>
           </CardContent>
         </Card>
       </div>

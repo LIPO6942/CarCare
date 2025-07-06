@@ -8,6 +8,7 @@ import { Pie, PieChart, ResponsiveContainer, Tooltip, Legend, Cell } from 'recha
 
 interface RepairSummaryChartProps {
   repairs: Repair[];
+  totalCost: number;
 }
 
 const COLORS = [
@@ -18,7 +19,7 @@ const COLORS = [
   'hsl(var(--chart-5))',
 ];
 
-export function RepairSummaryChart({ repairs }: RepairSummaryChartProps) {
+export function RepairSummaryChart({ repairs, totalCost }: RepairSummaryChartProps) {
   const costByCategory = useMemo(() => {
     if (!repairs || repairs.length === 0) {
       return [];
@@ -45,7 +46,13 @@ export function RepairSummaryChart({ repairs }: RepairSummaryChartProps) {
         <CardTitle>Répartition des Coûts de Réparation</CardTitle>
         <CardDescription>Dépenses par catégorie.</CardDescription>
       </CardHeader>
-      <CardContent className="h-[250px]">
+      <CardContent className="h-[250px] w-full relative">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+            <p className="text-xs text-muted-foreground">Total des réparations</p>
+            <p className="text-2xl font-bold">
+                {totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
+            </p>
+        </div>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Tooltip
@@ -66,8 +73,8 @@ export function RepairSummaryChart({ repairs }: RepairSummaryChartProps) {
               nameKey="name"
               cx="50%"
               cy="50%"
-              outerRadius={80}
-              innerRadius={50}
+              outerRadius={100}
+              innerRadius={70}
               paddingAngle={2}
               labelLine={false}
             >
