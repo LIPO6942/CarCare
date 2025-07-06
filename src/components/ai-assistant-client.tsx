@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useFormStatus } from 'react-dom';
 import { suggestMaintenanceTasks } from '@/ai/flows/suggest-maintenance-tasks';
 import type { SuggestMaintenanceTasksOutput } from '@/ai/flows/suggest-maintenance-tasks';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Bot, Lightbulb, Loader, AlertTriangle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -28,6 +31,19 @@ function SubmitButton() {
   );
 }
 
+const carComponents = [
+  "Moteur", "Freins", "Roues & Pneus", "Suspension & Direction", 
+  "Carrosserie", "Électricité & Batterie", "Climatisation", 
+  "Transmission", "Échappement", "Intérieur", "Autre"
+];
+
+const carSymptoms = [
+  "Bruit anormal", "Vibration", "Perte de puissance", "Voyant allumé", 
+  "Fumée", "Odeur suspecte", "Fuite de liquide", "Difficulté à démarrer", 
+  "Comportement anormal", "Autre"
+];
+
+
 export default function AiAssistantClient() {
   const [result, setResult] = useState<SuggestMaintenanceTasksOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,11 +51,22 @@ export default function AiAssistantClient() {
   const handleAction = async (formData: FormData) => {
     setResult(null);
     setError(null);
-    const issueDescription = formData.get('issueDescription') as string;
-    if (!issueDescription) {
-        setError("Veuillez décrire votre problème.");
+    
+    const component = formData.get('component') as string;
+    const symptom = formData.get('symptom') as string;
+    const details = formData.get('details') as string;
+
+    if (!component || !symptom) {
+        setError("Veuillez sélectionner un composant et un symptôme.");
         return;
     }
+
+    const issueDescription = `
+      Composant concerné: ${component}.
+      Symptôme principal: ${symptom}.
+      ${details ? `Détails supplémentaires: ${details}` : ''}
+    `;
+
     try {
         const response = await suggestMaintenanceTasks({ issueDescription });
         setResult(response);
@@ -57,17 +84,44 @@ export default function AiAssistantClient() {
             <span>Diagnostic IA</span>
           </CardTitle>
           <CardDescription>
-            Décrivez en détail le problème que vous rencontrez (bruits, voyants, comportement...).
+            Guidez l'assistant en sélectionnant les options puis décrivez votre problème pour obtenir des suggestions.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Textarea
-            name="issueDescription"
-            placeholder="Ex: Ma voiture fait un bruit de claquement quand je tourne à droite, surtout à basse vitesse..."
-            rows={5}
-            required
-            className="text-base"
-          />
+        <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                <Label htmlFor="component-select">Composant principal</Label>
+                <Select name="component" required>
+                    <SelectTrigger id="component-select">
+                    <SelectValue placeholder="Sélectionnez un composant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                    {carComponents.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                </div>
+                <div className="space-y-2">
+                <Label htmlFor="symptom-select">Symptôme principal</Label>
+                <Select name="symptom" required>
+                    <SelectTrigger id="symptom-select">
+                    <SelectValue placeholder="Sélectionnez un symptôme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                    {carSymptoms.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                </div>
+            </div>
+            <div>
+                <Label htmlFor="details-textarea">Détails supplémentaires (optionnel)</Label>
+                <Textarea
+                id="details-textarea"
+                name="details"
+                placeholder="Ex: Le bruit se produit uniquement en tournant à droite, à basse vitesse..."
+                rows={4}
+                className="mt-2 text-base"
+                />
+            </div>
         </CardContent>
         <CardFooter className="flex justify-end">
           <SubmitButton />
