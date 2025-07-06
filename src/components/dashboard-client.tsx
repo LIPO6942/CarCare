@@ -313,8 +313,6 @@ export function DashboardClient() {
               />
             </div>
 
-            <RepairSummaryChart repairs={repairs} />
-
             <div className="space-y-4">
                 <h2 className="text-2xl font-bold tracking-tight">Mes Véhicules</h2>
                 {vehicles.length > 0 ? (
@@ -348,6 +346,8 @@ export function DashboardClient() {
                 </Card>
                 )}
             </div>
+
+            <RepairSummaryChart repairs={repairs} />
         </main>
       </AppLayout>
 
