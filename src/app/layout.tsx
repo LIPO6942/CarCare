@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/context/auth-context';
-import { PwaInstaller } from '@/components/pwa-installer';
+import { PwaUpdateNotifier } from '@/components/pwa-update-notifier';
 
 export const metadata: Metadata = {
   title: 'CarCare Pro',
@@ -29,7 +29,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <AuthProvider>
-            <PwaInstaller />
+            <PwaUpdateNotifier />
             {children}
             <Toaster />
         </AuthProvider>

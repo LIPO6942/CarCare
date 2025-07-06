@@ -1,19 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
-
+/**
+ * This component is no longer in use.
+ * PWA installation and update logic is now handled by `next-pwa`
+ * and the `PwaUpdateNotifier` component.
+ */
 export function PwaInstaller() {
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/service-worker.js').then(function(registration) {
-          console.log('Service Worker registration successful with scope: ', registration.scope);
-        }, function(err) {
-          console.log('Service Worker registration failed: ', err);
-        });
-      });
-    }
-  }, []);
-
   return null;
 }
