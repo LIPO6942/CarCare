@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import type { Repair } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Pie, PieChart, ResponsiveContainer, Tooltip, Legend, Cell } from 'recharts';
 
 interface RepairSummaryChartProps {
@@ -46,13 +46,7 @@ export function RepairSummaryChart({ repairs, totalCost }: RepairSummaryChartPro
         <CardTitle>Répartition des Coûts de Réparation</CardTitle>
         <CardDescription>Dépenses par catégorie.</CardDescription>
       </CardHeader>
-      <CardContent className="h-[250px] w-full relative">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-            <p className="text-xs text-muted-foreground">Total des réparations</p>
-            <p className="text-2xl font-bold">
-                {totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
-            </p>
-        </div>
+      <CardContent className="h-[250px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Tooltip
@@ -85,6 +79,12 @@ export function RepairSummaryChart({ repairs, totalCost }: RepairSummaryChartPro
           </PieChart>
         </ResponsiveContainer>
       </CardContent>
+      <CardFooter className="flex-col items-center border-t pt-4">
+        <div className="text-sm text-muted-foreground">Total des réparations</div>
+        <div className="text-2xl font-bold">
+          {totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
+        </div>
+      </CardFooter>
     </Card>
   );
 }
