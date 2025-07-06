@@ -22,7 +22,7 @@ export function AddVehicleSheet({ children, onVehicleAdded }: { children: ReactN
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>{children}</SheetTrigger>
-      <SheetContent>
+      <SheetContent className="sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>Ajouter un nouveau véhicule</SheetTitle>
           <SheetDescription>
