@@ -7,7 +7,7 @@ import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { AddVehicleSheet } from '@/components/add-vehicle-sheet';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, BellRing } from 'lucide-react';
+import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle } from 'lucide-react';
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -110,7 +110,7 @@ export function DashboardClient() {
     fetchData(); // Full refetch to update stats
   }
 
-  const { totalRepairCost, totalFuelCost, nextDeadline, secondNextDeadline, isDeadlineUrgent } = useMemo(() => {
+  const { totalRepairCost, totalFuelCost, nextDeadline, isDeadlineUrgent } = useMemo(() => {
     const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
     const totalFuelCost = fuelLogs.reduce((sum, f) => sum + f.totalCost, 0);
     
@@ -184,7 +184,6 @@ export function DashboardClient() {
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
     const nextDeadline = upcomingDeadlines[0] || null;
-    const secondNextDeadline = upcomingDeadlines[1] || null;
     
     let isDeadlineUrgent = false;
 
@@ -200,7 +199,6 @@ export function DashboardClient() {
         totalRepairCost,
         totalFuelCost,
         nextDeadline,
-        secondNextDeadline,
         isDeadlineUrgent,
     }
   }, [vehicles, repairs, maintenance, fuelLogs]);
@@ -297,20 +295,19 @@ export function DashboardClient() {
                 isLoading={isStatsLoading}
                 isUrgent={isDeadlineUrgent}
               />
-               <StatCard
-                title={secondNextDeadline ? secondNextDeadline.name : "Échéance Suivante"}
-                value={secondNextDeadline ? format(secondNextDeadline.date, 'd MMM yyyy', { locale: fr }) : "Aucune"}
-                icon={BellRing}
-                description={secondNextDeadline ? `Coût : ${secondNextDeadline.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}` : "Aucune échéance à venir"}
-                onClick={() => setVehicleForDetailView(getVehicleForStat(secondNextDeadline?.vehicleId) || null)}
-                disabled={!secondNextDeadline}
+              <StatCard
+                title="Coût des Réparations"
+                value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
+                icon={Wrench}
+                description="Total des réparations"
+                disabled
                 isLoading={isStatsLoading}
               />
               <StatCard
-                title="Coût d'Entretien Total"
-                value={`${(totalRepairCost + totalFuelCost).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
-                icon={Wrench}
-                description="Réparations + Carburant"
+                title="Dépenses Carburant"
+                value={`${totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
+                icon={Fuel}
+                description="Total des pleins"
                 disabled
                 isLoading={isStatsLoading}
               />
