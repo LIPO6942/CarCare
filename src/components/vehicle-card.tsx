@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2, Droplets } from 'lucide-react';
 import type { Vehicle } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { deleteVehicleById } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 
-export function VehicleCard({ vehicle, onShowDetails, onDeleted }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; }) {
+export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null }) {
   const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -121,6 +121,12 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted }: { vehicle: Ve
               <Fuel className="h-4 w-4" />
               <span>{vehicle.fuelType || 'N/A'}</span>
             </div>
+             {fuelConsumption != null && (
+              <div className="flex items-center gap-2">
+                  <Droplets className="h-4 w-4" />
+                  <span>{fuelConsumption.toFixed(1)} L/100km</span>
+              </div>
+            )}
           </div>
         </CardContent>
         <CardFooter>
@@ -145,7 +151,7 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted }: { vehicle: Ve
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? 'Suppression...' : 'Supprimer'}
+              {isDeleting ? 'Suppression...' : 'Suppression...'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

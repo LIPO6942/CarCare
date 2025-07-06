@@ -205,6 +205,45 @@ export function DashboardClient() {
     }
   }, [vehicles, repairs, maintenance, fuelLogs]);
 
+  const fuelConsumptions = useMemo(() => {
+    const consumptions = new Map<string, number | null>();
+
+    vehicles.forEach(vehicle => {
+        // 1. Get fuel logs for this specific vehicle and sort by mileage
+        const vehicleFuelLogs = fuelLogs
+            .filter(log => log.vehicleId === vehicle.id && log.mileage > 0)
+            .sort((a, b) => a.mileage - b.mileage);
+
+        // 2. Need at least two logs to calculate consumption
+        if (vehicleFuelLogs.length < 2) {
+            consumptions.set(vehicle.id, null);
+            return;
+        }
+
+        const firstLog = vehicleFuelLogs[0];
+        const lastLog = vehicleFuelLogs[vehicleFuelLogs.length - 1];
+
+        // 3. Calculate total distance covered between the first and last log
+        const totalDistance = lastLog.mileage - firstLog.mileage;
+
+        // 4. Sum up all fuel quantities *except* for the last one (as it's not yet consumed)
+        let totalFuel = 0;
+        for (let i = 0; i < vehicleFuelLogs.length - 1; i++) {
+            totalFuel += vehicleFuelLogs[i].quantity;
+        }
+
+        // 5. Calculate and store consumption if data is valid
+        if (totalDistance > 0 && totalFuel > 0) {
+            const consumption = (totalFuel / totalDistance) * 100; // L/100km
+            consumptions.set(vehicle.id, consumption);
+        } else {
+            consumptions.set(vehicle.id, null);
+        }
+    });
+
+    return consumptions;
+  }, [vehicles, fuelLogs]);
+
 
   if (isVehiclesLoading) {
     return (
@@ -289,6 +328,7 @@ export function DashboardClient() {
                         vehicle={vehicle} 
                         onShowDetails={() => setVehicleForDetailView(vehicle)}
                         onDeleted={fetchData}
+                        fuelConsumption={fuelConsumptions.get(vehicle.id)}
                        />
                     ))}
                 </div>
