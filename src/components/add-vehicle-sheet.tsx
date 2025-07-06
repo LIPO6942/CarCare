@@ -10,13 +10,14 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { AddVehicleForm } from './add-vehicle-form';
+import type { Vehicle } from '@/lib/types';
 
-export function AddVehicleSheet({ children, onVehicleAdded }: { children: ReactNode; onVehicleAdded: () => void; }) {
+export function AddVehicleSheet({ children, onVehicleAdded }: { children: ReactNode; onVehicleAdded: (vehicle: Vehicle) => void; }) {
   const [open, setOpen] = useState(false);
 
-  const handleFormSubmit = () => {
+  const handleFormSubmit = (vehicle: Vehicle) => {
     setOpen(false);
-    onVehicleAdded();
+    onVehicleAdded(vehicle);
   }
 
   return (

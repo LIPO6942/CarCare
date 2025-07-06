@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, type ComponentType } from 'react';
-import { useRouter } from 'next/navigation';
 import type { Vehicle, Repair, Maintenance, FuelLog } from '@/lib/types';
 import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
@@ -18,11 +17,12 @@ import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLo
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
+import { VehicleDetailModal } from './vehicle-detail-modal';
+import { AddInitialMaintenanceForm } from './add-initial-maintenance-form';
 
 
-function StatCard({ title, value, icon: Icon, description, href, disabled, isLoading, isUrgent }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, href?: string, disabled?: boolean, isLoading?: boolean, isUrgent?: boolean }) {
-  const isClickable = !!href && !disabled;
+function StatCard({ title, value, icon: Icon, description, onClick, disabled, isLoading, isUrgent }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, onClick?: () => void, disabled?: boolean, isLoading?: boolean, isUrgent?: boolean }) {
+  const isClickable = !!onClick && !disabled;
   
   if (isLoading) {
     return <Skeleton className="h-28" />;
@@ -30,7 +30,7 @@ function StatCard({ title, value, icon: Icon, description, href, disabled, isLoa
 
   const IconToRender = isUrgent ? AlertTriangle : Icon;
   
-  const content = (
+  const cardContent = (
       <Card className={cn("h-full", isUrgent && "bg-destructive/10 border-destructive text-destructive")}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">{title}</CardTitle>
@@ -41,42 +41,46 @@ function StatCard({ title, value, icon: Icon, description, href, disabled, isLoa
           {description && <p className="text-xs text-muted-foreground">{description}</p>}
         </CardContent>
       </Card>
-  )
+  );
 
   if (isClickable) {
     return (
-        <Link href={href} target="_blank" rel="noopener noreferrer" className={cn("text-left w-full", isClickable && "transition-all hover:shadow-md hover:-translate-y-1")}>
-            {content}
-        </Link>
+        <button onClick={onClick} disabled={disabled} className={cn("text-left w-full", isClickable && "transition-all hover:shadow-md hover:-translate-y-1", disabled && "opacity-50 cursor-not-allowed")}>
+            {cardContent}
+        </button>
     )
   }
 
   return (
     <div className={cn("text-left w-full", disabled && "opacity-50")}>
-       {content}
+       {cardContent}
     </div>
   );
 }
 
 export function DashboardClient() {
   const { user } = useAuth();
-  const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
   const [isVehiclesLoading, setIsVehiclesLoading] = useState(true);
   const [isStatsLoading, setIsStatsLoading] = useState(true);
+
+  const [vehicleForDetailView, setVehicleForDetailView] = useState<Vehicle | null>(null);
+  const [vehicleForInitialMaintenance, setVehicleForInitialMaintenance] = useState<Vehicle | null>(null);
   
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (showLoadingIndicators = true) => {
     if (!user) return;
-    setIsVehiclesLoading(true);
-    setIsStatsLoading(true);
+    if (showLoadingIndicators) {
+      setIsVehiclesLoading(true);
+      setIsStatsLoading(true);
+    }
     
     // Phase 1: Fetch vehicles for a quick initial render
     const vehiclesData = await getVehicles(user.uid);
     setVehicles(vehiclesData);
-    setIsVehiclesLoading(false);
+    if (showLoadingIndicators) setIsVehiclesLoading(false);
 
     // Phase 2: Fetch all other data for stats
     const [repairsData, maintenanceData, fuelLogsData] = await Promise.all([
@@ -87,7 +91,7 @@ export function DashboardClient() {
     setRepairs(repairsData);
     setMaintenance(maintenanceData);
     setFuelLogs(fuelLogsData);
-    setIsStatsLoading(false);
+    if (showLoadingIndicators) setIsStatsLoading(false);
   }, [user]);
 
   useEffect(() => {
@@ -95,6 +99,16 @@ export function DashboardClient() {
         fetchData();
     }
   }, [user, fetchData]);
+
+  const handleVehicleAdded = (newVehicle: Vehicle) => {
+    fetchData(false); // Refetch data in background
+    setVehicleForInitialMaintenance(newVehicle);
+  }
+
+  const handleInitialMaintenanceFinished = () => {
+    setVehicleForInitialMaintenance(null);
+    fetchData(); // Full refetch to update stats
+  }
 
   const { totalVehicles, totalRepairCost, totalFuelCost, nextDeadline, isDeadlineUrgent } = useMemo(() => {
     const totalVehicles = vehicles.length;
@@ -160,6 +174,11 @@ export function DashboardClient() {
     )
   }
 
+  const getVehicleForStat = (vehicleId?: string): Vehicle | undefined => {
+      if (!vehicleId) return vehicles[0];
+      return vehicles.find(v => v.id === vehicleId);
+  }
+
   return (
     <>
       <AppLayout>
@@ -168,7 +187,7 @@ export function DashboardClient() {
           description="Vue d'ensemble de votre flotte de véhicules."
           showLogo={true}
         >
-          <AddVehicleSheet onVehicleAdded={fetchData}>
+          <AddVehicleSheet onVehicleAdded={handleVehicleAdded}>
             <Button>
               <PlusCircle className="mr-2" />
               Ajouter un véhicule
@@ -190,7 +209,7 @@ export function DashboardClient() {
                 value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
                 icon={Wrench}
                 description="Voir l'historique des réparations"
-                href={vehicles.length > 0 ? `/vehicle/${vehicles[0].id}?tab=repairs` : undefined}
+                onClick={() => setVehicleForDetailView(getVehicleForStat() || null)}
                 disabled={vehicles.length === 0}
                 isLoading={isStatsLoading}
               />
@@ -199,7 +218,7 @@ export function DashboardClient() {
                 value={`${totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
                 icon={Fuel}
                 description="Voir l'historique des pleins"
-                href={vehicles.length > 0 ? `/vehicle/${vehicles[0].id}?tab=fuel` : undefined}
+                onClick={() => setVehicleForDetailView(getVehicleForStat() || null)}
                 disabled={vehicles.length === 0}
                 isLoading={isStatsLoading}
               />
@@ -208,11 +227,7 @@ export function DashboardClient() {
                 value={nextDeadline ? format(nextDeadline.date, 'd MMM yyyy', { locale: fr }) : "Aucune"}
                 icon={Bell}
                 description={nextDeadline ? (isDeadlineUrgent ? `Prochaine échéance: ${nextDeadline.name}` : "Voir l'échéance") : "Aucune échéance à venir"}
-                href={(() => {
-                    if (!nextDeadline) return undefined;
-                    const vehicleForDeadline = vehicles.find(v => v.id === nextDeadline.vehicleId);
-                    return vehicleForDeadline ? `/vehicle/${vehicleForDeadline.id}?tab=maintenance` : undefined;
-                })()}
+                onClick={() => setVehicleForDetailView(getVehicleForStat(nextDeadline?.vehicleId) || null)}
                 disabled={!nextDeadline}
                 isLoading={isStatsLoading}
                 isUrgent={isDeadlineUrgent}
@@ -226,7 +241,12 @@ export function DashboardClient() {
                 {vehicles.length > 0 ? (
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {vehicles.map((vehicle) => (
-                    <VehicleCard key={vehicle.id} vehicle={vehicle} />
+                      <VehicleCard 
+                        key={vehicle.id} 
+                        vehicle={vehicle} 
+                        onShowDetails={() => setVehicleForDetailView(vehicle)}
+                        onDeleted={fetchData}
+                       />
                     ))}
                 </div>
                 ) : (
@@ -238,7 +258,7 @@ export function DashboardClient() {
                     <p className="text-muted-foreground mb-6">
                         Commencez par ajouter votre premier véhicule pour suivre son entretien.
                     </p>
-                    <AddVehicleSheet onVehicleAdded={fetchData}>
+                    <AddVehicleSheet onVehicleAdded={handleVehicleAdded}>
                         <Button>
                         <PlusCircle className="mr-2" />
                         Ajouter un véhicule
@@ -250,6 +270,20 @@ export function DashboardClient() {
             </div>
         </main>
       </AppLayout>
+
+      <VehicleDetailModal 
+        vehicle={vehicleForDetailView}
+        open={!!vehicleForDetailView}
+        onOpenChange={(isOpen) => !isOpen && setVehicleForDetailView(null)}
+        onDataChange={fetchData}
+      />
+      
+      <AddInitialMaintenanceForm
+        vehicle={vehicleForInitialMaintenance}
+        open={!!vehicleForInitialMaintenance}
+        onOpenChange={(isOpen) => !isOpen && setVehicleForInitialMaintenance(null)}
+        onFinished={handleInitialMaintenanceFinished}
+      />
     </>
   );
 }

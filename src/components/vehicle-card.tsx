@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { Vehicle } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { deleteVehicleById } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 
-export function VehicleCard({ vehicle }: { vehicle: Vehicle; }) {
+export function VehicleCard({ vehicle, onShowDetails, onDeleted }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; }) {
   const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -52,8 +51,7 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle; }) {
         title: 'Succès',
         description: 'Le véhicule a été supprimé.',
       });
-      // The dashboard will refetch data automatically after a successful deletion.
-      // A full page refresh might not be necessary if the parent component handles state updates.
+      onDeleted();
     } catch(error) {
       console.error("Firebase Error in deleteVehicle:", error);
       toast({
@@ -88,10 +86,8 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle; }) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          <Link 
-            href={`/vehicle/${vehicle.id}`} 
-            target="_blank" 
-            rel="noopener noreferrer"
+          <div 
+            onClick={onShowDetails}
             className="w-full text-left cursor-pointer block rounded-t-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             aria-label={`Voir les détails pour ${vehicle.brand} ${vehicle.model}`}
           >
@@ -104,13 +100,13 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle; }) {
                 onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
               />
             </div>
-          </Link>
+          </div>
         </CardHeader>
         <CardContent className="flex-1 pt-6">
           <CardTitle className="text-xl mb-2">
-            <Link href={`/vehicle/${vehicle.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary text-left">
+            <button onClick={onShowDetails} className="hover:text-primary text-left text-xl font-bold leading-tight">
               {vehicle.brand || 'Marque inconnue'} {vehicle.model || ''}
-            </Link>
+            </button>
           </CardTitle>
           <div className="text-muted-foreground space-y-2 text-sm">
             <div className="flex items-center gap-2">
@@ -128,10 +124,8 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle; }) {
           </div>
         </CardContent>
         <CardFooter>
-            <Button asChild className="w-full">
-                <Link href={`/vehicle/${vehicle.id}`} target="_blank" rel="noopener noreferrer">
-                    Voir l'historique
-                </Link>
+            <Button onClick={onShowDetails} className="w-full">
+                Voir l'historique
             </Button>
         </CardFooter>
       </Card>
