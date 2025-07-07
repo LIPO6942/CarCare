@@ -277,6 +277,16 @@ export function DashboardClient() {
       return vehicles.find(v => v.id === vehicleId);
   }
 
+  const costCardDescription = useMemo(() => {
+    if (vehicles.length === 1) {
+        return `Pour ${vehicles[0].licensePlate}`;
+    }
+    if (vehicles.length > 1) {
+        return "Total sur tous les véhicules";
+    }
+    return "Aucun véhicule";
+  }, [vehicles]);
+
   return (
     <>
       <AppLayout>
@@ -322,7 +332,7 @@ export function DashboardClient() {
                 title="Coût des Réparations"
                 value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
                 icon={Wrench}
-                description="Total sur tous les véhicules"
+                description={costCardDescription}
                 disabled
                 isLoading={isStatsLoading}
               />
@@ -330,7 +340,7 @@ export function DashboardClient() {
                 title="Dépenses Carburant"
                 value={`${totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
                 icon={Fuel}
-                description="Total sur tous les véhicules"
+                description={costCardDescription}
                 disabled
                 isLoading={isStatsLoading}
               />
