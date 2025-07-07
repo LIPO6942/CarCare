@@ -697,14 +697,29 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
     const { toast } = useToast();
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [selectedTask, setSelectedTask] = useState(initialData?.task || '');
     
-    // States for linked inputs
+    const isTechInspectionEligible = useMemo(() => {
+        if (!vehicle?.year) return true; // Default to eligible if year is unknown
+        const vehicleAge = new Date().getFullYear() - vehicle.year;
+        return vehicleAge >= 4; // Eligible in the 5th year
+    }, [vehicle]);
+
+    const maintenanceTasks = useMemo(() => {
+        const tasks = ["Vidange", "Vignette", "Paiement Assurance"];
+        if (isTechInspectionEligible) {
+            tasks.push("Visite technique");
+        }
+        // Ensure the current task is always an option when editing
+        if (initialData?.task && !tasks.includes(initialData.task)) {
+            tasks.push(initialData.task);
+        }
+        return tasks;
+    }, [isTechInspectionEligible, initialData]);
+
+    const [selectedTask, setSelectedTask] = useState(initialData?.task || '');
     const [mileage, setMileage] = useState(initialData?.mileage.toString() || '');
     const [nextDueMileage, setNextDueMileage] = useState(initialData?.nextDueMileage?.toString() || '');
     const [cost, setCost] = useState(initialData?.cost.toString() || '');
-    
-    const maintenanceTasks = ["Vidange", "Vignette", "Visite technique", "Paiement Assurance"];
     
     useEffect(() => {
         if (!open) {
@@ -973,7 +988,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
             key={itemToEdit ? itemToEdit.id : 'add'}
             open={isDialogOpen}
             onOpenChange={setIsDialogOpen}
-            vehicleId={vehicle.id}
+            vehicle={vehicle}
             onDataChange={onDataChange}
             initialData={itemToEdit}
         />
@@ -989,13 +1004,13 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
     )
 }
 
-function FuelLogDialog({ open, onOpenChange, vehicleId, onDataChange, initialData }: { open: boolean, onOpenChange: (open: boolean) => void, vehicleId: string, onDataChange: () => void, initialData: FuelLog | null }) {
+function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData }: { open: boolean, onOpenChange: (open: boolean) => void, vehicle: Vehicle, onDataChange: () => void, initialData: FuelLog | null }) {
     const { toast } = useToast();
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     const [quantity, setQuantity] = useState(initialData?.quantity?.toString() || '');
-    const [pricePerLiter, setPricePerLiter] = useState(initialData?.pricePerLiter?.toString() || '2.5');
+    const [pricePerLiter, setPricePerLiter] = useState(initialData?.pricePerLiter?.toString() || (vehicle.fuelType === 'Diesel' ? '2.2' : '2.5'));
     const [totalCost, setTotalCost] = useState(initialData?.totalCost?.toString() || '');
     
     useEffect(() => {
@@ -1006,11 +1021,11 @@ function FuelLogDialog({ open, onOpenChange, vehicleId, onDataChange, initialDat
                 setTotalCost(initialData.totalCost?.toString() || '');
             } else {
                 setQuantity('');
-                setPricePerLiter('2.5');
+                setPricePerLiter(vehicle.fuelType === 'Diesel' ? '2.2' : '2.5');
                 setTotalCost('');
             }
         }
-    }, [initialData, open]);
+    }, [initialData, open, vehicle.fuelType]);
 
     const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newQuantity = e.target.value;
@@ -1081,7 +1096,7 @@ function FuelLogDialog({ open, onOpenChange, vehicleId, onDataChange, initialDat
                 await updateFuelLog(initialData.id, validatedFields.data);
                 toast({ title: "Succès", description: "Plein mis à jour." });
             } else {
-                await addFuelLog({ ...validatedFields.data, vehicleId }, user.uid);
+                await addFuelLog({ ...validatedFields.data, vehicleId: vehicle.id }, user.uid);
                 toast({ title: "Succès", description: "Plein de carburant ajouté." });
             }
             onOpenChange(false);

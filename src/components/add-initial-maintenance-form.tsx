@@ -38,6 +38,12 @@ export function AddInitialMaintenanceForm({ vehicle, open, onOpenChange, onFinis
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const isTechInspectionEligible = useMemo(() => {
+    if (!vehicle?.year) return true; // Default to visible if year is unknown
+    const vehicleAge = new Date().getFullYear() - vehicle.year;
+    return vehicleAge >= 4; // Eligible in the 5th year, so age must be >= 4
+  }, [vehicle]);
+
   useEffect(() => {
     // Reset state when dialog is closed
     if (!open) {
@@ -179,10 +185,12 @@ export function AddInitialMaintenanceForm({ vehicle, open, onOpenChange, onFinis
                         <Label htmlFor="lastOilChangeDate">Date du dernier vidange</Label>
                         <Input id="lastOilChangeDate" name="lastOilChangeDate" type="date" />
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="lastTechnicalInspectionDate">Date de la dernière visite technique</Label>
-                        <Input id="lastTechnicalInspectionDate" name="lastTechnicalInspectionDate" type="date" />
-                    </div>
+                    {isTechInspectionEligible && (
+                        <div className="space-y-2">
+                            <Label htmlFor="lastTechnicalInspectionDate">Date de la dernière visite technique</Label>
+                            <Input id="lastTechnicalInspectionDate" name="lastTechnicalInspectionDate" type="date" />
+                        </div>
+                    )}
                      <div className="space-y-2">
                         <Label>Dernier paiement d'assurance</Label>
                         <div className="grid grid-cols-2 gap-4">

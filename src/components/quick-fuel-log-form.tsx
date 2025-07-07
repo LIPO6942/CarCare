@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { addFuelLog } from '@/lib/data';
@@ -18,8 +18,6 @@ const QuickFuelLogSchema = z.object({
   mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
 });
 
-const DEFAULT_PRICE_PER_LITER = 2.5; // A reasonable default, user can edit later
-
 interface QuickFuelLogFormProps {
   vehicles: Vehicle[];
   onFuelLogAdded: () => void;
@@ -30,6 +28,14 @@ export function QuickFuelLogForm({ vehicles, onFuelLogAdded }: QuickFuelLogFormP
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>(vehicles[0]?.id);
+
+  const defaultPricePerLiter = useMemo(() => {
+    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+    if (selectedVehicle?.fuelType === 'Diesel') {
+        return 2.2;
+    }
+    return 2.5; // Default for Essence and others
+  }, [selectedVehicleId, vehicles]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -62,7 +68,7 @@ export function QuickFuelLogForm({ vehicles, onFuelLogAdded }: QuickFuelLogFormP
     
     const { totalCost, mileage, vehicleId } = validatedFields.data;
 
-    const pricePerLiter = DEFAULT_PRICE_PER_LITER;
+    const pricePerLiter = defaultPricePerLiter;
     const quantity = totalCost / pricePerLiter;
     
     try {
