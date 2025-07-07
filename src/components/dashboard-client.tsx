@@ -19,6 +19,7 @@ import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 import { VehicleDetailModal } from './vehicle-detail-modal';
 import { AddInitialMaintenanceForm } from './add-initial-maintenance-form';
+import { QuickFuelLogForm } from './quick-fuel-log-form';
 
 
 function StatCard({ title, value, icon: Icon, description, onClick, disabled, isLoading, isUrgent }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, onClick?: () => void, disabled?: boolean, isLoading?: boolean, isUrgent?: boolean }) {
@@ -292,6 +293,10 @@ export function DashboardClient() {
           </AddVehicleSheet>
         </DashboardHeader>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
+            {vehicles.length > 0 && (
+                <QuickFuelLogForm vehicles={vehicles} onFuelLogAdded={fetchData} />
+            )}
+
            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title={nextDeadline ? (isDeadlineUrgent ? "Échéance Proche !" : "Prochaine Échéance") : "Prochaine Échéance"}
