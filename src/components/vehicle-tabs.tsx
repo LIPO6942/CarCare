@@ -993,26 +993,65 @@ function FuelLogDialog({ open, onOpenChange, vehicleId, onDataChange, initialDat
     const { toast } = useToast();
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [quantity, setQuantity] = useState(initialData?.quantity.toString() || '');
-    const [pricePerLiter, setPricePerLiter] = useState(initialData?.pricePerLiter.toString() || '2.5');
-
+    
+    const [quantity, setQuantity] = useState(initialData?.quantity?.toString() || '');
+    const [pricePerLiter, setPricePerLiter] = useState(initialData?.pricePerLiter?.toString() || '2.5');
+    const [totalCost, setTotalCost] = useState(initialData?.totalCost?.toString() || '');
+    
     useEffect(() => {
-        if (initialData) {
-            setQuantity(initialData.quantity.toString());
-            setPricePerLiter(initialData.pricePerLiter.toString());
-        } else {
-            setQuantity('');
-            setPricePerLiter('2.5');
+        if (open) {
+            if (initialData) {
+                setQuantity(initialData.quantity?.toString() || '');
+                setPricePerLiter(initialData.pricePerLiter?.toString() || '2.5');
+                setTotalCost(initialData.totalCost?.toString() || '');
+            } else {
+                setQuantity('');
+                setPricePerLiter('2.5');
+                setTotalCost('');
+            }
         }
     }, [initialData, open]);
-    
-    const totalCost = useMemo(() => {
-        const q = parseFloat(quantity);
+
+    const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newQuantity = e.target.value;
+        setQuantity(newQuantity);
+        
+        const q = parseFloat(newQuantity);
         const p = parseFloat(pricePerLiter);
-        if (isNaN(q) || isNaN(p)) return 0;
-        return q * p;
-    }, [quantity, pricePerLiter]);
+        if (!isNaN(q) && !isNaN(p) && p > 0) {
+            setTotalCost((q * p).toFixed(2));
+        } else {
+             setTotalCost('');
+        }
+    };
     
+    const handleTotalCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newTotalCost = e.target.value;
+        setTotalCost(newTotalCost);
+        
+        const tc = parseFloat(newTotalCost);
+        const p = parseFloat(pricePerLiter);
+        if (!isNaN(tc) && !isNaN(p) && p > 0) {
+            setQuantity((tc / p).toFixed(3));
+        } else {
+            setQuantity('');
+        }
+    };
+    
+    const handlePricePerLiterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newPricePerLiter = e.target.value;
+        setPricePerLiter(newPricePerLiter);
+        
+        // When price changes, recalculate total cost based on quantity to keep user's quantity input stable
+        const q = parseFloat(quantity);
+        const p = parseFloat(newPricePerLiter);
+        if (!isNaN(q) && !isNaN(p) && p > 0) {
+            setTotalCost((q * p).toFixed(2));
+        } else {
+            setTotalCost('');
+        }
+    };
+
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setIsSubmitting(true);
@@ -1024,7 +1063,11 @@ function FuelLogDialog({ open, onOpenChange, vehicleId, onDataChange, initialDat
         }
 
         const formData = new FormData(event.currentTarget);
-        formData.set('totalCost', totalCost.toFixed(2));
+        // Override form data with state values to ensure consistency
+        formData.set('quantity', quantity);
+        formData.set('pricePerLiter', pricePerLiter);
+        formData.set('totalCost', totalCost);
+        
         const validatedFields = FuelLogSchema.safeParse(Object.fromEntries(formData.entries()));
 
         if (!validatedFields.success) {
@@ -1057,19 +1100,28 @@ function FuelLogDialog({ open, onOpenChange, vehicleId, onDataChange, initialDat
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>{initialData ? 'Modifier le' : 'Nouveau'} Plein de Carburant</DialogTitle>
+                     <DialogDescription>
+                        Saisissez le coût total ou la quantité en litres, l'autre champ sera calculé automatiquement.
+                    </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                     <div className="grid grid-cols-2 gap-4">
                         <Input name="date" type="date" required defaultValue={initialData?.date || new Date().toISOString().split('T')[0]} />
                         <Input name="mileage" type="number" placeholder="Kilométrage" required defaultValue={initialData?.mileage} />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <Input name="quantity" type="number" step="0.01" placeholder="Quantité (L)" required value={quantity} onChange={e => setQuantity(e.target.value)} />
-                        <Input name="pricePerLiter" type="number" step="0.001" placeholder="Prix / Litre" required value={pricePerLiter} onChange={e => setPricePerLiter(e.target.value)} />
+                    <div className="space-y-2">
+                        <label htmlFor="pricePerLiter">Prix / Litre (TND)</label>
+                        <Input id="pricePerLiter" name="pricePerLiter" type="number" step="0.001" placeholder="Prix / Litre" required value={pricePerLiter} onChange={handlePricePerLiterChange} />
                     </div>
-                     <div className="space-y-2">
-                        <label htmlFor="totalCost">Coût total (TND)</label>
-                        <Input id="totalCost" type="number" value={totalCost.toFixed(2)} readOnly className="bg-muted" />
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label htmlFor="quantity">Quantité (L)</label>
+                            <Input id="quantity" name="quantity" type="number" step="0.01" placeholder="Ex: 40" required value={quantity} onChange={handleQuantityChange} />
+                        </div>
+                        <div className="space-y-2">
+                            <label htmlFor="totalCost">Coût total (TND)</label>
+                            <Input id="totalCost" name="totalCost" type="number" step="0.01" placeholder="Ex: 100" required value={totalCost} onChange={handleTotalCostChange} />
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
