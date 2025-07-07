@@ -250,6 +250,15 @@ export function DashboardClient() {
     return consumptions;
   }, [vehicles, fuelLogs]);
 
+  const costCardDescription = useMemo(() => {
+    if (vehicles.length === 1) {
+        return `Pour ${vehicles[0].licensePlate}`;
+    }
+    if (vehicles.length > 1) {
+        return "Total sur tous les véhicules";
+    }
+    return "Aucun véhicule";
+  }, [vehicles]);
 
   if (isVehiclesLoading) {
     return (
@@ -276,16 +285,6 @@ export function DashboardClient() {
       if (!vehicleId) return undefined;
       return vehicles.find(v => v.id === vehicleId);
   }
-
-  const costCardDescription = useMemo(() => {
-    if (vehicles.length === 1) {
-        return `Pour ${vehicles[0].licensePlate}`;
-    }
-    if (vehicles.length > 1) {
-        return "Total sur tous les véhicules";
-    }
-    return "Aucun véhicule";
-  }, [vehicles]);
 
   return (
     <>
