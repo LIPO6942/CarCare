@@ -302,7 +302,7 @@ export function DashboardClient() {
                 title={nextDeadline ? (isDeadlineUrgent ? "Échéance Proche !" : "Prochaine Échéance") : "Prochaine Échéance"}
                 value={nextDeadline ? `${format(nextDeadline.date, 'd MMM yyyy', { locale: fr })}` : "Aucune"}
                 icon={Bell}
-                description={nextDeadline ? `${nextDeadline.name} - ${nextDeadline.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}` : "Aucune échéance à venir"}
+                description={nextDeadline ? `${nextDeadline.name} (${getVehicleForStat(nextDeadline.vehicleId)?.licensePlate || 'N/A'})` : "Aucune échéance à venir"}
                 onClick={() => setVehicleForDetailView(getVehicleForStat(nextDeadline?.vehicleId) || null)}
                 disabled={!nextDeadline}
                 isLoading={isStatsLoading}
@@ -312,7 +312,7 @@ export function DashboardClient() {
                 title={secondNextDeadline ? (isSecondDeadlineUrgent ? "Échéance Suivante" : "Échéance Suivante") : "Échéance Suivante"}
                 value={secondNextDeadline ? `${format(secondNextDeadline.date, 'd MMM yyyy', { locale: fr })}` : "Aucune"}
                 icon={Bell}
-                description={secondNextDeadline ? `${secondNextDeadline.name} - ${secondNextDeadline.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}` : " "}
+                description={secondNextDeadline ? `${secondNextDeadline.name} (${getVehicleForStat(secondNextDeadline.vehicleId)?.licensePlate || 'N/A'})` : " "}
                 onClick={() => setVehicleForDetailView(getVehicleForStat(secondNextDeadline?.vehicleId) || null)}
                 disabled={!secondNextDeadline}
                 isLoading={isStatsLoading}
