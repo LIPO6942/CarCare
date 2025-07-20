@@ -14,12 +14,12 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const SuggestMaintenanceTasksInputSchema = z.object({
-  issueDescription: z.string().describe('A description of the issue the user is experiencing with their car.'),
+  issueDescription: z.string().describe('Une description du problème que l\'utilisateur rencontre avec sa voiture.'),
 });
 export type SuggestMaintenanceTasksInput = z.infer<typeof SuggestMaintenanceTasksInputSchema>;
 
 const SuggestMaintenanceTasksOutputSchema = z.object({
-  suggestedTasks: z.array(z.string()).describe('A list of potential maintenance tasks or repairs that might be needed.'),
+  suggestedTasks: z.array(z.string()).describe('Une liste de tâches d\'entretien ou de réparations potentielles qui pourraient être nécessaires.'),
 });
 export type SuggestMaintenanceTasksOutput = z.infer<typeof SuggestMaintenanceTasksOutputSchema>;
 
@@ -31,8 +31,9 @@ const prompt = ai.definePrompt({
   name: 'suggestMaintenanceTasksPrompt',
   input: {schema: SuggestMaintenanceTasksInputSchema},
   output: {schema: SuggestMaintenanceTasksOutputSchema},
-  prompt: `You are an expert mechanic. A user will describe an issue they are experiencing with their car.
-Based on the description, suggest a list of potential maintenance tasks or repairs that might be needed. Return the tasks as a numbered list.
+  prompt: `Vous êtes un mécanicien expert. Un utilisateur décrira un problème qu'il rencontre avec sa voiture.
+En vous basant sur la description, suggérez une liste de tâches d'entretien ou de réparations potentielles qui pourraient être nécessaires.
+La réponse doit être exclusivement en français. Retournez les tâches sous forme de liste.
 
 Description: {{{issueDescription}}}`,
 });
