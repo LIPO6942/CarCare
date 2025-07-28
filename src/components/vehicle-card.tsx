@@ -24,6 +24,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { deleteVehicleById } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
+import { Loader2 } from 'lucide-react';
 
 export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null }) {
   const { user } = useAuth();
@@ -151,7 +152,7 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? 'Suppression...' : 'Suppression...'}
+              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Supprimer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
