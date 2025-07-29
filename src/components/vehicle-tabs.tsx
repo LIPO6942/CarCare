@@ -353,8 +353,8 @@ function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repa
                 <CardTitle>Journal des Réparations</CardTitle>
                 <CardDescription>
                     Historique de toutes les réparations effectuées.
-                    <Button onClick={handleAdd} size="sm" variant="ghost" className="h-auto p-1 ml-2 text-primary hover:bg-primary/10">
-                        <PlusCircle className="h-5 w-5" />
+                    <Button onClick={handleAdd} variant="ghost" className="h-auto p-1.5 ml-2 text-primary hover:bg-primary/10 rounded-full">
+                        <PlusCircle className="h-6 w-6" />
                         <span className="sr-only">Ajouter une réparation</span>
                     </Button>
                 </CardDescription>
@@ -618,8 +618,8 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                         <CardTitle>Suivi de l'Entretien</CardTitle>
                          <CardDescription>
                             Gardez un oeil sur les entretiens passés et à venir.
-                            <Button onClick={handleAdd} size="sm" variant="ghost" className="h-auto p-1 ml-2 text-primary hover:bg-primary/10">
-                                <PlusCircle className="h-5 w-5" />
+                            <Button onClick={handleAdd} variant="ghost" className="h-auto p-1.5 ml-2 text-primary hover:bg-primary/10 rounded-full">
+                                <PlusCircle className="h-6 w-6" />
                                 <span className="sr-only">Ajouter un entretien</span>
                             </Button>
                         </CardDescription>
@@ -1005,8 +1005,8 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                         <CardTitle>Suivi du Carburant</CardTitle>
                         <CardDescription>
                             Consultez l'historique de vos pleins de carburant.
-                            <Button onClick={handleAdd} size="sm" variant="ghost" className="h-auto p-1 ml-2 text-primary hover:bg-primary/10">
-                                <PlusCircle className="h-5 w-5" />
+                            <Button onClick={handleAdd} variant="ghost" className="h-auto p-1.5 ml-2 text-primary hover:bg-primary/10 rounded-full">
+                                <PlusCircle className="h-6 w-6" />
                                 <span className="sr-only">Ajouter un plein</span>
                             </Button>
                         </CardDescription>
