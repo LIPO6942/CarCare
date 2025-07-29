@@ -351,10 +351,10 @@ function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repa
         <div className="flex justify-between items-start">
             <div>
                 <CardTitle>Journal des Réparations</CardTitle>
-                <CardDescription>
+                <CardDescription className="flex items-center">
                     Historique de toutes les réparations effectuées.
-                    <Button onClick={handleAdd} variant="ghost" className="h-auto p-1.5 ml-2 text-primary hover:bg-primary/10 rounded-full">
-                        <PlusCircle className="h-6 w-6" />
+                    <Button onClick={handleAdd} variant="ghost" className="h-auto p-1 ml-2 text-primary hover:bg-primary/10 rounded-full">
+                        <PlusCircle className="h-8 w-8" />
                         <span className="sr-only">Ajouter une réparation</span>
                     </Button>
                 </CardDescription>
@@ -616,10 +616,10 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                 <div className="flex justify-between items-start">
                     <div>
                         <CardTitle>Suivi de l'Entretien</CardTitle>
-                         <CardDescription>
+                         <CardDescription className="flex items-center">
                             Gardez un oeil sur les entretiens passés et à venir.
-                            <Button onClick={handleAdd} variant="ghost" className="h-auto p-1.5 ml-2 text-primary hover:bg-primary/10 rounded-full">
-                                <PlusCircle className="h-6 w-6" />
+                            <Button onClick={handleAdd} variant="ghost" className="h-auto p-1 ml-2 text-primary hover:bg-primary/10 rounded-full">
+                                <PlusCircle className="h-8 w-8" />
                                 <span className="sr-only">Ajouter un entretien</span>
                             </Button>
                         </CardDescription>
@@ -1003,10 +1003,10 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                 <div className="flex justify-between items-start">
                     <div>
                         <CardTitle>Suivi du Carburant</CardTitle>
-                        <CardDescription>
+                        <CardDescription className="flex items-center">
                             Consultez l'historique de vos pleins de carburant.
-                            <Button onClick={handleAdd} variant="ghost" className="h-auto p-1.5 ml-2 text-primary hover:bg-primary/10 rounded-full">
-                                <PlusCircle className="h-6 w-6" />
+                            <Button onClick={handleAdd} variant="ghost" className="h-auto p-1 ml-2 text-primary hover:bg-primary/10 rounded-full">
+                                <PlusCircle className="h-8 w-8" />
                                 <span className="sr-only">Ajouter un plein</span>
                             </Button>
                         </CardDescription>

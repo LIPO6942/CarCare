@@ -3,13 +3,13 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import type { Vehicle, Document } from '@/lib/types';
 import { getVehicles } from '@/lib/data';
-import { addLocalDocument, deleteLocalDocument, getLocalDocumentsForVehicle } from '@/lib/local-db';
+import { addLocalDocument, deleteLocalDocument, getLocalDocumentsForVehicle, updateLocalDocument } from '@/lib/local-db';
 import { useAuth } from '@/context/auth-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from './ui/skeleton';
-import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Euro, Calendar } from 'lucide-react';
+import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Euro, Calendar, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -19,7 +19,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Label } from './ui/label';
-import { cn } from '@/lib/utils';
 
 
 const safeFormatDate = (dateInput: any, formatString: string = 'P') => {
@@ -58,7 +57,8 @@ export function DocumentsClient() {
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(true);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
   
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [itemToEdit, setItemToEdit] = useState<Document | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Document | null>(null);
   const [objectUrls, setObjectUrls] = useState<Map<number, { recto: string; verso?: string }>>(new Map());
@@ -126,6 +126,16 @@ export function DocumentsClient() {
     setIsLoadingDocuments(false);
   }
 
+  const handleAdd = () => {
+    setItemToEdit(null);
+    setIsDialogOpen(true);
+  };
+  
+  const handleEdit = (doc: Document) => {
+    setItemToEdit(doc);
+    setIsDialogOpen(true);
+  }
+
   const handleDeleteConfirm = async () => {
     if (!itemToDelete) return;
     setIsDeleting(true);
@@ -182,7 +192,7 @@ export function DocumentsClient() {
           </SelectContent>
         </Select>
 
-        <Button onClick={() => setIsAddDialogOpen(true)} className="w-full sm:w-auto ml-auto" disabled={!selectedVehicleId}>
+        <Button onClick={handleAdd} className="w-full sm:w-auto ml-auto" disabled={!selectedVehicleId}>
           <PlusCircle className="mr-2 h-4 w-4" />Ajouter un document
         </Button>
       </div>
@@ -233,9 +243,14 @@ export function DocumentsClient() {
                                       )}
                                   </div>
                               </CardContent>
-                               <Button variant="ghost" size="icon" className="text-destructive absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setItemToDelete(doc)}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                               <div className="absolute top-2 right-2 flex opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => handleEdit(doc)}>
+                                        <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setItemToDelete(doc)}>
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
                           </Card>
                       )})}
                   </div>
@@ -248,11 +263,13 @@ export function DocumentsClient() {
               )}
           </CardContent>
       </Card>
-      {selectedVehicleId && <AddDocumentDialog
-        open={isAddDialogOpen}
-        onOpenChange={setIsAddDialogOpen}
+      {selectedVehicleId && <DocumentDialog
+        key={itemToEdit ? `edit-${itemToEdit.id}` : 'add'}
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
         vehicleId={selectedVehicleId}
         onDataChange={onDataChange}
+        initialData={itemToEdit}
       />}
 
       <DeleteConfirmationDialog 
@@ -267,12 +284,12 @@ export function DocumentsClient() {
   );
 }
 
-// Re-using these small components here to avoid creating more files
-function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { open: boolean, onOpenChange: (open: boolean) => void, vehicleId: string, onDataChange: () => void }) {
+
+function DocumentDialog({ open, onOpenChange, vehicleId, onDataChange, initialData }: { open: boolean, onOpenChange: (open: boolean) => void, vehicleId: string, onDataChange: () => void, initialData: Document | null }) {
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [files, setFiles] = useState<{ recto: File | null; verso: File | null }>({ recto: null, verso: null });
-    const [docType, setDocType] = useState<Document['type'] | ''>('');
+    const [docType, setDocType] = useState<Document['type'] | ''>(initialData?.type || '');
     const fileInputRectoRef = useRef<HTMLInputElement>(null);
     const fileInputVersoRef = useRef<HTMLInputElement>(null);
 
@@ -284,8 +301,10 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
             setDocType('');
             if (fileInputRectoRef.current) fileInputRectoRef.current.value = '';
             if (fileInputVersoRef.current) fileInputVersoRef.current.value = '';
+        } else {
+            setDocType(initialData?.type || '');
         }
-    }, [open]);
+    }, [open, initialData]);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, side: 'recto' | 'verso') => {
         if (event.target.files && event.target.files[0]) {
@@ -295,34 +314,55 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (!files.recto || !docType) {
-            toast({ title: 'Erreur', description: 'Veuillez sélectionner un fichier (recto) et un type de document.', variant: 'destructive' });
+        
+        if (!initialData && !files.recto) {
+            toast({ title: 'Erreur', description: 'Veuillez sélectionner un fichier (recto) pour un nouveau document.', variant: 'destructive' });
+            return;
+        }
+
+        if (!docType) {
+            toast({ title: 'Erreur', description: 'Veuillez sélectionner un type de document.', variant: 'destructive' });
             return;
         }
 
         setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
-        const name = formData.get('name') as string || files.recto.name.replace(/\.[^/.]+$/, "");
+        const name = formData.get('name') as string;
         
-        const documentInfo: Omit<Document, 'id' | 'vehicleId' | 'fileRecto' | 'fileVerso' | 'createdAt'> & { vehicleId?: string } = {
-            name,
-            type: docType,
-        };
-
-        if (docType === 'Facture') {
-            const invoiceDate = formData.get('invoiceDate') as string;
-            const invoiceAmount = formData.get('invoiceAmount') as string;
-            if (invoiceDate) documentInfo.invoiceDate = invoiceDate;
-            if (invoiceAmount) documentInfo.invoiceAmount = parseFloat(invoiceAmount);
-        }
-
         try {
-            await addLocalDocument(vehicleId, files, documentInfo);
-            toast({ title: "Succès", description: "Document ajouté localement." });
+            if (initialData) {
+                // UPDATE
+                const documentInfo: Partial<Omit<Document, 'id' | 'fileRecto' | 'fileVerso'>> = { name, type: docType };
+                if (docType === 'Facture') {
+                    const invoiceDate = formData.get('invoiceDate') as string;
+                    const invoiceAmount = formData.get('invoiceAmount') as string;
+                    documentInfo.invoiceDate = invoiceDate || undefined;
+                    documentInfo.invoiceAmount = invoiceAmount ? parseFloat(invoiceAmount) : undefined;
+                }
+                await updateLocalDocument(initialData.id, documentInfo);
+                toast({ title: "Succès", description: "Document mis à jour." });
+
+            } else {
+                // ADD
+                const documentInfo: Omit<Document, 'id' | 'vehicleId' | 'fileRecto' | 'fileVerso' | 'createdAt'> & { vehicleId?: string } = {
+                    name: name || files.recto!.name.replace(/\.[^/.]+$/, ""),
+                    type: docType,
+                };
+                if (docType === 'Facture') {
+                    const invoiceDate = formData.get('invoiceDate') as string;
+                    const invoiceAmount = formData.get('invoiceAmount') as string;
+                    if (invoiceDate) documentInfo.invoiceDate = invoiceDate;
+                    if (invoiceAmount) documentInfo.invoiceAmount = parseFloat(invoiceAmount);
+                }
+                await addLocalDocument(vehicleId, files as { recto: File; verso?: File | null }, documentInfo);
+                toast({ title: "Succès", description: "Document ajouté localement." });
+            }
+
             onOpenChange(false);
             onDataChange();
+
         } catch (error) {
-             const errorMessage = error instanceof Error ? error.message : "Impossible d'ajouter le document localement.";
+             const errorMessage = error instanceof Error ? error.message : "Impossible d'enregistrer le document.";
              toast({ title: "Erreur de stockage local", description: errorMessage, variant: 'destructive' });
         } finally {
             setIsSubmitting(false);
@@ -333,13 +373,15 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Ajouter un document</DialogTitle>
-                    <DialogDescription>Téléchargez les fichiers (PDF, image) qui seront stockés dans votre navigateur.</DialogDescription>
+                    <DialogTitle>{initialData ? 'Modifier le' : 'Ajouter un'} document</DialogTitle>
+                    <DialogDescription>
+                        {initialData ? "Modifiez les informations du document." : "Téléchargez les fichiers qui seront stockés dans votre navigateur."}
+                    </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                      <div className="space-y-2">
                         <Label htmlFor="doc-name">Nom du document</Label>
-                        <Input id="doc-name" name="name" placeholder="Ex: Facture garage du 15/05" required/>
+                        <Input id="doc-name" name="name" placeholder="Ex: Facture garage du 15/05" required defaultValue={initialData?.name}/>
                     </div>
                     <div className="space-y-2">
                         <Label>Type de document</Label>
@@ -359,24 +401,34 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="invoiceDate">Date</Label>
-                                    <Input id="invoiceDate" name="invoiceDate" type="date" />
+                                    <Input id="invoiceDate" name="invoiceDate" type="date" defaultValue={initialData?.invoiceDate?.split('T')[0]}/>
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="invoiceAmount">Montant (TND)</Label>
-                                    <Input id="invoiceAmount" name="invoiceAmount" type="number" step="0.01" placeholder="Ex: 250"/>
+                                    <Input id="invoiceAmount" name="invoiceAmount" type="number" step="0.01" placeholder="Ex: 250" defaultValue={initialData?.invoiceAmount}/>
                                 </div>
                             </div>
                         </div>
                     )}
-
-                    <div className="space-y-2">
-                        <Label htmlFor="file-upload-recto">Fichier Recto (obligatoire)</Label>
-                        <Input id="file-upload-recto" type="file" required onChange={(e) => handleFileChange(e, 'recto')} ref={fileInputRectoRef} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="file-upload-verso">Fichier Verso (optionnel)</Label>
-                        <Input id="file-upload-verso" type="file" onChange={(e) => handleFileChange(e, 'verso')} ref={fileInputVersoRef} />
-                    </div>
+                    
+                    {!initialData && (
+                        <>
+                            <div className="space-y-2">
+                                <Label htmlFor="file-upload-recto">Fichier Recto (obligatoire)</Label>
+                                <Input id="file-upload-recto" type="file" required onChange={(e) => handleFileChange(e, 'recto')} ref={fileInputRectoRef} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="file-upload-verso">Fichier Verso (optionnel)</Label>
+                                <Input id="file-upload-verso" type="file" onChange={(e) => handleFileChange(e, 'verso')} ref={fileInputVersoRef} />
+                            </div>
+                        </>
+                    )}
+                    
+                    {initialData && (
+                        <p className="text-xs text-muted-foreground p-2 rounded-md bg-muted/50 border">
+                            La modification des fichiers n'est pas prise en charge. Pour changer de fichier, veuillez supprimer cette entrée et en créer une nouvelle.
+                        </p>
+                    )}
 
                     <DialogFooter>
                         <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>

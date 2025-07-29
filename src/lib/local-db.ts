@@ -53,6 +53,18 @@ export async function getLocalDocumentsForVehicle(vehicleId: string): Promise<Do
   return documents.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+export async function updateLocalDocument(id: number, data: Partial<Omit<Document, 'id' | 'fileRecto' | 'fileVerso'>>): Promise<void> {
+    const db = await getDb();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const currentDoc = await store.get(id);
+    if (currentDoc) {
+        const updatedDoc = { ...currentDoc, ...data };
+        await store.put(updatedDoc);
+    }
+    await tx.done;
+}
+
 export async function deleteLocalDocument(id: number): Promise<void> {
   const db = await getDb();
   await db.delete(STORE_NAME, id);
