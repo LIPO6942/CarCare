@@ -87,28 +87,24 @@ const safeFormatCurrency = (numInput: any): string => {
 
 export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataChange, initialTab }: VehicleTabsProps) {
   
-  const history = useMemo(() => {
-    try {
-        const allEvents = [
-          ...repairs.map(r => ({ ...r, type: 'repair' as const, description: r.description, cost: r.cost, eventDate: new Date(r.date) })),
-          ...maintenance.map(m => ({ ...m, type: 'maintenance' as const, description: m.task, cost: m.cost, eventDate: new Date(m.date) })),
-          ...fuelLogs.map(f => ({ ...f, type: 'fuel' as const, description: `Plein de ${f.quantity} L`, cost: f.totalCost, eventDate: new Date(f.date) })),
-        ];
-        
-        allEvents.sort((a, b) => {
-            const dateA = a.eventDate?.getTime();
-            const dateB = b.eventDate?.getTime();
-            if (isNaN(dateA) || !dateA) return 1;
-            if (isNaN(dateB) || !dateB) return -1;
-            return dateB - dateA;
-        });
-        return allEvents;
+  const monthlyFuelLogs = useMemo(() => {
+    const monthlyData: { [key: string]: { totalCost: number, totalQuantity: number, date: Date } } = {};
+    fuelLogs.forEach(log => {
+      try {
+        const date = new Date(log.date);
+        const monthKey = format(date, 'yyyy-MM');
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = { totalCost: 0, totalQuantity: 0, date: date };
+        }
+        monthlyData[monthKey].totalCost += log.totalCost;
+        monthlyData[monthKey].totalQuantity += log.quantity;
+      } catch (e) {
+        console.error("Invalid date for fuel log", log);
+      }
+    });
 
-    } catch (e) {
-        console.error("Error creating history", e);
-        return [];
-    }
-  }, [repairs, maintenance, fuelLogs]);
+    return Object.values(monthlyData).sort((a,b) => b.date.getTime() - a.date.getTime());
+  }, [fuelLogs]);
 
   return (
     <Tabs defaultValue={initialTab || 'history'} className="w-full">
@@ -121,7 +117,7 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataCha
         </TabsList>
       </div>
       <TabsContent value="history">
-        <HistoryTab history={history} />
+        <HistoryTab repairs={repairs} maintenance={maintenance} monthlyFuelLogs={monthlyFuelLogs} />
       </TabsContent>
       <TabsContent value="repairs">
         <RepairsTab vehicle={vehicle} repairs={repairs} onDataChange={onDataChange} />
@@ -188,20 +184,10 @@ function DeleteConfirmationDialog({ open, onOpenChange, onConfirm, isDeleting, t
 
 // --- HISTORY TAB ---
 
-function HistoryTab({ history }: { history: any[] }) {
-    const historyIcons: { [key: string]: ReactNode } = {
-        repair: <Wrench className="h-5 w-5 text-[hsl(var(--chart-1))]" />,
-        maintenance: <Calendar className="h-5 w-5 text-[hsl(var(--chart-2))]" />,
-        fuel: <Fuel className="h-5 w-5 text-[hsl(var(--chart-3))]" />,
-    };
+function HistoryTab({ repairs, maintenance, monthlyFuelLogs }: { repairs: Repair[], maintenance: Maintenance[], monthlyFuelLogs: any[] }) {
+    const hasHistory = repairs.length > 0 || maintenance.length > 0 || monthlyFuelLogs.length > 0;
 
-    const historyLabels: { [key: string]: string } = {
-        repair: 'Réparation',
-        maintenance: 'Entretien',
-        fuel: 'Carburant',
-    };
-
-    if (history.length === 0) {
+    if (!hasHistory) {
         return (
             <Card>
                 <CardHeader>
@@ -221,63 +207,104 @@ function HistoryTab({ history }: { history: any[] }) {
   
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Historique Complet</CardTitle>
-        <CardDescription>Toutes les actions effectuées sur ce véhicule, triées par date.</CardDescription>
-      </CardHeader>
-      <CardContent>
-          <div className="md:hidden space-y-4">
-            {history.map((item, index) => (
-                <div key={`${item.type}-${item.id}-${index}`} className="p-4 border rounded-lg bg-card text-card-foreground">
-                    <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-3">
-                            <div className="flex-shrink-0">{historyIcons[item.type]}</div>
-                            <div>
-                                <p className="font-semibold text-base leading-tight">{item.description || 'N/A'}</p>
-                                <span className="text-xs text-muted-foreground">{historyLabels[item.type]}</span>
+        <CardHeader>
+            <CardTitle>Historique Complet</CardTitle>
+            <CardDescription>Toutes les actions effectuées sur ce véhicule, regroupées par catégorie.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <Accordion type="multiple" className="w-full space-y-2" defaultValue={['repairs', 'maintenance', 'fuel']}>
+                {repairs.length > 0 && (
+                    <AccordionItem value="repairs">
+                        <AccordionTrigger className="text-base font-semibold bg-muted/50 px-4 rounded-md">
+                            <div className="flex items-center gap-3">
+                                <Wrench className="h-5 w-5 text-[hsl(var(--chart-1))]" />
+                                Réparations ({repairs.length})
                             </div>
-                        </div>
-                        <p className="font-bold text-lg text-foreground pl-2">{safeFormatCurrency(item.cost)}</p>
-                    </div>
-                    <div className="flex items-end">
-                        <div className="text-sm text-muted-foreground space-y-1">
-                            <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(item.date)}</span>
-                            <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(item.mileage)} km</span>
-                        </div>
-                    </div>
-                </div>
-            ))}
-          </div>
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Kilométrage</TableHead>
-                  <TableHead className="text-right">Coût</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {history.map((item, index) => (
-                    <TableRow key={`${item.type}-${item.id}-${index}`}>
-                        <TableCell>
-                            <div className="flex items-center gap-2">
-                                {historyIcons[item.type]}
-                                <span>{historyLabels[item.type]}</span>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-2">
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead className="text-right">Coût</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {repairs.map(item => (
+                                        <TableRow key={`hist-repair-${item.id}`}>
+                                            <TableCell>{safeFormatDate(item.date)}</TableCell>
+                                            <TableCell>{item.description}</TableCell>
+                                            <TableCell className="text-right">{safeFormatCurrency(item.cost)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </AccordionContent>
+                    </AccordionItem>
+                )}
+                 {maintenance.length > 0 && (
+                    <AccordionItem value="maintenance">
+                        <AccordionTrigger className="text-base font-semibold bg-muted/50 px-4 rounded-md">
+                            <div className="flex items-center gap-3">
+                                <Calendar className="h-5 w-5 text-[hsl(var(--chart-2))]" />
+                                Entretien ({maintenance.length})
                             </div>
-                        </TableCell>
-                        <TableCell>{safeFormatDate(item.date)}</TableCell>
-                        <TableCell className="font-medium">{item.description || 'N/A'}</TableCell>
-                        <TableCell>{safeFormatNumber(item.mileage)} km</TableCell>
-                        <TableCell className="text-right">{safeFormatCurrency(item.cost)}</TableCell>
-                    </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-      </CardContent>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-2">
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Tâche</TableHead>
+                                        <TableHead className="text-right">Coût</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {maintenance.map(item => (
+                                        <TableRow key={`hist-maint-${item.id}`}>
+                                            <TableCell>{safeFormatDate(item.date)}</TableCell>
+                                            <TableCell>{item.task}</TableCell>
+                                            <TableCell className="text-right">{safeFormatCurrency(item.cost)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </AccordionContent>
+                    </AccordionItem>
+                 )}
+                 {monthlyFuelLogs.length > 0 && (
+                     <AccordionItem value="fuel">
+                        <AccordionTrigger className="text-base font-semibold bg-muted/50 px-4 rounded-md">
+                             <div className="flex items-center gap-3">
+                                <Fuel className="h-5 w-5 text-[hsl(var(--chart-3))]" />
+                                Carburant
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-2">
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Mois</TableHead>
+                                        <TableHead>Quantité</TableHead>
+                                        <TableHead className="text-right">Coût Total</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {monthlyFuelLogs.map(item => (
+                                        <TableRow key={`hist-fuel-${item.date.toISOString()}`}>
+                                            <TableCell>{(format(item.date, 'LLLL yyyy', { locale: fr })).charAt(0).toUpperCase() + (format(item.date, 'LLLL yyyy', { locale: fr })).slice(1)}</TableCell>
+                                            <TableCell>{item.totalQuantity.toFixed(2)} L</TableCell>
+                                            <TableCell className="text-right">{safeFormatCurrency(item.totalCost)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </AccordionContent>
+                    </AccordionItem>
+                 )}
+            </Accordion>
+        </CardContent>
     </Card>
   );
 }
