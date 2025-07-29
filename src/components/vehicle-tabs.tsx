@@ -347,12 +347,17 @@ function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repa
   return (
     <>
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-            <CardTitle>Journal des Réparations</CardTitle>
-            <CardDescription>Historique de toutes les réparations effectuées.</CardDescription>
+      <CardHeader>
+        <div className="flex justify-between items-start">
+            <div>
+                <CardTitle>Journal des Réparations</CardTitle>
+                <CardDescription>Historique de toutes les réparations effectuées.</CardDescription>
+            </div>
+            <Button onClick={handleAdd} size="icon" variant="outline" className="flex-shrink-0">
+                <PlusCircle className="h-4 w-4" />
+                <span className="sr-only">Ajouter une réparation</span>
+            </Button>
         </div>
-        <Button onClick={handleAdd}><PlusCircle className="mr-2 h-4 w-4" />Ajouter une réparation</Button>
       </CardHeader>
       <CardContent>
         {repairs.length > 0 ? (
@@ -410,7 +415,7 @@ function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repa
             <div className="text-center py-12 text-muted-foreground">
                 <Wrench className="mx-auto h-12 w-12 mb-4" />
                 <h3 className="text-lg font-semibold">Aucune réparation enregistrée</h3>
-                <p>Cliquez sur "Ajouter une réparation" pour commencer.</p>
+                <p>Cliquez sur le bouton '+' pour commencer.</p>
             </div>
         )}
       </CardContent>
@@ -605,12 +610,17 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
     return (
     <>
         <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                    <CardTitle>Suivi de l'Entretien</CardTitle>
-                    <CardDescription>Gardez un oeil sur les entretiens passés et à venir.</CardDescription>
+            <CardHeader>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <CardTitle>Suivi de l'Entretien</CardTitle>
+                        <CardDescription>Gardez un oeil sur les entretiens passés et à venir.</CardDescription>
+                    </div>
+                    <Button onClick={handleAdd} size="icon" variant="outline" className="flex-shrink-0">
+                        <PlusCircle className="h-4 w-4" />
+                        <span className="sr-only">Ajouter un entretien</span>
+                    </Button>
                 </div>
-                 <Button onClick={handleAdd}><PlusCircle className="mr-2 h-4 w-4" />Ajouter un entretien</Button>
             </CardHeader>
             <CardContent>
                 {maintenance.length > 0 ? (
@@ -687,7 +697,7 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                      <div className="text-center py-12 text-muted-foreground">
                         <Calendar className="mx-auto h-12 w-12 mb-4" />
                         <h3 className="text-lg font-semibold">Aucun entretien enregistré</h3>
-                        <p>Ajoutez un entretien pour commencer le suivi.</p>
+                        <p>Cliquez sur le bouton '+' pour commencer le suivi.</p>
                     </div>
                 )}
             </CardContent>
@@ -985,12 +995,17 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
     return (
     <>
         <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                    <CardTitle>Suivi du Carburant</CardTitle>
-                    <CardDescription>Consultez l'historique de vos pleins de carburant.</CardDescription>
+            <CardHeader>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <CardTitle>Suivi du Carburant</CardTitle>
+                        <CardDescription>Consultez l'historique de vos pleins de carburant.</CardDescription>
+                    </div>
+                    <Button onClick={handleAdd} size="icon" variant="outline" className="flex-shrink-0">
+                        <PlusCircle className="h-4 w-4" />
+                        <span className="sr-only">Ajouter un plein</span>
+                    </Button>
                 </div>
-                <Button onClick={handleAdd}><PlusCircle className="mr-2 h-4 w-4" />Ajouter un plein</Button>
             </CardHeader>
             <CardContent>
                 {fuelLogs.length > 0 ? (
@@ -1044,7 +1059,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                     <div className="text-center py-12 text-muted-foreground">
                         <Fuel className="mx-auto h-12 w-12 mb-4" />
                         <h3 className="text-lg font-semibold">Aucun plein enregistré</h3>
-                        <p>Ajoutez un plein pour suivre votre consommation.</p>
+                        <p>Cliquez sur le bouton '+' pour suivre votre consommation.</p>
                     </div>
                 )}
             </CardContent>
