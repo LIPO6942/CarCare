@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from './ui/skeleton';
-import { PlusCircle, FileText, Trash2, Download, Loader2, Car } from 'lucide-react';
+import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Euro, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -18,6 +18,8 @@ import Link from 'next/link';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { Label } from './ui/label';
+import { cn } from '@/lib/utils';
 
 
 const safeFormatDate = (dateInput: any, formatString: string = 'P') => {
@@ -37,6 +39,16 @@ const safeFormatDate = (dateInput: any, formatString: string = 'P') => {
     return 'Erreur date';
   }
 };
+
+const safeFormatCurrency = (numInput: any): string => {
+    try {
+        const num = Number(numInput);
+        if (isNaN(num)) return (0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
+        return num.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
+    } catch {
+        return (0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
+    }
+}
 
 export function DocumentsClient() {
   const { user } = useAuth();
@@ -191,7 +203,7 @@ export function DocumentsClient() {
                       {documents.map((doc) => {
                           const docUrls = objectUrls.get(doc.id);
                           return (
-                          <Card key={doc.id} className="group relative">
+                          <Card key={doc.id} className="group relative flex flex-col">
                               <CardHeader>
                                   <CardTitle className="flex items-center gap-2 text-lg">
                                       <FileText className="h-5 w-5 text-primary" />
@@ -199,7 +211,13 @@ export function DocumentsClient() {
                                   </CardTitle>
                                   <CardDescription>{doc.type} - Ajouté le {safeFormatDate(doc.createdAt)}</CardDescription>
                               </CardHeader>
-                              <CardContent>
+                              <CardContent className="flex-1 space-y-3">
+                                  {doc.type === 'Facture' && (doc.invoiceDate || doc.invoiceAmount) && (
+                                    <div className="text-sm text-muted-foreground space-y-1">
+                                      {doc.invoiceDate && <p className="flex items-center gap-2"><Calendar className="h-4 w-4" /> {safeFormatDate(doc.invoiceDate)}</p>}
+                                      {doc.invoiceAmount && <p className="flex items-center gap-2"><Euro className="h-4 w-4" /> {safeFormatCurrency(doc.invoiceAmount)}</p>}
+                                    </div>
+                                  )}
                                   <div className="flex gap-2">
                                       <Button asChild variant="secondary" className="flex-1" disabled={!docUrls?.recto}>
                                           <Link href={docUrls?.recto || '#'} target="_blank" rel="noopener noreferrer">
@@ -213,11 +231,11 @@ export function DocumentsClient() {
                                             </Link>
                                         </Button>
                                       )}
-                                      <Button variant="ghost" size="icon" className="text-destructive absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setItemToDelete(doc)}>
-                                          <Trash2 className="h-4 w-4" />
-                                      </Button>
                                   </div>
                               </CardContent>
+                               <Button variant="ghost" size="icon" className="text-destructive absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setItemToDelete(doc)}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
                           </Card>
                       )})}
                   </div>
@@ -285,9 +303,21 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
         setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
         const name = formData.get('name') as string || files.recto.name.replace(/\.[^/.]+$/, "");
+        
+        const documentInfo: Omit<Document, 'id' | 'vehicleId' | 'fileRecto' | 'fileVerso' | 'createdAt'> & { vehicleId?: string } = {
+            name,
+            type: docType,
+        };
+
+        if (docType === 'Facture') {
+            const invoiceDate = formData.get('invoiceDate') as string;
+            const invoiceAmount = formData.get('invoiceAmount') as string;
+            if (invoiceDate) documentInfo.invoiceDate = invoiceDate;
+            if (invoiceAmount) documentInfo.invoiceAmount = parseFloat(invoiceAmount);
+        }
 
         try {
-            await addLocalDocument(vehicleId, files, { name, type: docType });
+            await addLocalDocument(vehicleId, files, documentInfo);
             toast({ title: "Succès", description: "Document ajouté localement." });
             onOpenChange(false);
             onDataChange();
@@ -301,18 +331,18 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Ajouter un document</DialogTitle>
                     <DialogDescription>Téléchargez les fichiers (PDF, image) qui seront stockés dans votre navigateur.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                      <div className="space-y-2">
-                        <label htmlFor="doc-name">Nom du document</label>
+                        <Label htmlFor="doc-name">Nom du document</Label>
                         <Input id="doc-name" name="name" placeholder="Ex: Facture garage du 15/05" required/>
                     </div>
                     <div className="space-y-2">
-                        <label>Type de document</label>
+                        <Label>Type de document</Label>
                         <Select onValueChange={(value) => setDocType(value as Document['type'])} value={docType} required>
                             <SelectTrigger>
                                 <SelectValue placeholder="Sélectionnez un type" />
@@ -322,12 +352,29 @@ function AddDocumentDialog({ open, onOpenChange, vehicleId, onDataChange }: { op
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {docType === 'Facture' && (
+                        <div className="space-y-4 rounded-md border p-4">
+                            <h4 className="text-sm font-medium">Détails de la facture (Optionnel)</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="invoiceDate">Date</Label>
+                                    <Input id="invoiceDate" name="invoiceDate" type="date" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="invoiceAmount">Montant (TND)</Label>
+                                    <Input id="invoiceAmount" name="invoiceAmount" type="number" step="0.01" placeholder="Ex: 250"/>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="space-y-2">
-                        <label htmlFor="file-upload-recto">Fichier Recto (obligatoire)</label>
+                        <Label htmlFor="file-upload-recto">Fichier Recto (obligatoire)</Label>
                         <Input id="file-upload-recto" type="file" required onChange={(e) => handleFileChange(e, 'recto')} ref={fileInputRectoRef} />
                     </div>
                      <div className="space-y-2">
-                        <label htmlFor="file-upload-verso">Fichier Verso (optionnel)</label>
+                        <Label htmlFor="file-upload-verso">Fichier Verso (optionnel)</Label>
                         <Input id="file-upload-verso" type="file" onChange={(e) => handleFileChange(e, 'verso')} ref={fileInputVersoRef} />
                     </div>
 

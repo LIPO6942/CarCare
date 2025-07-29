@@ -52,4 +52,6 @@ export type Document = {
   fileRecto: File;
   fileVerso?: File;
   createdAt: string;
+  invoiceDate?: string;
+  invoiceAmount?: number;
 };

@@ -28,16 +28,18 @@ function getDb(): Promise<IDBPDatabase> {
 export async function addLocalDocument(
   vehicleId: string,
   files: { recto: File; verso?: File | null },
-  documentInfo: { name: string; type: Document['type'] }
+  documentInfo: Partial<Omit<Document, 'id' | 'fileRecto' | 'fileVerso' | 'createdAt'>>
 ): Promise<void> {
     const db = await getDb();
     const docData: Omit<Document, 'id'> = {
         vehicleId,
-        name: documentInfo.name,
-        type: documentInfo.type,
+        name: documentInfo.name!,
+        type: documentInfo.type!,
         fileRecto: files.recto,
         fileVerso: files.verso || undefined,
         createdAt: new Date().toISOString(),
+        invoiceDate: documentInfo.invoiceDate,
+        invoiceAmount: documentInfo.invoiceAmount,
     };
     await db.add(STORE_NAME, docData);
 }
