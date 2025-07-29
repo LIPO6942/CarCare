@@ -9,7 +9,7 @@ import { fr } from "date-fns/locale"
 import type { Repair, Maintenance, FuelLog, Vehicle, Document } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Wrench, Fuel, Calendar, Sparkles, Loader2, GaugeCircle, History, Trash2, Edit, MoreHorizontal } from 'lucide-react';
 import {
@@ -35,6 +35,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { DialogFooter } from './ui/dialog';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 
 interface VehicleTabsProps {
     vehicle: Vehicle;
@@ -880,12 +881,54 @@ const FuelLogSchema = z.object({
     totalCost: z.coerce.number().min(0, 'Le coût total doit être positif.'),
 });
 
+interface GroupedFuelLogs {
+  [year: string]: {
+    [month: string]: {
+      logs: FuelLog[];
+      totalCost: number;
+      totalQuantity: number;
+    }
+  }
+}
+
 function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLogs: FuelLog[], onDataChange: () => void }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<FuelLog | null>(null);
   const [itemToDelete, setItemToDelete] = useState<FuelLog | null>(null);
   const { toast } = useToast();
+
+  const groupedLogs = useMemo(() => {
+    const data: GroupedFuelLogs = {};
+    fuelLogs.forEach(log => {
+      try {
+        const date = new Date(log.date);
+        const year = date.getFullYear().toString();
+        const monthName = (format(date, 'LLLL', { locale: fr })).charAt(0).toUpperCase() + (format(date, 'LLLL', { locale: fr })).slice(1);
+        
+        if (!data[year]) {
+          data[year] = {};
+        }
+        if (!data[year][monthName]) {
+          data[year][monthName] = { logs: [], totalCost: 0, totalQuantity: 0 };
+        }
+        data[year][monthName].logs.push(log);
+        data[year][monthName].totalCost += log.totalCost;
+        data[year][monthName].totalQuantity += log.quantity;
+      } catch (e) {
+        console.error("Invalid date for fuel log", log);
+      }
+    });
+
+    // Sort logs within each month
+    for (const year in data) {
+        for (const month in data[year]) {
+            data[year][month].logs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        }
+    }
+
+    return data;
+  }, [fuelLogs]);
 
   const handleEdit = (item: FuelLog) => {
     setItemToEdit(item);
@@ -924,57 +967,52 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
             </CardHeader>
             <CardContent>
                 {fuelLogs.length > 0 ? (
-                <div>
-                    <div className="md:hidden space-y-4">
-                        {fuelLogs.map((log) => (
-                           <div key={log.id} className="p-4 border rounded-lg bg-card text-card-foreground">
-                                <div className="flex justify-between items-start mb-3">
-                                    <div>
-                                        <p className="font-semibold text-base leading-tight">Plein de carburant</p>
-                                        <span className="text-xs text-muted-foreground">{safeFormatNumber(log.quantity)} L @ {safeFormatCurrency(log.pricePerLiter)}/L</span>
+                <Accordion type="multiple" className="w-full" defaultValue={Object.keys(groupedLogs).length > 0 ? [Object.keys(groupedLogs).sort((a,b) => Number(b) - Number(a))[0]] : []}>
+                    {Object.entries(groupedLogs).sort(([yearA], [yearB]) => Number(yearB) - Number(yearA)).map(([year, months]) => (
+                        <AccordionItem value={year} key={year}>
+                            <AccordionTrigger className="text-lg font-semibold">Année {year}</AccordionTrigger>
+                            <AccordionContent className="pl-2 space-y-4">
+                                {Object.entries(months).map(([month, data]) => (
+                                     <div key={month} className="border-l-2 pl-4">
+                                        <h4 className="text-md font-medium mb-2">{month}</h4>
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Date</TableHead>
+                                                    <TableHead>Kilométrage</TableHead>
+                                                    <TableHead>Quantité</TableHead>
+                                                    <TableHead>Prix/L</TableHead>
+                                                    <TableHead className="text-right">Coût Total</TableHead>
+                                                    <TableHead className="w-[50px]"></TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {data.logs.map((log) => (
+                                                    <TableRow key={log.id}>
+                                                        <TableCell>{safeFormatDate(log.date)}</TableCell>
+                                                        <TableCell>{safeFormatNumber(log.mileage)} km</TableCell>
+                                                        <TableCell>{safeFormatNumber(log.quantity)} L</TableCell>
+                                                        <TableCell>{safeFormatCurrency(log.pricePerLiter)}</TableCell>
+                                                        <TableCell className="text-right">{safeFormatCurrency(log.totalCost)}</TableCell>
+                                                        <TableCell><ActionMenu onEdit={() => handleEdit(log)} onDelete={() => setItemToDelete(log)} /></TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                            <TableFooter>
+                                                <TableRow>
+                                                    <TableCell colSpan={2} className="font-semibold">Total {month}</TableCell>
+                                                    <TableCell className="font-semibold">{data.totalQuantity.toFixed(2)} L</TableCell>
+                                                    <TableCell colSpan={2} className="text-right font-semibold">{safeFormatCurrency(data.totalCost)}</TableCell>
+                                                    <TableCell></TableCell>
+                                                </TableRow>
+                                            </TableFooter>
+                                        </Table>
                                     </div>
-                                    <div className="flex-shrink-0 pl-2">
-                                        <ActionMenu onEdit={() => handleEdit(log)} onDelete={() => setItemToDelete(log)} />
-                                    </div>
-                                </div>
-                                
-                                <div className="flex justify-between items-end">
-                                    <div className="text-sm text-muted-foreground space-y-1">
-                                        <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(log.date)}</span>
-                                        <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(log.mileage)} km</span>
-                                    </div>
-                                    <p className="font-bold text-lg text-foreground">{safeFormatCurrency(log.totalCost)}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <div className="hidden md:block">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Kilométrage</TableHead>
-                                <TableHead>Quantité</TableHead>
-                                <TableHead>Prix/L</TableHead>
-                                <TableHead className="text-right">Coût Total</TableHead>
-                                <TableHead className="w-[50px]"></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {fuelLogs.map((log) => (
-                                    <TableRow key={log.id}>
-                                        <TableCell>{safeFormatDate(log.date)}</TableCell>
-                                        <TableCell>{safeFormatNumber(log.mileage)} km</TableCell>
-                                        <TableCell>{safeFormatNumber(log.quantity)} L</TableCell>
-                                        <TableCell>{safeFormatCurrency(log.pricePerLiter)}</TableCell>
-                                        <TableCell className="text-right">{safeFormatCurrency(log.totalCost)}</TableCell>
-                                        <TableCell><ActionMenu onEdit={() => handleEdit(log)} onDelete={() => setItemToDelete(log)} /></TableCell>
-                                    </TableRow>
                                 ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    ))}
+                </Accordion>
                 ) : (
                     <div className="text-center py-12 text-muted-foreground">
                         <Fuel className="mx-auto h-12 w-12 mb-4" />
@@ -1150,3 +1188,5 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
         </Dialog>
     )
 }
+
+    
