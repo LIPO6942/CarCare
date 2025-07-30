@@ -354,7 +354,7 @@ function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repa
                 <CardDescription className="flex items-center">
                     Historique de toutes les réparations effectuées.
                     <Button onClick={handleAdd} variant="ghost" className="h-auto p-1 ml-2 text-primary hover:bg-primary/10 rounded-full">
-                        <PlusCircle className="h-8 w-8" />
+                        <PlusCircle className="h-10 w-10" />
                         <span className="sr-only">Ajouter une réparation</span>
                     </Button>
                 </CardDescription>
@@ -619,7 +619,7 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                          <CardDescription className="flex items-center">
                             Gardez un oeil sur les entretiens passés et à venir.
                             <Button onClick={handleAdd} variant="ghost" className="h-auto p-1 ml-2 text-primary hover:bg-primary/10 rounded-full">
-                                <PlusCircle className="h-8 w-8" />
+                                <PlusCircle className="h-10 w-10" />
                                 <span className="sr-only">Ajouter un entretien</span>
                             </Button>
                         </CardDescription>
@@ -1006,7 +1006,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                         <CardDescription className="flex items-center">
                             Consultez l'historique de vos pleins de carburant.
                             <Button onClick={handleAdd} variant="ghost" className="h-auto p-1 ml-2 text-primary hover:bg-primary/10 rounded-full">
-                                <PlusCircle className="h-8 w-8" />
+                                <PlusCircle className="h-10 w-10" />
                                 <span className="sr-only">Ajouter un plein</span>
                             </Button>
                         </CardDescription>
@@ -1238,3 +1238,4 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
 }
 
     
+
