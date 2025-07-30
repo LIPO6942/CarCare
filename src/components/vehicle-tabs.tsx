@@ -187,14 +187,6 @@ function DeleteConfirmationDialog({ open, onOpenChange, onConfirm, isDeleting, t
 function HistoryTab({ repairs, maintenance, monthlyFuelLogs }: { repairs: Repair[], maintenance: Maintenance[], monthlyFuelLogs: any[] }) {
     const hasHistory = repairs.length > 0 || maintenance.length > 0 || monthlyFuelLogs.length > 0;
 
-    const defaultAccordionValues = useMemo(() => {
-        const values = [];
-        if (repairs.length > 0) values.push('repairs');
-        if (maintenance.length > 0) values.push('maintenance');
-        if (monthlyFuelLogs.length > 0) values.push('fuel');
-        return values;
-    }, [repairs, maintenance, monthlyFuelLogs]);
-
     if (!hasHistory) {
         return (
             <Card>
@@ -220,7 +212,7 @@ function HistoryTab({ repairs, maintenance, monthlyFuelLogs }: { repairs: Repair
             <CardDescription>Toutes les actions effectuées sur ce véhicule, regroupées par catégorie.</CardDescription>
         </CardHeader>
         <CardContent>
-            <Accordion type="multiple" className="w-full space-y-2" defaultValue={defaultAccordionValues}>
+            <Accordion type="multiple" className="w-full space-y-2">
                 {repairs.length > 0 && (
                     <AccordionItem value="repairs">
                         <AccordionTrigger className="text-base font-semibold bg-muted/50 px-4 rounded-md">
@@ -1246,5 +1238,6 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
 }
 
     
+
 
 
