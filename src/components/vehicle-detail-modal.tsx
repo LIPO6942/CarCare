@@ -8,8 +8,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/auth-context';
 import ErrorBoundary from './error-boundary';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { X } from 'lucide-react';
-import { Button } from './ui/button';
 
 interface VehicleDetailModalProps {
   vehicle: Vehicle | null;
@@ -65,15 +63,11 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="p-0 gap-0 max-w-full w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-4xl flex flex-col">
-        <DialogHeader className="p-4 border-b flex-row items-center justify-between space-y-0">
+        <DialogHeader className="p-4 border-b">
           <div>
             <DialogTitle className="text-xl sm:text-2xl">{`${vehicle.brand || 'Marque'} ${vehicle.model || 'Modèle'}`}</DialogTitle>
             <DialogDescription>{`${vehicle.year || 'N/A'} - ${vehicle.licensePlate || 'N/A'}`}</DialogDescription>
           </div>
-           <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="flex-shrink-0">
-             <X className="h-5 w-5" />
-             <span className="sr-only">Fermer</span>
-           </Button>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
