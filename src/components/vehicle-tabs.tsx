@@ -187,6 +187,14 @@ function DeleteConfirmationDialog({ open, onOpenChange, onConfirm, isDeleting, t
 function HistoryTab({ repairs, maintenance, monthlyFuelLogs }: { repairs: Repair[], maintenance: Maintenance[], monthlyFuelLogs: any[] }) {
     const hasHistory = repairs.length > 0 || maintenance.length > 0 || monthlyFuelLogs.length > 0;
 
+    const defaultAccordionValues = useMemo(() => {
+        const values = [];
+        if (repairs.length > 0) values.push('repairs');
+        if (maintenance.length > 0) values.push('maintenance');
+        if (monthlyFuelLogs.length > 0) values.push('fuel');
+        return values;
+    }, [repairs, maintenance, monthlyFuelLogs]);
+
     if (!hasHistory) {
         return (
             <Card>
@@ -212,7 +220,7 @@ function HistoryTab({ repairs, maintenance, monthlyFuelLogs }: { repairs: Repair
             <CardDescription>Toutes les actions effectuées sur ce véhicule, regroupées par catégorie.</CardDescription>
         </CardHeader>
         <CardContent>
-            <Accordion type="multiple" className="w-full space-y-2" defaultValue={['repairs', 'maintenance', 'fuel']}>
+            <Accordion type="multiple" className="w-full space-y-2" defaultValue={defaultAccordionValues}>
                 {repairs.length > 0 && (
                     <AccordionItem value="repairs">
                         <AccordionTrigger className="text-base font-semibold bg-muted/50 px-4 rounded-md">
@@ -355,7 +363,7 @@ function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repa
                     Historique de toutes les réparations effectuées.
                 </CardDescription>
             </div>
-            <Button onClick={handleAdd} size="icon" className="flex-shrink-0">
+            <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
                 <PlusCircle className="h-6 w-6" />
                 <span className="sr-only">Ajouter une réparation</span>
             </Button>
@@ -620,7 +628,7 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                             Gardez un oeil sur les entretiens passés et à venir.
                         </CardDescription>
                     </div>
-                    <Button onClick={handleAdd} size="icon" className="flex-shrink-0">
+                    <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
                         <PlusCircle className="h-6 w-6" />
                         <span className="sr-only">Ajouter un entretien</span>
                     </Button>
@@ -1007,7 +1015,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                             Consultez l'historique de vos pleins de carburant.
                         </CardDescription>
                     </div>
-                    <Button onClick={handleAdd} size="icon" className="flex-shrink-0">
+                    <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
                         <PlusCircle className="h-6 w-6" />
                         <span className="sr-only">Ajouter un plein</span>
                     </Button>
@@ -1238,4 +1246,5 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
 }
 
     
+
 
