@@ -562,7 +562,7 @@ function RepairDialog({ open, onOpenChange, vehicleId, onDataChange, initialData
                             <span className="hidden sm:inline">{isCategorizing ? 'Analyse...' : 'Suggérer'}</span>
                         </Button>
                     </div>
-                    <Input name="cost" type="number" step="0.01" placeholder="Coût (TND)" required defaultValue={initialData?.cost} />
+                    <Input name="cost" type="number" step="0.001" placeholder="Coût (TND)" required defaultValue={initialData?.cost} />
                     <DialogFooter>
                         <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
                         <Button type="submit" disabled={isSubmitting}>
@@ -890,7 +890,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                     </div>
                     <div className="space-y-2">
                         <label htmlFor="cost">Coût de l'entretien (TND)</label>
-                        <Input id="cost" name="cost" type="number" step="0.01" placeholder="Coût (TND)" required value={cost} onChange={e => setCost(e.target.value)} />
+                        <Input id="cost" name="cost" type="number" step="0.001" placeholder="Coût (TND)" required value={cost} onChange={e => setCost(e.target.value)} />
                     </div>
 
                     <fieldset className="border p-4 rounded-md">
@@ -1125,7 +1125,7 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
         const q = parseFloat(newQuantity);
         const p = parseFloat(pricePerLiter);
         if (!isNaN(q) && !isNaN(p) && p > 0) {
-            setTotalCost((q * p).toFixed(2));
+            setTotalCost((q * p).toFixed(3));
         } else {
              setTotalCost('');
         }
@@ -1152,7 +1152,7 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
         const q = parseFloat(quantity);
         const p = parseFloat(newPricePerLiter);
         if (!isNaN(q) && !isNaN(p) && p > 0) {
-            setTotalCost((q * p).toFixed(2));
+            setTotalCost((q * p).toFixed(3));
         } else {
             setTotalCost('');
         }
@@ -1226,7 +1226,7 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
                         </div>
                         <div className="space-y-2">
                             <label htmlFor="totalCost">Coût total (TND)</label>
-                            <Input id="totalCost" name="totalCost" type="number" step="0.01" placeholder="Ex: 100" required value={totalCost} onChange={handleTotalCostChange} />
+                            <Input id="totalCost" name="totalCost" type="number" step="0.001" placeholder="Ex: 100" required value={totalCost} onChange={handleTotalCostChange} />
                         </div>
                     </div>
                     <DialogFooter>
@@ -1243,6 +1243,7 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
 }
 
     
+
 
 
 

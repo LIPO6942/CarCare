@@ -137,7 +137,7 @@ export function QuickFuelLogForm({ vehicles, onFuelLogAdded }: QuickFuelLogFormP
           </div>
           <div className="flex-1 w-full">
             <label htmlFor="quick-cost" className="text-sm font-medium mb-2 block">Coût Total (TND)</label>
-            <Input id="quick-cost" name="totalCost" type="number" step="0.1" placeholder="ex: 120" required />
+            <Input id="quick-cost" name="totalCost" type="number" step="0.001" placeholder="ex: 120" required />
           </div>
           <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Fuel className="mr-2" />}

@@ -405,7 +405,7 @@ function DocumentDialog({ open, onOpenChange, vehicleId, onDataChange, initialDa
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="invoiceAmount">Montant (TND)</Label>
-                                    <Input id="invoiceAmount" name="invoiceAmount" type="number" step="0.01" placeholder="Ex: 250" defaultValue={initialData?.invoiceAmount}/>
+                                    <Input id="invoiceAmount" name="invoiceAmount" type="number" step="0.001" placeholder="Ex: 250" defaultValue={initialData?.invoiceAmount}/>
                                 </div>
                             </div>
                         </div>

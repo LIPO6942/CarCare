@@ -62,12 +62,12 @@ export function SettingsClient() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="priceEssence">Prix / Litre Essence (TND)</Label>
-                <Input id="priceEssence" type="number" step="0.01" {...register('priceEssence')} />
+                <Input id="priceEssence" type="number" step="0.001" {...register('priceEssence')} />
                 {errors.priceEssence && <p className="text-sm text-destructive">{errors.priceEssence.message}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="priceDiesel">Prix / Litre Diesel (TND)</Label>
-                <Input id="priceDiesel" type="number" step="0.01" {...register('priceDiesel')} />
+                <Input id="priceDiesel" type="number" step="0.001" {...register('priceDiesel')} />
                  {errors.priceDiesel && <p className="text-sm text-destructive">{errors.priceDiesel.message}</p>}
               </div>
             </div>
@@ -76,7 +76,7 @@ export function SettingsClient() {
              <h4 className="text-base font-semibold">Entretien</h4>
              <div className="space-y-2">
                 <Label htmlFor="costVisiteTechnique">Coût Visite Technique (TND)</Label>
-                <Input id="costVisiteTechnique" type="number" step="0.01" {...register('costVisiteTechnique')} />
+                <Input id="costVisiteTechnique" type="number" step="0.001" {...register('costVisiteTechnique')} />
                 {errors.costVisiteTechnique && <p className="text-sm text-destructive">{errors.costVisiteTechnique.message}</p>}
              </div>
           </div>
