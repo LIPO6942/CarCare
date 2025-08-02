@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Car, BarChart3, Bot, FileText } from 'lucide-react';
+import { Car, BarChart3, Bot, FileText, Settings } from 'lucide-react';
 import { Logo } from './logo';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/auth-context';
@@ -12,6 +12,7 @@ const navItems = [
   { href: '/reports', label: 'Rapports', icon: BarChart3 },
   { href: '/ai-assistant', label: 'Assistant IA', icon: Bot },
   { href: '/documents', label: 'Documents', icon: FileText },
+  { href: '/settings', label: 'Paramètres', icon: Settings },
 ];
 
 export function Sidebar() {

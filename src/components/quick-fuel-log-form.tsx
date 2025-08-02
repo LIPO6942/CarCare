@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Fuel, Loader2 } from 'lucide-react';
+import { getSettings } from '@/lib/settings';
 
 const QuickFuelLogSchema = z.object({
   vehicleId: z.string().min(1, 'Veuillez sélectionner un véhicule.'),
@@ -31,10 +32,11 @@ export function QuickFuelLogForm({ vehicles, onFuelLogAdded }: QuickFuelLogFormP
 
   const defaultPricePerLiter = useMemo(() => {
     const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+    const settings = getSettings();
     if (selectedVehicle?.fuelType === 'Diesel') {
-        return 2.2;
+        return settings.priceDiesel;
     }
-    return 2.5; // Default for Essence and others
+    return settings.priceEssence;
   }, [selectedVehicleId, vehicles]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {

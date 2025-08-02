@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select"
 import { DialogFooter } from './ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
+import { getSettings } from '@/lib/settings';
 
 interface VehicleTabsProps {
     vehicle: Vehicle;
@@ -355,7 +356,7 @@ function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repa
                     Historique de toutes les réparations effectuées.
                 </CardDescription>
             </div>
-            <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
+            <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10 bg-primary hover:bg-primary/90">
                 <PlusCircle className="h-6 w-6" />
                 <span className="sr-only">Ajouter une réparation</span>
             </Button>
@@ -620,7 +621,7 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                             Gardez un oeil sur les entretiens passés et à venir.
                         </CardDescription>
                     </div>
-                    <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
+                    <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10 bg-primary hover:bg-primary/90">
                         <PlusCircle className="h-6 w-6" />
                         <span className="sr-only">Ajouter un entretien</span>
                     </Button>
@@ -798,9 +799,10 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
     // Auto-fill cost for certain tasks on new entries
     useEffect(() => {
         if (initialData) return;
+        const settings = getSettings();
 
         if (selectedTask === 'Visite technique') {
-            setCost('35');
+            setCost(settings.costVisiteTechnique.toString());
         } else if (selectedTask === 'Vignette') {
             const power = vehicle.fiscalPower;
             if (power) {
@@ -1007,7 +1009,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                             Consultez l'historique de vos pleins de carburant.
                         </CardDescription>
                     </div>
-                    <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
+                    <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10 bg-primary hover:bg-primary/90">
                         <PlusCircle className="h-6 w-6" />
                         <span className="sr-only">Ajouter un plein</span>
                     </Button>
@@ -1096,18 +1098,21 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     const [quantity, setQuantity] = useState(initialData?.quantity?.toString() || '');
-    const [pricePerLiter, setPricePerLiter] = useState(initialData?.pricePerLiter?.toString() || (vehicle.fuelType === 'Diesel' ? '2.2' : '2.5'));
+    const [pricePerLiter, setPricePerLiter] = useState(initialData?.pricePerLiter?.toString() || '');
     const [totalCost, setTotalCost] = useState(initialData?.totalCost?.toString() || '');
     
     useEffect(() => {
+        const settings = getSettings();
+        const defaultPrice = vehicle.fuelType === 'Diesel' ? settings.priceDiesel.toString() : settings.priceEssence.toString();
+        
         if (open) {
             if (initialData) {
                 setQuantity(initialData.quantity?.toString() || '');
-                setPricePerLiter(initialData.pricePerLiter?.toString() || '2.5');
+                setPricePerLiter(initialData.pricePerLiter?.toString() || defaultPrice);
                 setTotalCost(initialData.totalCost?.toString() || '');
             } else {
                 setQuantity('');
-                setPricePerLiter(vehicle.fuelType === 'Diesel' ? '2.2' : '2.5');
+                setPricePerLiter(defaultPrice);
                 setTotalCost('');
             }
         }
@@ -1238,6 +1243,7 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
 }
 
     
+
 
 
 
