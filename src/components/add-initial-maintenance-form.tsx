@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getSettings } from '@/lib/settings';
 
 interface AddInitialMaintenanceFormProps {
   vehicle: Vehicle | null;
@@ -92,16 +93,17 @@ export function AddInitialMaintenanceForm({ vehicle, open, onOpenChange, onFinis
         } = validatedFields.data;
 
         const maintenancePromises: Promise<any>[] = [];
+        const settings = getSettings();
 
         if (lastTechnicalInspectionDate) {
             const nextDueDate = new Date(lastTechnicalInspectionDate);
-            nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); // Changed to 1 year for Tunisia
+            nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
             maintenancePromises.push(addMaintenance({
                 vehicleId: vehicle.id,
                 date: lastTechnicalInspectionDate,
                 mileage: currentMileage || 0,
                 task: 'Visite technique',
-                cost: 0,
+                cost: settings.costVisiteTechnique || 0,
                 nextDueDate: nextDueDate.toISOString().split('T')[0],
             }, user.uid));
         }
@@ -114,7 +116,7 @@ export function AddInitialMaintenanceForm({ vehicle, open, onOpenChange, onFinis
                 date: lastInsurancePaymentDate,
                 mileage: currentMileage || 0,
                 task: 'Paiement Assurance',
-                cost: 0,
+                cost: 0, // Insurance cost is manually entered
                 nextDueDate: nextDueDate.toISOString().split('T')[0],
             }, user.uid));
         }
@@ -122,12 +124,29 @@ export function AddInitialMaintenanceForm({ vehicle, open, onOpenChange, onFinis
         if (lastVignettePaymentDate) {
             const nextDueDate = new Date(lastVignettePaymentDate);
             nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
+            
+            let vignetteCost = 0;
+            const power = vehicle.fiscalPower;
+            if (power) {
+                const vignetteSettings = vehicle.fuelType === 'Diesel' ? settings.vignetteDiesel : settings.vignetteEssence;
+                const powerRange = vignetteSettings.find(v => {
+                    if (v.range.includes('-')) {
+                        const [min, max] = v.range.split('-').map(Number);
+                        return power >= min && power <= max;
+                    }
+                    return Number(v.range) === power;
+                });
+                if (powerRange) {
+                    vignetteCost = powerRange.cost;
+                }
+            }
+
             maintenancePromises.push(addMaintenance({
                 vehicleId: vehicle.id,
                 date: lastVignettePaymentDate,
                 mileage: currentMileage || 0,
                 task: 'Vignette',
-                cost: 0,
+                cost: vignetteCost,
                 nextDueDate: nextDueDate.toISOString().split('T')[0],
             }, user.uid));
         }
@@ -138,7 +157,7 @@ export function AddInitialMaintenanceForm({ vehicle, open, onOpenChange, onFinis
                 date: lastOilChangeDate,
                 mileage: currentMileage,
                 task: 'Vidange',
-                cost: 0,
+                cost: 0, // Oil change cost is manually entered
                 nextDueMileage: currentMileage + 10000,
             }, user.uid));
         }
