@@ -66,7 +66,7 @@ export function AddInitialMaintenanceForm({ vehicle, open, onOpenChange, onFinis
     // Clean empty fields so zod validation works on optional fields
     Object.keys(data).forEach(key => {
         if (data[key] === '') {
-            delete data[key];
+            delete (data as any)[key];
         }
     });
 
