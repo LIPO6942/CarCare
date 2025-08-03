@@ -1,16 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import { suggestMaintenanceTasks } from '@/ai/flows/suggest-maintenance-tasks';
 import type { SuggestMaintenanceTasksOutput } from '@/ai/flows/suggest-maintenance-tasks';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Bot, Lightbulb, Loader, AlertTriangle } from 'lucide-react';
+import { Bot, Lightbulb, Loader, AlertTriangle, Car } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-
+import { getVehicles } from '@/lib/data';
+import type { Vehicle } from '@/lib/types';
+import { useAuth } from '@/context/auth-context';
+import { Skeleton } from './ui/skeleton';
+import Link from 'next/link';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -49,12 +53,31 @@ const carComponents = Object.keys(componentSymptomsMap);
 
 
 export default function AiAssistantClient() {
+  const { user } = useAuth();
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+
   const [result, setResult] = useState<SuggestMaintenanceTasksOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedComponent, setSelectedComponent] = useState<string>('');
   const [selectedSymptom, setSelectedSymptom] = useState<string>('');
   
   const availableSymptoms = selectedComponent ? componentSymptomsMap[selectedComponent] : [];
+
+  useEffect(() => {
+    async function fetchUserVehicles() {
+        if (!user) return;
+        setIsLoading(true);
+        const userVehicles = await getVehicles(user.uid);
+        setVehicles(userVehicles);
+        if (userVehicles.length === 1) {
+            setSelectedVehicleId(userVehicles[0].id);
+        }
+        setIsLoading(false);
+    }
+    fetchUserVehicles();
+  }, [user]);
 
   const handleComponentChange = (value: string) => {
       setSelectedComponent(value);
@@ -69,6 +92,12 @@ export default function AiAssistantClient() {
     const symptom = formData.get('symptom') as string;
     const details = formData.get('details') as string;
 
+    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+    if (!selectedVehicle) {
+        setError("Veuillez sélectionner un véhicule.");
+        return;
+    }
+
     if (!component || !symptom) {
         setError("Veuillez sélectionner un composant et un symptôme.");
         return;
@@ -81,12 +110,51 @@ export default function AiAssistantClient() {
     `;
 
     try {
-        const response = await suggestMaintenanceTasks({ issueDescription });
+        const response = await suggestMaintenanceTasks({ 
+            brand: selectedVehicle.brand,
+            model: selectedVehicle.model,
+            issueDescription
+        });
         setResult(response);
     } catch (e) {
         setError("Une erreur est survenue lors de la communication avec l'assistant IA.");
     }
   };
+
+  if (isLoading) {
+      return (
+          <Card className="max-w-2xl mx-auto">
+              <CardHeader>
+                  <Skeleton className="h-8 w-40" />
+                  <Skeleton className="h-4 w-full max-w-sm" />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-24 w-full" />
+              </CardContent>
+              <CardFooter className="flex justify-end">
+                  <Skeleton className="h-10 w-48" />
+              </CardFooter>
+          </Card>
+      );
+  }
+
+  if (vehicles.length === 0) {
+    return (
+        <Card className="max-w-2xl mx-auto">
+            <CardHeader>
+                <CardTitle>Aucun Véhicule</CardTitle>
+                <CardDescription>Vous devez ajouter un véhicule avant de pouvoir utiliser l'assistant IA.</CardDescription>
+            </CardHeader>
+            <CardContent className="text-center py-12">
+                <Car className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <Button asChild>
+                    <Link href="/">Retourner au tableau de bord</Link>
+                </Button>
+            </CardContent>
+        </Card>
+    )
+  }
 
   return (
     <Card className="max-w-2xl mx-auto">
@@ -97,10 +165,21 @@ export default function AiAssistantClient() {
             <span>Diagnostic IA</span>
           </CardTitle>
           <CardDescription>
-            Guidez l'assistant en sélectionnant les options puis décrivez votre problème pour obtenir des suggestions.
+            Guidez l'assistant en sélectionnant votre véhicule et le problème pour obtenir des suggestions.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+            <div className="space-y-2">
+                <Label htmlFor="vehicle-select">Véhicule concerné</Label>
+                <Select name="vehicleId" required onValueChange={setSelectedVehicleId} value={selectedVehicleId}>
+                    <SelectTrigger id="vehicle-select">
+                        <SelectValue placeholder="Sélectionnez un véhicule" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {vehicles.map(v => <SelectItem key={v.id} value={v.id}>{v.brand} {v.model} ({v.licensePlate})</SelectItem>)}
+                    </SelectContent>
+                </Select>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                 <Label htmlFor="component-select">Composant principal</Label>
