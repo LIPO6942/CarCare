@@ -356,7 +356,7 @@ function RepairsTab({ vehicle, repairs, onDataChange }: { vehicle: Vehicle, repa
                     Historique de toutes les réparations effectuées.
                 </CardDescription>
             </div>
-            <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10 bg-primary hover:bg-primary/90">
+            <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
                 <PlusCircle className="h-6 w-6" />
                 <span className="sr-only">Ajouter une réparation</span>
             </Button>
@@ -621,7 +621,7 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                             Gardez un oeil sur les entretiens passés et à venir.
                         </CardDescription>
                     </div>
-                    <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10 bg-primary hover:bg-primary/90">
+                    <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
                         <PlusCircle className="h-6 w-6" />
                         <span className="sr-only">Ajouter un entretien</span>
                     </Button>
@@ -766,6 +766,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
     
     useEffect(() => {
         if (!open) {
+            // Reset state when dialog closes
             setSelectedTask('');
             setCost('');
             setMileage('');
@@ -774,11 +775,13 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
         }
 
         if (initialData) {
+            // Populate state from initialData when editing
             setSelectedTask(initialData.task || '');
             setCost(initialData.cost?.toString() || '');
             setMileage(initialData.mileage?.toString() || '');
             setNextDueMileage(initialData.nextDueMileage?.toString() || '');
         } else {
+            // Reset for new entry
             setSelectedTask('');
             setCost('');
             setMileage('');
@@ -796,9 +799,12 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
         }
     }, [mileage, selectedTask, initialData]);
 
-    // Auto-fill cost for certain tasks on new entries
+    // Auto-fill cost for certain tasks on new entries or when task changes
     useEffect(() => {
+        // We only pre-fill for new items or if the cost hasn't been set by the user yet.
+        // On existing items, we don't want to override their saved cost.
         if (initialData) return;
+
         const settings = getSettings();
         const power = vehicle.fiscalPower;
 
@@ -816,9 +822,10 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
              if (powerRange) {
                  setCost(powerRange.cost.toString());
              } else {
-                 setCost('');
+                 setCost(''); // Clear cost if no matching range is found
              }
-        } else {
+        } else if (selectedTask === 'Paiement Assurance' || selectedTask === 'Vidange') {
+            // Reset cost for tasks that need manual input
             setCost('');
         }
     }, [selectedTask, vehicle.fiscalPower, vehicle.fuelType, initialData]);
@@ -834,7 +841,6 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
         }
         
         const formData = new FormData(event.currentTarget);
-        formData.set('task', selectedTask);
         
         const rawData = Object.fromEntries(formData.entries());
         if (rawData.nextDueDate === '') delete rawData.nextDueDate;
@@ -883,7 +889,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                     </div>
                      <div className="space-y-2">
                         <label>Tâche d'entretien</label>
-                        <Select onValueChange={setSelectedTask} value={selectedTask} required>
+                        <Select name="task" onValueChange={setSelectedTask} value={selectedTask} required>
                             <SelectTrigger>
                                 <SelectValue placeholder="Sélectionnez une tâche" />
                             </SelectTrigger>
@@ -1013,7 +1019,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                             Consultez l'historique de vos pleins de carburant.
                         </CardDescription>
                     </div>
-                    <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10 bg-primary hover:bg-primary/90">
+                    <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
                         <PlusCircle className="h-6 w-6" />
                         <span className="sr-only">Ajouter un plein</span>
                     </Button>

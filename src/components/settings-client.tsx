@@ -1,17 +1,16 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useForm, type SubmitHandler, useFieldArray } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { getSettings, saveSettings, type AppSettings } from '@/lib/settings';
+import { getSettings, saveSettings, type AppSettings, type VignetteCost } from '@/lib/settings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import type { Vehicle } from '@/lib/types';
 import { getVehicles } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
@@ -39,20 +38,14 @@ export function SettingsClient() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { register, handleSubmit, reset, control, formState: { isSubmitting, errors } } = useForm<SettingsFormData>({
+  const { register, handleSubmit, reset, control, formState: { isSubmitting, errors }, setValue, watch } = useForm<SettingsFormData>({
     resolver: zodResolver(SettingsSchema),
-    defaultValues: getSettings(), // Load initial settings
+    defaultValues: getSettings(),
   });
 
-  const { fields: vignetteEssenceFields } = useFieldArray({
-    control,
-    name: 'vignetteEssence',
-  });
-  const { fields: vignetteDieselFields } = useFieldArray({
-    control,
-    name: 'vignetteDiesel',
-  });
-  
+  const vignetteEssence = watch('vignetteEssence');
+  const vignetteDiesel = watch('vignetteDiesel');
+
   useEffect(() => {
     async function loadData() {
       if (!user) {
@@ -87,36 +80,40 @@ export function SettingsClient() {
       });
     }
   };
-
-  const relevantVignetteIndices = useMemo(() => {
-    const essenceRanges = new Set<string>();
-    const dieselRanges = new Set<string>();
+  
+  const relevantVignetteFields = useMemo(() => {
+    const fields: { label: string, fieldName: `vignetteEssence.${number}.cost` | `vignetteDiesel.${number}.cost` }[] = [];
+    const addedRanges = new Set<string>();
 
     vehicles.forEach(v => {
-        const power = v.fiscalPower;
-        if (!power) return;
+        if (!v.fiscalPower) return;
 
-        const table = v.fuelType === 'Diesel' ? vignetteDieselFields : vignetteEssenceFields;
-        const targetSet = v.fuelType === 'Diesel' ? dieselRanges : essenceRanges;
-
-        const powerRange = table.find(field => {
+        const table = v.fuelType === 'Diesel' ? vignetteDiesel : vignetteEssence;
+        const fieldNamePrefix = v.fuelType === 'Diesel' ? 'vignetteDiesel' : 'vignetteEssence';
+        
+        const powerRangeIndex = table.findIndex(field => {
             if (field.range.includes('-')) {
                 const [min, max] = field.range.split('-').map(Number);
-                return power >= min && power <= max;
+                return v.fiscalPower >= min && v.fiscalPower <= max;
             }
-            return Number(field.range) === power;
+            return Number(field.range) === v.fiscalPower;
         });
 
-        if (powerRange) {
-            targetSet.add(powerRange.range);
+        if (powerRangeIndex !== -1) {
+            const range = table[powerRangeIndex].range;
+            const key = `${v.fuelType}-${range}`;
+            if (!addedRanges.has(key)) {
+                fields.push({
+                    label: `${v.fuelType} (${range} CV)`,
+                    fieldName: `${fieldNamePrefix}.${powerRangeIndex}.cost` as any,
+                });
+                addedRanges.add(key);
+            }
         }
     });
     
-    return {
-        essence: vignetteEssenceFields.map((f, i) => essenceRanges.has(f.range) ? i : -1).filter(i => i !== -1),
-        diesel: vignetteDieselFields.map((f, i) => dieselRanges.has(f.range) ? i : -1).filter(i => i !== -1),
-    };
-  }, [vehicles, vignetteEssenceFields, vignetteDieselFields]);
+    return fields;
+  }, [vehicles, vignetteEssence, vignetteDiesel]);
 
 
   if (isLoading) {
@@ -138,7 +135,7 @@ export function SettingsClient() {
     )
   }
   
-  const hasRelevantVignettes = relevantVignetteIndices.essence.length > 0 || relevantVignetteIndices.diesel.length > 0;
+  const hasRelevantVignettes = relevantVignetteFields.length > 0;
 
   return (
     <Card className="max-w-4xl mx-auto">
@@ -151,7 +148,7 @@ export function SettingsClient() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4 rounded-md border p-4">
-            <h4 className="text-base font-semibold">Carburant</h4>
+            <h4 className="text-base font-semibold">Prix des Carburants</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="priceEssence">Prix / Litre Essence (TND)</Label>
@@ -165,63 +162,41 @@ export function SettingsClient() {
               </div>
             </div>
           </div>
+          
           <div className="space-y-4 rounded-md border p-4">
-             <h4 className="text-base font-semibold">Entretien</h4>
-             <div className="space-y-2">
-                <Label htmlFor="costVisiteTechnique">Coût Visite Technique (TND)</Label>
-                <Input id="costVisiteTechnique" type="number" step="0.001" {...register('costVisiteTechnique')} />
-                {errors.costVisiteTechnique && <p className="text-sm text-destructive">{errors.costVisiteTechnique.message}</p>}
+             <h4 className="text-base font-semibold">Coûts des Entretiens</h4>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                <div className="space-y-2">
+                    <Label htmlFor="costVisiteTechnique">Coût Visite Technique (TND)</Label>
+                    <Input id="costVisiteTechnique" type="number" step="0.001" {...register('costVisiteTechnique')} />
+                    {errors.costVisiteTechnique && <p className="text-sm text-destructive">{errors.costVisiteTechnique.message}</p>}
+                </div>
+                {hasRelevantVignettes && (
+                     <div className="space-y-2">
+                        <Label>Coûts Vignette Personnalisés</Label>
+                        <p className="text-xs text-muted-foreground pb-2">
+                            Modifiez ici les coûts de la vignette pour les véhicules de votre garage.
+                        </p>
+                        <div className="space-y-2">
+                         {relevantVignetteFields.map(field => (
+                            <div key={field.fieldName} className="flex items-center gap-4">
+                                <Label className="flex-1" htmlFor={field.fieldName}>
+                                    {field.label}
+                                </Label>
+                                <Input
+                                    id={field.fieldName}
+                                    type="number"
+                                    step="0.001"
+                                    className="max-w-[120px]"
+                                    {...register(field.fieldName)}
+                                />
+                            </div>
+                        ))}
+                        </div>
+                    </div>
+                )}
              </div>
           </div>
-          
-          {hasRelevantVignettes && (
-             <div className="space-y-4 rounded-md border p-4">
-                <h4 className="text-base font-semibold">Coûts Vignette Personnalisés</h4>
-                <p className="text-sm text-muted-foreground">
-                    Modifiez ici les coûts de la vignette pour les véhicules de votre garage.
-                </p>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {relevantVignetteIndices.essence.length > 0 && (
-                        <div className="space-y-2">
-                            <h5 className="font-medium">Essence</h5>
-                             {relevantVignetteIndices.essence.map(index => (
-                                <div key={vignetteEssenceFields[index].id} className="flex items-center gap-4">
-                                    <Label className="flex-1" htmlFor={`vignetteEssence.${index}.cost`}>
-                                        {vignetteEssenceFields[index].range} CV
-                                    </Label>
-                                    <Input
-                                        id={`vignetteEssence.${index}.cost`}
-                                        type="number"
-                                        step="0.001"
-                                        className="max-w-[120px]"
-                                        {...register(`vignetteEssence.${index}.cost` as const)}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                     {relevantVignetteIndices.diesel.length > 0 && (
-                        <div className="space-y-2">
-                           <h5 className="font-medium">Diesel</h5>
-                            {relevantVignetteIndices.diesel.map(index => (
-                                <div key={vignetteDieselFields[index].id} className="flex items-center gap-4">
-                                    <Label className="flex-1" htmlFor={`vignetteDiesel.${index}.cost`}>
-                                        {vignetteDieselFields[index].range} CV
-                                    </Label>
-                                    <Input
-                                        id={`vignetteDiesel.${index}.cost`}
-                                        type="number"
-                                        step="0.001"
-                                        className="max-w-[120px]"
-                                        {...register(`vignetteDiesel.${index}.cost` as const)}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-          )}
 
         </CardContent>
         <CardFooter>
