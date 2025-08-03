@@ -800,24 +800,28 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
     useEffect(() => {
         if (initialData) return;
         const settings = getSettings();
+        const power = vehicle.fiscalPower;
 
         if (selectedTask === 'Visite technique') {
             setCost(settings.costVisiteTechnique.toString());
-        } else if (selectedTask === 'Vignette') {
-            const power = vehicle.fiscalPower;
-            if (power) {
-                if (power <= 4) setCost('60');
-                else if (power >= 5 && power <= 7) setCost('130');
-                else if (power === 8) setCost('180');
-                else setCost('');
-            } else {
-                toast({ title: 'Info', description: "Puissance fiscale non définie pour ce véhicule."});
-                setCost('');
-            }
+        } else if (selectedTask === 'Vignette' && power) {
+             const vignetteSettings = vehicle.fuelType === 'Diesel' ? settings.vignetteDiesel : settings.vignetteEssence;
+             const powerRange = vignetteSettings.find(v => {
+                if (v.range.includes('-')) {
+                    const [min, max] = v.range.split('-').map(Number);
+                    return power >= min && power <= max;
+                }
+                return Number(v.range) === power;
+             })
+             if (powerRange) {
+                 setCost(powerRange.cost.toString());
+             } else {
+                 setCost('');
+             }
         } else if (selectedTask !== 'Vidange' && selectedTask !== 'Paiement Assurance') {
             setCost('');
         }
-    }, [selectedTask, vehicle.fiscalPower, toast, initialData]);
+    }, [selectedTask, vehicle.fiscalPower, vehicle.fuelType, initialData]);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -1247,6 +1251,7 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
 }
 
     
+
 
 
 

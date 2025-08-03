@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm, type SubmitHandler } from 'react-hook-form';
+import { useForm, type SubmitHandler, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { getSettings, saveSettings, type AppSettings } from '@/lib/settings';
@@ -11,19 +11,40 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+
+const VignetteCostSchema = z.object({
+  range: z.string(),
+  cost: z.coerce.number().min(0),
+});
 
 const SettingsSchema = z.object({
   priceEssence: z.coerce.number().min(0, 'Le prix doit être positif'),
   priceDiesel: z.coerce.number().min(0, 'Le prix doit être positif'),
   costVisiteTechnique: z.coerce.number().min(0, 'Le coût doit être positif'),
+  vignetteEssence: z.array(VignetteCostSchema),
+  vignetteDiesel: z.array(VignetteCostSchema),
 });
 
 type SettingsFormData = z.infer<typeof SettingsSchema>;
 
 export function SettingsClient() {
   const { toast } = useToast();
-  const { register, handleSubmit, reset, formState: { isSubmitting, errors } } = useForm<SettingsFormData>({
+  const { register, handleSubmit, reset, control, formState: { isSubmitting, errors } } = useForm<SettingsFormData>({
     resolver: zodResolver(SettingsSchema),
+    defaultValues: {
+      vignetteEssence: [],
+      vignetteDiesel: [],
+    }
+  });
+
+  const { fields: vignetteEssenceFields } = useFieldArray({
+    control,
+    name: 'vignetteEssence',
+  });
+  const { fields: vignetteDieselFields } = useFieldArray({
+    control,
+    name: 'vignetteDiesel',
   });
 
   useEffect(() => {
@@ -46,9 +67,44 @@ export function SettingsClient() {
       });
     }
   };
+  
+  const renderVignetteTable = (fields: any[], type: 'Essence' | 'Diesel') => (
+     <div className="space-y-4 rounded-md border p-4">
+        <h4 className="text-base font-semibold">Vignette - {type}</h4>
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>Puissance Fiscale (CV)</TableHead>
+                    <TableHead className="text-right">Coût (TND)</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {fields.map((field, index) => (
+                    <TableRow key={field.id}>
+                        <TableCell>
+                            <Input
+                                {...register(`vignette${type}.${index}.range` as const)}
+                                readOnly
+                                className="bg-muted border-none"
+                            />
+                        </TableCell>
+                        <TableCell>
+                             <Input
+                                type="number"
+                                step="0.001"
+                                className="text-right"
+                                {...register(`vignette${type}.${index}.cost` as const)}
+                            />
+                        </TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
+    </div>
+  )
 
   return (
-    <Card className="max-w-2xl mx-auto">
+    <Card className="max-w-4xl mx-auto">
       <form onSubmit={handleSubmit(onSubmit)}>
         <CardHeader>
           <CardTitle>Valeurs par Défaut</CardTitle>
@@ -80,6 +136,12 @@ export function SettingsClient() {
                 {errors.costVisiteTechnique && <p className="text-sm text-destructive">{errors.costVisiteTechnique.message}</p>}
              </div>
           </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {renderVignetteTable(vignetteEssenceFields, 'Essence')}
+            {renderVignetteTable(vignetteDieselFields, 'Diesel')}
+          </div>
+
         </CardContent>
         <CardFooter>
           <Button type="submit" disabled={isSubmitting}>
