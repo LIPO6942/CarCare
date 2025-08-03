@@ -818,7 +818,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
              } else {
                  setCost('');
              }
-        } else if (selectedTask !== 'Vidange' && selectedTask !== 'Paiement Assurance') {
+        } else {
             setCost('');
         }
     }, [selectedTask, vehicle.fiscalPower, vehicle.fuelType, initialData]);
@@ -1258,3 +1258,6 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
 
 
 
+
+
+    
