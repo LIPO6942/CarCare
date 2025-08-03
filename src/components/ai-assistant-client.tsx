@@ -7,7 +7,7 @@ import type { SuggestMaintenanceTasksOutput } from '@/ai/flows/suggest-maintenan
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Bot, Lightbulb, Loader, AlertTriangle, Car, History, Trash2 } from 'lucide-react';
+import { Bot, Lightbulb, Loader, AlertTriangle, Car, History, Trash2, MoreHorizontal } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { getVehicles, addAiDiagnostic, getAiDiagnosticsForVehicle, deleteAiDiagnostic } from '@/lib/data';
@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -327,29 +328,34 @@ export default function AiAssistantClient() {
                     <div className="space-y-4">
                         {history.map(item => (
                             <div key={item.id} className="border rounded-lg p-4 group relative">
-                                <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
-                                    onClick={() => setDiagnosticToDelete(item)}
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <div className="absolute top-2 right-2">
+                                     <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <MoreHorizontal className="h-4 w-4" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-2">
+                                            <Button 
+                                                variant="ghost" 
+                                                className="w-full justify-start text-destructive hover:text-destructive"
+                                                onClick={() => setDiagnosticToDelete(item)}
+                                            >
+                                                <Trash2 className="mr-2 h-4 w-4" /> Supprimer
+                                            </Button>
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
                                 <p className="text-sm text-muted-foreground mb-2">
                                     {format(new Date(item.createdAt), "d MMMM yyyy 'à' HH:mm", { locale: fr })}
                                 </p>
-                                <div className="mb-3">
-                                    <h4 className="font-semibold">Symptômes signalés</h4>
-                                    <p className="text-sm text-foreground/90">
-                                        <span className="font-medium">{item.symptoms.component}:</span> {item.symptoms.symptom}
+                                <div className="space-y-1">
+                                    <p className="text-sm">
+                                        <span className="font-semibold">{item.symptoms.component}:</span> {item.symptoms.symptom}
                                     </p>
-                                    {item.symptoms.details && <p className="text-xs text-muted-foreground mt-1">Détails: {item.symptoms.details}</p>}
-                                </div>
-                                <div>
-                                    <h4 className="font-semibold">Suggestions de l'IA</h4>
-                                    <ul className="list-disc pl-5 text-sm text-foreground/90 space-y-1 mt-1">
-                                        {item.suggestions.map((s, i) => <li key={i}>{s}</li>)}
-                                    </ul>
+                                    <p className="text-sm text-muted-foreground">
+                                        <span className="font-semibold">Suggestion IA:</span> {item.suggestions[0]}
+                                    </p>
                                 </div>
                             </div>
                         ))}
