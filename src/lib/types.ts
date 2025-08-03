@@ -55,3 +55,21 @@ export type Document = {
   invoiceDate?: string;
   invoiceAmount?: number;
 };
+
+export type AiDiagnostic = {
+  id: string;
+  userId: string;
+  vehicleId: string;
+  vehicleInfo: {
+    brand: string;
+    model: string;
+    licensePlate: string;
+  };
+  symptoms: {
+    component: string;
+    symptom: string;
+    details?: string;
+  };
+  suggestions: string[];
+  createdAt: string;
+}

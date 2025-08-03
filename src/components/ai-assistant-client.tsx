@@ -7,14 +7,18 @@ import type { SuggestMaintenanceTasksOutput } from '@/ai/flows/suggest-maintenan
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Bot, Lightbulb, Loader, AlertTriangle, Car } from 'lucide-react';
+import { Bot, Lightbulb, Loader, AlertTriangle, Car, History, Trash2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { getVehicles } from '@/lib/data';
-import type { Vehicle } from '@/lib/types';
+import { getVehicles, addAiDiagnostic, getAiDiagnosticsForVehicle, deleteAiDiagnostic } from '@/lib/data';
+import type { Vehicle, AiDiagnostic } from '@/lib/types';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
 import Link from 'next/link';
+import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -54,6 +58,7 @@ const carComponents = Object.keys(componentSymptomsMap);
 
 export default function AiAssistantClient() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
@@ -63,21 +68,45 @@ export default function AiAssistantClient() {
   const [selectedComponent, setSelectedComponent] = useState<string>('');
   const [selectedSymptom, setSelectedSymptom] = useState<string>('');
   
+  const [history, setHistory] = useState<AiDiagnostic[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [diagnosticToDelete, setDiagnosticToDelete] = useState<AiDiagnostic | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
   const availableSymptoms = selectedComponent ? componentSymptomsMap[selectedComponent] : [];
 
   useEffect(() => {
-    async function fetchUserVehicles() {
+    async function fetchInitialData() {
         if (!user) return;
         setIsLoading(true);
         const userVehicles = await getVehicles(user.uid);
         setVehicles(userVehicles);
-        if (userVehicles.length === 1) {
-            setSelectedVehicleId(userVehicles[0].id);
+        if (userVehicles.length > 0) {
+            // Select first vehicle by default
+            const firstVehicleId = userVehicles[0].id;
+            setSelectedVehicleId(firstVehicleId);
+            fetchHistory(firstVehicleId);
         }
         setIsLoading(false);
     }
-    fetchUserVehicles();
+    fetchInitialData();
   }, [user]);
+
+  const fetchHistory = async (vehicleId: string) => {
+      if (!user) return;
+      setIsLoadingHistory(true);
+      const diagnosticHistory = await getAiDiagnosticsForVehicle(vehicleId, user.uid);
+      setHistory(diagnosticHistory);
+      setIsLoadingHistory(false);
+  };
+
+  const handleVehicleChange = (vehicleId: string) => {
+    setSelectedVehicleId(vehicleId);
+    setResult(null);
+    setError(null);
+    setHistory([]);
+    fetchHistory(vehicleId);
+  }
 
   const handleComponentChange = (value: string) => {
       setSelectedComponent(value);
@@ -87,6 +116,11 @@ export default function AiAssistantClient() {
   const handleAction = async (formData: FormData) => {
     setResult(null);
     setError(null);
+    
+    if (!user) {
+        setError("Utilisateur non authentifié.");
+        return;
+    }
     
     const component = formData.get('component') as string;
     const symptom = formData.get('symptom') as string;
@@ -116,10 +150,43 @@ export default function AiAssistantClient() {
             issueDescription
         });
         setResult(response);
+        
+        // Save to history
+        await addAiDiagnostic({
+            userId: user.uid,
+            vehicleId: selectedVehicle.id,
+            vehicleInfo: {
+                brand: selectedVehicle.brand,
+                model: selectedVehicle.model,
+                licensePlate: selectedVehicle.licensePlate
+            },
+            symptoms: { component, symptom, details },
+            suggestions: response.suggestedTasks,
+            createdAt: new Date().toISOString()
+        });
+        // Refresh history
+        fetchHistory(selectedVehicle.id);
+
     } catch (e) {
         setError("Une erreur est survenue lors de la communication avec l'assistant IA.");
     }
   };
+  
+  const handleDelete = async () => {
+    if (!diagnosticToDelete || !user) return;
+    setIsDeleting(true);
+    try {
+        await deleteAiDiagnostic(diagnosticToDelete.id);
+        toast({ title: 'Succès', description: 'Diagnostic supprimé de l\'historique.' });
+        fetchHistory(diagnosticToDelete.vehicleId); // Refresh history
+        setDiagnosticToDelete(null);
+    } catch(e) {
+        toast({ title: 'Erreur', description: 'Impossible de supprimer le diagnostic.', variant: 'destructive' });
+    } finally {
+        setIsDeleting(false);
+    }
+  }
+
 
   if (isLoading) {
       return (
@@ -141,7 +208,7 @@ export default function AiAssistantClient() {
 
   if (vehicles.length === 0) {
     return (
-        <Card className="max-w-2xl mx-auto">
+        <Card className="max-w-2xl mx-auto mt-8">
             <CardHeader>
                 <CardTitle>Aucun Véhicule</CardTitle>
                 <CardDescription>Vous devez ajouter un véhicule avant de pouvoir utiliser l'assistant IA.</CardDescription>
@@ -157,88 +224,165 @@ export default function AiAssistantClient() {
   }
 
   return (
-    <Card className="max-w-2xl mx-auto">
-      <form action={handleAction}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bot className="h-6 w-6" />
-            <span>Diagnostic IA</span>
-          </CardTitle>
-          <CardDescription>
-            Guidez l'assistant en sélectionnant votre véhicule et le problème pour obtenir des suggestions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-            <div className="space-y-2">
-                <Label htmlFor="vehicle-select">Véhicule concerné</Label>
-                <Select name="vehicleId" required onValueChange={setSelectedVehicleId} value={selectedVehicleId}>
-                    <SelectTrigger id="vehicle-select">
-                        <SelectValue placeholder="Sélectionnez un véhicule" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {vehicles.map(v => <SelectItem key={v.id} value={v.id}>{v.brand} {v.model} ({v.licensePlate})</SelectItem>)}
-                    </SelectContent>
-                </Select>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                <Label htmlFor="component-select">Composant principal</Label>
-                <Select name="component" required onValueChange={handleComponentChange} value={selectedComponent}>
-                    <SelectTrigger id="component-select">
-                    <SelectValue placeholder="Sélectionnez un composant" />
-                    </SelectTrigger>
-                    <SelectContent>
-                    {carComponents.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                </div>
-                <div className="space-y-2">
-                <Label htmlFor="symptom-select">Symptôme principal</Label>
-                <Select name="symptom" required disabled={!selectedComponent} onValueChange={setSelectedSymptom} value={selectedSymptom}>
-                    <SelectTrigger id="symptom-select">
-                    <SelectValue placeholder={selectedComponent ? "Sélectionnez un symptôme" : "Choisissez d'abord un composant"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                    {availableSymptoms.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                </div>
-            </div>
-            <div>
-                <Label htmlFor="details-textarea">Détails supplémentaires (optionnel)</Label>
-                <Textarea
-                id="details-textarea"
-                name="details"
-                placeholder="Ex: Le bruit se produit uniquement en tournant à droite, à basse vitesse..."
-                rows={4}
-                className="mt-2 text-base"
-                />
-            </div>
-        </CardContent>
-        <CardFooter className="flex justify-end">
-          <SubmitButton />
-        </CardFooter>
-      </form>
+    <div className="max-w-2xl mx-auto space-y-8">
+      <Card>
+        <form action={handleAction}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bot className="h-6 w-6" />
+              <span>Diagnostic IA</span>
+            </CardTitle>
+            <CardDescription>
+              Guidez l'assistant en sélectionnant votre véhicule et le problème pour obtenir des suggestions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+              <div className="space-y-2">
+                  <Label htmlFor="vehicle-select">Véhicule concerné</Label>
+                  <Select name="vehicleId" required onValueChange={handleVehicleChange} value={selectedVehicleId}>
+                      <SelectTrigger id="vehicle-select">
+                          <SelectValue placeholder="Sélectionnez un véhicule" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          {vehicles.map(v => <SelectItem key={v.id} value={v.id}>{v.brand} {v.model} ({v.licensePlate})</SelectItem>)}
+                      </SelectContent>
+                  </Select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                  <Label htmlFor="component-select">Composant principal</Label>
+                  <Select name="component" required onValueChange={handleComponentChange} value={selectedComponent}>
+                      <SelectTrigger id="component-select">
+                      <SelectValue placeholder="Sélectionnez un composant" />
+                      </SelectTrigger>
+                      <SelectContent>
+                      {carComponents.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                  </Select>
+                  </div>
+                  <div className="space-y-2">
+                  <Label htmlFor="symptom-select">Symptôme principal</Label>
+                  <Select name="symptom" required disabled={!selectedComponent} onValueChange={setSelectedSymptom} value={selectedSymptom}>
+                      <SelectTrigger id="symptom-select">
+                      <SelectValue placeholder={selectedComponent ? "Sélectionnez un symptôme" : "Choisissez d'abord un composant"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                      {availableSymptoms.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                  </Select>
+                  </div>
+              </div>
+              <div>
+                  <Label htmlFor="details-textarea">Détails supplémentaires (optionnel)</Label>
+                  <Textarea
+                  id="details-textarea"
+                  name="details"
+                  placeholder="Ex: Le bruit se produit uniquement en tournant à droite, à basse vitesse..."
+                  rows={4}
+                  className="mt-2 text-base"
+                  />
+              </div>
+          </CardContent>
+          <CardFooter className="flex justify-end">
+            <SubmitButton />
+          </CardFooter>
+        </form>
 
-      {error && (
-        <div className="p-4 m-6 mt-0 border border-destructive/50 bg-destructive/10 rounded-lg text-destructive flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5" />
-          <p>{error}</p>
-        </div>
+        {error && (
+          <div className="p-4 m-6 mt-0 border border-destructive/50 bg-destructive/10 rounded-lg text-destructive flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5" />
+            <p>{error}</p>
+          </div>
+        )}
+
+        {result && result.suggestedTasks.length > 0 && (
+          <div className="p-6 pt-0">
+              <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold mb-4">Suggestions de l'IA</h3>
+                  <ul className="list-disc pl-5 space-y-2 bg-primary/5 p-4 rounded-md">
+                      {result.suggestedTasks.map((task, index) => (
+                      <li key={index} className="text-foreground/90">{task}</li>
+                      ))}
+                  </ul>
+              </div>
+          </div>
+        )}
+      </Card>
+      
+      {selectedVehicleId && (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <History className="h-6 w-6" />
+                    Historique des Diagnostics
+                </CardTitle>
+                <CardDescription>Diagnostics précédents pour le véhicule sélectionné.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoadingHistory ? (
+                    <div className="flex justify-center items-center py-8">
+                        <Loader className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                ) : history.length > 0 ? (
+                    <div className="space-y-4">
+                        {history.map(item => (
+                            <div key={item.id} className="border rounded-lg p-4 group relative">
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
+                                    onClick={() => setDiagnosticToDelete(item)}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                                <p className="text-sm text-muted-foreground mb-2">
+                                    {format(new Date(item.createdAt), "d MMMM yyyy 'à' HH:mm", { locale: fr })}
+                                </p>
+                                <div className="mb-3">
+                                    <h4 className="font-semibold">Symptômes signalés</h4>
+                                    <p className="text-sm text-foreground/90">
+                                        <span className="font-medium">{item.symptoms.component}:</span> {item.symptoms.symptom}
+                                    </p>
+                                    {item.symptoms.details && <p className="text-xs text-muted-foreground mt-1">Détails: {item.symptoms.details}</p>}
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold">Suggestions de l'IA</h4>
+                                    <ul className="list-disc pl-5 text-sm text-foreground/90 space-y-1 mt-1">
+                                        {item.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+                                    </ul>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-12 text-muted-foreground">
+                        <p>Aucun diagnostic n'a été enregistré pour ce véhicule.</p>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
       )}
 
-      {result && result.suggestedTasks.length > 0 && (
-        <div className="p-6 pt-0">
-            <div className="border-t pt-6">
-                <h3 className="text-lg font-semibold mb-4">Suggestions de l'IA</h3>
-                <ul className="list-disc pl-5 space-y-2 bg-primary/5 p-4 rounded-md">
-                    {result.suggestedTasks.map((task, index) => (
-                    <li key={index} className="text-foreground/90">{task}</li>
-                    ))}
-                </ul>
-            </div>
-        </div>
-      )}
-    </Card>
+      <AlertDialog open={!!diagnosticToDelete} onOpenChange={() => setDiagnosticToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce diagnostic ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible et supprimera cet enregistrement de votre historique.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Supprimer'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }

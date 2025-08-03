@@ -13,7 +13,7 @@ import {
   Timestamp,
   updateDoc,
 } from 'firebase/firestore';
-import type { Vehicle, Repair, Maintenance, FuelLog } from './types';
+import type { Vehicle, Repair, Maintenance, FuelLog, AiDiagnostic } from './types';
 import { deleteLocalDocumentsForVehicle } from './local-db';
 
 function docToType<T>(document: any): T {
@@ -78,7 +78,7 @@ export async function deleteVehicleById(id: string): Promise<void> {
     await deleteLocalDocumentsForVehicle(id);
 
     // Then, batch delete all Firestore documents
-    const collectionsToDelete = ['repairs', 'maintenance', 'fuelLogs'];
+    const collectionsToDelete = ['repairs', 'maintenance', 'fuelLogs', 'aiDiagnostics'];
     for (const collectionName of collectionsToDelete) {
         const colRef = collection(db, collectionName);
         const q = query(colRef, where('vehicleId', '==', id));
@@ -199,6 +199,20 @@ export async function deleteMaintenance(id: string): Promise<void> {
 
 export async function deleteFuelLog(id: string): Promise<void> {
   await deleteDoc(doc(db, 'fuelLogs', id));
+}
+
+// --- AI Diagnostics History ---
+export async function addAiDiagnostic(diagnosticData: Omit<AiDiagnostic, 'id'>): Promise<AiDiagnostic> {
+    const docRef = await addDoc(collection(db, 'aiDiagnostics'), diagnosticData);
+    return { id: docRef.id, ...diagnosticData };
+}
+
+export async function getAiDiagnosticsForVehicle(vehicleId: string, userId: string): Promise<AiDiagnostic[]> {
+    return getSubCollectionForVehicle<AiDiagnostic>(vehicleId, userId, 'aiDiagnostics', 'createdAt');
+}
+
+export async function deleteAiDiagnostic(id: string): Promise<void> {
+    await deleteDoc(doc(db, 'aiDiagnostics', id));
 }
 
 // --- Sample Data ---
