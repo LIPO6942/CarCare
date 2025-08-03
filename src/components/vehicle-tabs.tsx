@@ -1021,44 +1021,48 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                     {Object.entries(groupedLogs).sort(([yearA], [yearB]) => Number(yearB) - Number(yearA)).map(([year, months]) => (
                         <AccordionItem value={year} key={year}>
                             <AccordionTrigger className="text-lg font-semibold">Année {year}</AccordionTrigger>
-                            <AccordionContent className="pl-2 space-y-4">
-                                {Object.entries(months).map(([month, data]) => (
-                                     <div key={month} className="border-l-2 pl-4">
-                                        <h4 className="text-md font-medium mb-2">{month}</h4>
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Date</TableHead>
-                                                    <TableHead>Kilométrage</TableHead>
-                                                    <TableHead>Quantité</TableHead>
-                                                    <TableHead>Prix/L</TableHead>
-                                                    <TableHead className="text-right">Coût Total</TableHead>
-                                                    <TableHead className="w-[50px]"></TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {data.logs.map((log) => (
-                                                    <TableRow key={log.id}>
-                                                        <TableCell>{safeFormatDate(log.date)}</TableCell>
-                                                        <TableCell>{safeFormatNumber(log.mileage)} km</TableCell>
-                                                        <TableCell>{safeFormatNumber(log.quantity)} L</TableCell>
-                                                        <TableCell>{safeFormatCurrency(log.pricePerLiter)}</TableCell>
-                                                        <TableCell className="text-right">{safeFormatCurrency(log.totalCost)}</TableCell>
-                                                        <TableCell><ActionMenu onEdit={() => handleEdit(log)} onDelete={() => setItemToDelete(log)} /></TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                            <TableFooter>
-                                                <TableRow>
-                                                    <TableCell colSpan={2} className="font-semibold">Total {month}</TableCell>
-                                                    <TableCell className="font-semibold">{data.totalQuantity.toFixed(2)} L</TableCell>
-                                                    <TableCell colSpan={2} className="text-right font-semibold">{safeFormatCurrency(data.totalCost)}</TableCell>
-                                                    <TableCell></TableCell>
-                                                </TableRow>
-                                            </TableFooter>
-                                        </Table>
-                                    </div>
-                                ))}
+                            <AccordionContent className="pl-2 space-y-2">
+                                <Accordion type="multiple" className="w-full">
+                                    {Object.entries(months).map(([month, data]) => (
+                                        <AccordionItem value={month} key={month}>
+                                            <AccordionTrigger className="text-md font-medium border-l-2 pl-4">{month}</AccordionTrigger>
+                                            <AccordionContent className="pl-4">
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>Date</TableHead>
+                                                            <TableHead>Kilométrage</TableHead>
+                                                            <TableHead>Quantité</TableHead>
+                                                            <TableHead>Prix/L</TableHead>
+                                                            <TableHead className="text-right">Coût Total</TableHead>
+                                                            <TableHead className="w-[50px]"></TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {data.logs.map((log) => (
+                                                            <TableRow key={log.id}>
+                                                                <TableCell>{safeFormatDate(log.date)}</TableCell>
+                                                                <TableCell>{safeFormatNumber(log.mileage)} km</TableCell>
+                                                                <TableCell>{safeFormatNumber(log.quantity)} L</TableCell>
+                                                                <TableCell>{safeFormatCurrency(log.pricePerLiter)}</TableCell>
+                                                                <TableCell className="text-right">{safeFormatCurrency(log.totalCost)}</TableCell>
+                                                                <TableCell><ActionMenu onEdit={() => handleEdit(log)} onDelete={() => setItemToDelete(log)} /></TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                    <TableFooter>
+                                                        <TableRow>
+                                                            <TableCell colSpan={2} className="font-semibold">Total {month}</TableCell>
+                                                            <TableCell className="font-semibold">{data.totalQuantity.toFixed(2)} L</TableCell>
+                                                            <TableCell colSpan={2} className="text-right font-semibold">{safeFormatCurrency(data.totalCost)}</TableCell>
+                                                            <TableCell></TableCell>
+                                                        </TableRow>
+                                                    </TableFooter>
+                                                </Table>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    ))}
+                                </Accordion>
                             </AccordionContent>
                         </AccordionItem>
                     ))}
@@ -1243,6 +1247,7 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
 }
 
     
+
 
 
 
