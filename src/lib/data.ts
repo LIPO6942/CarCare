@@ -215,6 +215,30 @@ export async function deleteAiDiagnostic(id: string): Promise<void> {
     await deleteDoc(doc(db, 'aiDiagnostics', id));
 }
 
+// --- FCM Tokens for Notifications ---
+export async function saveFcmToken(userId: string, token: string): Promise<void> {
+    const tokensRef = collection(db, 'fcmTokens');
+    // Check if the token already exists for this user to avoid duplicates
+    const q = query(tokensRef, where('userId', '==', userId), where('token', '==', token));
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) {
+        await addDoc(tokensRef, { userId, token, createdAt: new Date().toISOString() });
+    }
+}
+
+export async function removeFcmToken(userId: string, token: string): Promise<void> {
+    const tokensRef = collection(db, 'fcmTokens');
+    const q = query(tokensRef, where('userId', '==', userId), where('token', '==', token));
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+        const batch = writeBatch(db);
+        querySnapshot.docs.forEach(document => batch.delete(document.ref));
+        await batch.commit();
+    }
+}
+
+
 // --- Sample Data ---
 export async function createSampleDataForUser(userId: string): Promise<void> {
   const brand = 'Peugeot';

@@ -15,6 +15,7 @@ import type { Vehicle } from '@/lib/types';
 import { getVehicles } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
+import { NotificationSettings } from './notification-settings';
 
 
 const VignetteCostSchema = z.object({
@@ -118,94 +119,109 @@ export function SettingsClient() {
 
   if (isLoading) {
     return (
-        <Card className="max-w-4xl mx-auto">
-            <CardHeader>
-                <Skeleton className="h-8 w-48" />
-                <Skeleton className="h-4 w-full max-w-md" />
-            </CardHeader>
-            <CardContent className="space-y-6">
-                <Skeleton className="h-32 w-full" />
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-48 w-full" />
-            </CardContent>
-            <CardFooter>
-                <Skeleton className="h-10 w-48" />
-            </CardFooter>
-        </Card>
+        <div className="space-y-6">
+            <Card className="max-w-4xl mx-auto">
+                <CardHeader>
+                    <Skeleton className="h-8 w-48" />
+                    <Skeleton className="h-4 w-full max-w-md" />
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-48 w-full" />
+                </CardContent>
+                <CardFooter>
+                    <Skeleton className="h-10 w-48" />
+                </CardFooter>
+            </Card>
+             <Card className="max-w-4xl mx-auto">
+                <CardHeader>
+                    <Skeleton className="h-8 w-40" />
+                    <Skeleton className="h-4 w-full max-w-lg" />
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-10 w-52" />
+                </CardContent>
+             </Card>
+        </div>
     )
   }
   
   const hasRelevantVignettes = relevantVignetteFields.length > 0;
 
   return (
-    <Card className="max-w-4xl mx-auto">
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <CardHeader>
-          <CardTitle>Valeurs par Défaut</CardTitle>
-          <CardDescription>
-            Définissez les prix et coûts utilisés par défaut lors de l'ajout de nouvelles entrées.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-4 rounded-md border p-4">
-            <h4 className="text-base font-semibold">Prix des Carburants</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="priceEssence">Prix / Litre Essence (TND)</Label>
-                <Input id="priceEssence" type="number" step="0.001" {...register('priceEssence')} />
-                {errors.priceEssence && <p className="text-sm text-destructive">{errors.priceEssence.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="priceDiesel">Prix / Litre Diesel (TND)</Label>
-                <Input id="priceDiesel" type="number" step="0.001" {...register('priceDiesel')} />
-                 {errors.priceDiesel && <p className="text-sm text-destructive">{errors.priceDiesel.message}</p>}
-              </div>
-            </div>
-          </div>
-          
-          <div className="space-y-4 rounded-md border p-4">
-             <h4 className="text-base font-semibold">Coûts des Entretiens</h4>
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+    <div className="space-y-6">
+        <Card className="max-w-4xl mx-auto">
+        <form onSubmit={handleSubmit(onSubmit)}>
+            <CardHeader>
+            <CardTitle>Valeurs par Défaut</CardTitle>
+            <CardDescription>
+                Définissez les prix et coûts utilisés par défaut lors de l'ajout de nouvelles entrées.
+            </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+            <div className="space-y-4 rounded-md border p-4">
+                <h4 className="text-base font-semibold">Prix des Carburants</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="costVisiteTechnique">Coût Visite Technique (TND)</Label>
-                    <Input id="costVisiteTechnique" type="number" step="0.001" {...register('costVisiteTechnique')} />
-                    {errors.costVisiteTechnique && <p className="text-sm text-destructive">{errors.costVisiteTechnique.message}</p>}
+                    <Label htmlFor="priceEssence">Prix / Litre Essence (TND)</Label>
+                    <Input id="priceEssence" type="number" step="0.001" {...register('priceEssence')} />
+                    {errors.priceEssence && <p className="text-sm text-destructive">{errors.priceEssence.message}</p>}
                 </div>
-                {hasRelevantVignettes && (
-                     <div className="space-y-2">
-                        <Label>Coûts Vignette Personnalisés</Label>
-                        <p className="text-xs text-muted-foreground pb-2">
-                            Modifiez ici les coûts de la vignette pour les véhicules de votre garage.
-                        </p>
-                        <div className="space-y-2">
-                         {relevantVignetteFields.map(field => (
-                            <div key={field.fieldName} className="flex items-center gap-4">
-                                <Label className="flex-1" htmlFor={field.fieldName}>
-                                    {field.label}
-                                </Label>
-                                <Input
-                                    id={field.fieldName}
-                                    type="number"
-                                    step="0.001"
-                                    className="max-w-[120px]"
-                                    {...register(field.fieldName)}
-                                />
-                            </div>
-                        ))}
-                        </div>
+                <div className="space-y-2">
+                    <Label htmlFor="priceDiesel">Prix / Litre Diesel (TND)</Label>
+                    <Input id="priceDiesel" type="number" step="0.001" {...register('priceDiesel')} />
+                    {errors.priceDiesel && <p className="text-sm text-destructive">{errors.priceDiesel.message}</p>}
+                </div>
+                </div>
+            </div>
+            
+            <div className="space-y-4 rounded-md border p-4">
+                <h4 className="text-base font-semibold">Coûts des Entretiens</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                    <div className="space-y-2">
+                        <Label htmlFor="costVisiteTechnique">Coût Visite Technique (TND)</Label>
+                        <Input id="costVisiteTechnique" type="number" step="0.001" {...register('costVisiteTechnique')} />
+                        {errors.costVisiteTechnique && <p className="text-sm text-destructive">{errors.costVisiteTechnique.message}</p>}
                     </div>
-                )}
-             </div>
-          </div>
+                    {hasRelevantVignettes && (
+                        <div className="space-y-2">
+                            <Label>Coûts Vignette Personnalisés</Label>
+                            <p className="text-xs text-muted-foreground pb-2">
+                                Modifiez ici les coûts de la vignette pour les véhicules de votre garage.
+                            </p>
+                            <div className="space-y-2">
+                            {relevantVignetteFields.map(field => (
+                                <div key={field.fieldName} className="flex items-center gap-4">
+                                    <Label className="flex-1" htmlFor={field.fieldName}>
+                                        {field.label}
+                                    </Label>
+                                    <Input
+                                        id={field.fieldName}
+                                        type="number"
+                                        step="0.001"
+                                        className="max-w-[120px]"
+                                        {...register(field.fieldName)}
+                                    />
+                                </div>
+                            ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
 
-        </CardContent>
-        <CardFooter>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Enregistrer les paramètres
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+            </CardContent>
+            <CardFooter>
+            <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Enregistrer les paramètres
+            </Button>
+            </CardFooter>
+        </form>
+        </Card>
+        
+        <NotificationSettings />
+    </div>
   );
 }
