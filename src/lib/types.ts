@@ -72,3 +72,10 @@ export type AiDiagnostic = {
   suggestions: string[];
   createdAt: string;
 }
+
+export type FcmToken = {
+  id?: string;
+  userId: string;
+  token: string;
+  createdAt: any;
+}

@@ -12,8 +12,9 @@ import {
   writeBatch,
   Timestamp,
   updateDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
-import type { Vehicle, Repair, Maintenance, FuelLog, AiDiagnostic } from './types';
+import type { Vehicle, Repair, Maintenance, FuelLog, AiDiagnostic, FcmToken } from './types';
 import { deleteLocalDocumentsForVehicle, deleteVehicleImage } from './local-db';
 
 function docToType<T>(document: any): T {
@@ -216,6 +217,21 @@ export async function getAiDiagnosticsForVehicle(vehicleId: string, userId: stri
 export async function deleteAiDiagnostic(id: string): Promise<void> {
     await deleteDoc(doc(db, 'aiDiagnostics', id));
 }
+
+// --- FCM Tokens ---
+export async function saveFcmToken(tokenData: Omit<FcmToken, 'id' | 'createdAt'>): Promise<void> {
+    const tokensRef = collection(db, 'fcmTokens');
+    // Check if the token already exists for this user to avoid duplicates
+    const q = query(tokensRef, where('userId', '==', tokenData.userId), where('token', '==', tokenData.token));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+        // If token doesn't exist, add it.
+        await addDoc(tokensRef, { ...tokenData, createdAt: serverTimestamp() });
+    }
+    // If token exists, do nothing.
+}
+
 
 // --- Sample Data ---
 export async function createSampleDataForUser(userId: string): Promise<void> {

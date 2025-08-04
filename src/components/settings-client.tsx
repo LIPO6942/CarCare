@@ -10,11 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Bell, BellOff, Loader2 } from 'lucide-react';
 import type { Vehicle } from '@/lib/types';
 import { getVehicles } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
+import { useNotifications } from '@/hooks/use-notifications';
+
 
 const VignetteCostSchema = z.object({
   range: z.string(),
@@ -30,6 +32,52 @@ const SettingsSchema = z.object({
 });
 
 type SettingsFormData = z.infer<typeof SettingsSchema>;
+
+function NotificationSettingsCard() {
+    const { requestPermission, isPermissionGranted, isRequesting } = useNotifications();
+
+    if (isPermissionGranted === null) {
+        return null; // Don't render until we know the permission status
+    }
+
+    return (
+        <Card className="max-w-4xl mx-auto">
+            <CardHeader>
+                <CardTitle>Notifications</CardTitle>
+                <CardDescription>
+                    Recevez des rappels pour les échéances importantes directement sur votre appareil.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isPermissionGranted ? (
+                    <div className="flex items-center gap-4 p-4 rounded-lg bg-green-50 text-green-800 border border-green-200">
+                        <Bell className="h-6 w-6 text-green-600"/>
+                        <div>
+                            <h4 className="font-semibold">Les notifications sont activées.</h4>
+                            <p className="text-sm">Vous recevrez des rappels pour les entretiens à venir.</p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-4 p-4 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
+                         <BellOff className="h-6 w-6 text-amber-600"/>
+                        <div>
+                            <h4 className="font-semibold">Les notifications ne sont pas activées.</h4>
+                            <p className="text-sm">Cliquez sur le bouton pour autoriser les notifications.</p>
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+            {!isPermissionGranted && (
+                 <CardFooter>
+                    <Button onClick={requestPermission} disabled={isRequesting}>
+                        {isRequesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bell className="mr-2 h-4 w-4"/>}
+                        {isRequesting ? 'En cours...' : 'Activer les notifications'}
+                    </Button>
+                </CardFooter>
+            )}
+        </Card>
+    );
+}
 
 export function SettingsClient() {
   const { toast } = useToast();
@@ -149,6 +197,7 @@ export function SettingsClient() {
 
   return (
     <div className="space-y-6">
+        <NotificationSettingsCard />
         <Card className="max-w-4xl mx-auto">
         <form onSubmit={handleSubmit(onSubmit)}>
             <CardHeader>
