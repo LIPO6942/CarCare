@@ -1,32 +1,38 @@
-// IMPORTANT: Ce fichier ne peut pas utiliser de variables d'environnement,
-// car il est exécuté dans un contexte de service worker isolé.
-// Les valeurs de configuration Firebase publiques doivent être codées en dur ici.
+// public/firebase-messaging-sw.js
 
-import { initializeApp, getApps } from 'firebase/app';
-import { getMessaging, onBackgroundMessage } from 'firebase/messaging/sw';
+// IMPORTANT: This file cannot use ES6 modules (import/export),
+// so we use importScripts to load the Firebase SDK.
 
-// Assurez-vous que ces valeurs correspondent exactement à votre configuration Firebase.
+// Use the latest version of the Firebase SDK
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
+
+// IMPORTANT: Replace with your actual Firebase project configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDw9nRE2KLboTwoEUZqSYNGLKnYg7lNWH4",
-  authDomain: "car-care-3bc4d.firebaseapp.com",
-  projectId: "car-care-3bc4d",
-  storageBucket: "car-care-3bc4d.firebasestorage.app",
-  messagingSenderId: "1077651378480",
-  appId: "1:1077651378480:web:03f8bc830a077e4ad878f5"
+    apiKey: "YOUR_NEXT_PUBLIC_FIREBASE_API_KEY",
+    authDomain: "YOUR_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+    projectId: "YOUR_NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+    storageBucket: "YOUR_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+    messagingSenderId: "YOUR_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+    appId: "YOUR_NEXT_PUBLIC_FIREBASE_APP_ID"
 };
 
+// Initialize the Firebase app in the service worker
+firebase.initializeApp(firebaseConfig);
 
-// Initialisez Firebase
-// Vérifiez si l'application est déjà initialisée pour éviter les erreurs.
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const messaging = getMessaging(app);
+// Retrieve an instance of Firebase Messaging so that it can handle background messages.
+const messaging = firebase.messaging();
 
-onBackgroundMessage(messaging, (payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message ', payload);
+messaging.onBackgroundMessage((payload) => {
+  console.log(
+    '[firebase-messaging-sw.js] Received background message ',
+    payload
+  );
   
-  const notificationTitle = payload.notification?.title || 'Nouvelle Notification';
+  // Customize notification here
+  const notificationTitle = payload.notification.title;
   const notificationOptions = {
-    body: payload.notification?.body || '',
+    body: payload.notification.body,
     icon: '/android-chrome-192x192.png'
   };
 
