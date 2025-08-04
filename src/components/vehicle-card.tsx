@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2, Droplets } from 'lucide-react';
 import type { Vehicle } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,12 +25,32 @@ import { useToast } from '@/hooks/use-toast';
 import { deleteVehicleById } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Loader2 } from 'lucide-react';
+import { getVehicleImage } from '@/lib/local-db';
 
 export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null }) {
   const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadImage() {
+        const imageBlob = await getVehicleImage(vehicle.id);
+        if (imageBlob) {
+            setImageUrl(URL.createObjectURL(imageBlob));
+        }
+    }
+    loadImage();
+    
+    // Cleanup the object URL when the component unmounts
+    return () => {
+        if (imageUrl) {
+            URL.revokeObjectURL(imageUrl);
+        }
+    }
+  }, [vehicle.id]);
+
 
   async function handleDelete() {
     setIsDeleting(true);
@@ -95,7 +115,7 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
              <div className="relative h-48 w-full bg-muted/30 rounded-t-lg flex items-center justify-center p-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={vehicle.imageUrl || 'https://placehold.co/600x400.png'}
+                src={imageUrl || 'https://placehold.co/600x400.png'}
                 alt={`Photo de ${vehicle.brand || ''} ${vehicle.model || ''}`}
                 className="h-full w-full object-contain"
                 onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}

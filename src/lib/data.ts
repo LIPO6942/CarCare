@@ -14,7 +14,7 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import type { Vehicle, Repair, Maintenance, FuelLog, AiDiagnostic } from './types';
-import { deleteLocalDocumentsForVehicle } from './local-db';
+import { deleteLocalDocumentsForVehicle, deleteVehicleImage } from './local-db';
 
 function docToType<T>(document: any): T {
     const data = document.data();
@@ -76,6 +76,8 @@ export async function deleteVehicleById(id: string): Promise<void> {
     
     // Delete associated local documents from IndexedDB
     await deleteLocalDocumentsForVehicle(id);
+    await deleteVehicleImage(id);
+
 
     // Then, batch delete all Firestore documents
     const collectionsToDelete = ['repairs', 'maintenance', 'fuelLogs', 'aiDiagnostics'];
@@ -226,7 +228,6 @@ export async function createSampleDataForUser(userId: string): Promise<void> {
     year: 2021,
     licensePlate: 'XX-123-YY',
     fuelType: 'Essence' as const,
-    imageUrl: 'https://placehold.co/600x400.png',
     fiscalPower: 6,
   };
   const vehicle = await addVehicle(vehicleData, userId);

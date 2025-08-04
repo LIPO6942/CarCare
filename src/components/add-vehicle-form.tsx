@@ -17,6 +17,7 @@ import type { Vehicle } from '@/lib/types';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
 import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
+import { saveVehicleImage } from '@/lib/local-db';
 
 
 const VehicleSchema = z.object({
@@ -61,17 +62,21 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: (vehicle: Vehic
     }
 
     try {
-        let imageUrl = 'https://placehold.co/600x400.png';
+        const newVehicle = await addVehicle(validatedFields.data, user.uid);
+        
         try {
-            imageUrl = await generateVehicleImage({ 
+            const imageUrl = await generateVehicleImage({ 
                 brand: validatedFields.data.brand, 
                 model: validatedFields.data.model 
             });
-        } catch (aiError) {
-            console.warn("AI image generation failed, falling back to placeholder.", aiError);
-        }
+            // Convert data URI to Blob and save to IndexedDB
+            const response = await fetch(imageUrl);
+            const blob = await response.blob();
+            await saveVehicleImage(newVehicle.id, blob);
 
-        const newVehicle = await addVehicle({ ...validatedFields.data, imageUrl }, user.uid);
+        } catch (aiError) {
+            console.warn("AI image generation/saving failed, skipping.", aiError);
+        }
         
         toast({
           title: 'Succès',

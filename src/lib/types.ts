@@ -6,7 +6,6 @@ export type Vehicle = {
   year: number;
   licensePlate: string;
   fuelType: 'Essence' | 'Diesel' | 'Électrique' | 'Hybride';
-  imageUrl?: string;
   fiscalPower?: number;
 };
 
