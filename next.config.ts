@@ -4,10 +4,8 @@ const withPWA = require('@ducanh2912/next-pwa').default({
     dest: 'public',
     register: true,
     skipWaiting: true, // Set to true to activate new service worker immediately
-    // Exclude the custom service worker from the PWA build
-    swSrc: undefined, 
-    // This is important: it tells next-pwa to not overwrite our custom firebase-messaging-sw.js
-    publicExcludes: ['!firebase-messaging-sw.js'],
+    // This is important: it tells next-pwa to not overwrite our custom firebase-messaging-sw.js and OneSignal files
+    publicExcludes: ['!firebase-messaging-sw.js', '!OneSignalSDKWorker.js', '!OneSignalSDKUpdaterWorker.js'],
 });
 
 const nextConfig: NextConfig = {
