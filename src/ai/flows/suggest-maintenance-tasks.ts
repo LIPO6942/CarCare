@@ -10,6 +10,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/googleai';
 import {z} from 'genkit';
 
 const SuggestMaintenanceTasksInputSchema = z.object({
@@ -32,6 +33,7 @@ const prompt = ai.definePrompt({
   name: 'suggestMaintenanceTasksPrompt',
   input: {schema: SuggestMaintenanceTasksInputSchema},
   output: {schema: SuggestMaintenanceTasksOutputSchema},
+  model: googleAI.model('gemini-pro'),
   prompt: `Vous êtes un mécanicien expert. Un utilisateur décrira un problème qu'il rencontre avec sa voiture.
 En vous basant sur la description et les informations du véhicule, suggérez une liste de tâches d'entretien ou de réparations potentielles qui pourraient être nécessaires. Prenez en compte la marque et le modèle pour des diagnostics plus spécifiques si possible.
 La réponse doit être exclusivement en français. Retournez les tâches sous forme de liste.
