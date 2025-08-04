@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2, Droplets } from 'lucide-react';
+import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2, Droplets, RefreshCw } from 'lucide-react';
 import type { Vehicle } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,22 +25,29 @@ import { useToast } from '@/hooks/use-toast';
 import { deleteVehicleById } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Loader2 } from 'lucide-react';
-import { getVehicleImage } from '@/lib/local-db';
+import { getVehicleImage, saveVehicleImage } from '@/lib/local-db';
+import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 
 export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null }) {
   const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const { toast } = useToast();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadImage() {
-        const imageBlob = await getVehicleImage(vehicle.id);
-        if (imageBlob) {
-            setImageUrl(URL.createObjectURL(imageBlob));
+  const loadImage = async () => {
+    const imageBlob = await getVehicleImage(vehicle.id);
+    if (imageBlob) {
+        // Revoke the old URL if it exists to prevent memory leaks
+        if (imageUrl) {
+            URL.revokeObjectURL(imageUrl);
         }
+        setImageUrl(URL.createObjectURL(imageBlob));
     }
+  }
+
+  useEffect(() => {
     loadImage();
     
     // Cleanup the object URL when the component unmounts
@@ -86,6 +93,33 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
     setShowDeleteDialog(false);
   }
 
+  const handleRegenerateImage = async () => {
+    setIsGeneratingImage(true);
+    toast({ title: "Génération d'image en cours...", description: "L'IA dessine votre voiture. Cela peut prendre quelques secondes." });
+
+    try {
+        const generatedDataUrl = await generateVehicleImage({
+            brand: vehicle.brand,
+            model: vehicle.model
+        });
+
+        const response = await fetch(generatedDataUrl);
+        const blob = await response.blob();
+        await saveVehicleImage(vehicle.id, blob);
+
+        // Refresh the image displayed on the card
+        await loadImage();
+        
+        toast({ title: "Succès!", description: "La nouvelle image a été générée et enregistrée." });
+
+    } catch (error) {
+        console.error("Error regenerating vehicle image:", error);
+        toast({ title: "Erreur de l'IA", description: "Impossible de générer une nouvelle image.", variant: "destructive"});
+    } finally {
+        setIsGeneratingImage(false);
+    }
+  }
+
   return (
     <>
       <Card className="flex flex-col transition-all hover:shadow-lg">
@@ -98,6 +132,14 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                 <DropdownMenuItem
+                  onSelect={handleRegenerateImage}
+                  disabled={isGeneratingImage}
+                  className="cursor-pointer"
+                >
+                  {isGeneratingImage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                  <span>{isGeneratingImage ? "Génération..." : "Regénérer l'image"}</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => setShowDeleteDialog(true)}
                   className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
@@ -113,13 +155,17 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
             aria-label={`Voir les détails pour ${vehicle.brand} ${vehicle.model}`}
           >
              <div className="relative h-48 w-full bg-muted/30 rounded-t-lg flex items-center justify-center p-4">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imageUrl || 'https://placehold.co/600x400.png'}
-                alt={`Photo de ${vehicle.brand || ''} ${vehicle.model || ''}`}
-                className="h-full w-full object-contain"
-                onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
-              />
+                {isGeneratingImage && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-t-lg z-20">
+                        <Loader2 className="h-8 w-8 text-white animate-spin" />
+                    </div>
+                )}
+                <img
+                    src={imageUrl || 'https://placehold.co/600x400.png'}
+                    alt={`Photo de ${vehicle.brand || ''} ${vehicle.model || ''}`}
+                    className="h-full w-full object-contain"
+                    onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
+                />
             </div>
           </div>
         </CardHeader>
