@@ -138,8 +138,8 @@ export default function AiAssistantClient() {
         return;
     }
 
-    // This was the source of the bug. Reverting to a simpler description format.
-    const issueDescription = `${component}: ${symptom}. ${details}`;
+    // Simple and robust description format
+    const issueDescription = `Problème: ${component} - ${symptom}. Détails: ${details || 'aucun'}`;
 
     try {
         const response = await suggestMaintenanceTasks({ 
@@ -166,7 +166,9 @@ export default function AiAssistantClient() {
         fetchHistory(selectedVehicle.id);
 
     } catch (e) {
-        setError("Une erreur est survenue lors de la communication avec l'assistant IA.");
+        console.error("AI Assistant Error:", e);
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        setError(`Une erreur est survenue lors de la communication avec l'assistant IA. Détails: ${errorMessage}`);
     }
   };
   
@@ -287,9 +289,9 @@ export default function AiAssistantClient() {
         </form>
 
         {error && (
-          <div className="p-4 m-6 mt-0 border border-destructive/50 bg-destructive/10 rounded-lg text-destructive flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5" />
-            <p>{error}</p>
+          <div className="p-4 m-6 mt-0 border border-destructive/50 bg-destructive/10 rounded-lg text-destructive flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+            <p className="text-sm">{error}</p>
           </div>
         )}
 
