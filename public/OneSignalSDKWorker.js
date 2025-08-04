@@ -1,4 +1,1 @@
-
-// This file is required for OneSignal to work.
-// It is intentionally left blank.
-// OneSignal will import its own scripts into this file.
+importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js");
