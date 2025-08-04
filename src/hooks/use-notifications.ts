@@ -21,7 +21,7 @@ export function useNotifications() {
   }, []);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && isPermissionGranted) {
       const messaging = getMessaging(app);
 
       const unsubscribe = onMessage(messaging, (payload) => {
@@ -34,7 +34,7 @@ export function useNotifications() {
 
       return () => unsubscribe();
     }
-  }, [toast]);
+  }, [toast, isPermissionGranted]);
 
   const requestPermission = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -45,6 +45,17 @@ export function useNotifications() {
        toast({ title: "Erreur", description: "Vous devez être connecté pour activer les notifications.", variant: "destructive" });
       return;
     }
+    
+    // Handle the case where permission is already denied.
+    if (Notification.permission === 'denied') {
+        toast({
+            title: "Permissions bloquées",
+            description: "Vous avez bloqué les notifications. Veuillez les autoriser dans les paramètres de votre navigateur pour ce site.",
+            variant: "destructive",
+            duration: 10000,
+        });
+        return;
+    }
 
     setIsRequesting(true);
 
@@ -53,7 +64,6 @@ export function useNotifications() {
 
       if (permission === 'granted') {
         setIsPermissionGranted(true);
-        toast({ title: "Succès", description: "Notifications activées." });
         
         // Get the token
         const messaging = getMessaging(app);
@@ -64,6 +74,7 @@ export function useNotifications() {
         if (currentToken) {
           // Save the token to Firestore
           await saveFcmToken({ userId: user.uid, token: currentToken });
+          toast({ title: "Succès", description: "Notifications activées." });
           console.log('FCM Token saved:', currentToken);
         } else {
           toast({ title: "Erreur", description: "Impossible d'obtenir le token de notification. Veuillez réessayer.", variant: "destructive" });
