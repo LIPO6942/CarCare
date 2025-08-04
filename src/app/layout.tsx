@@ -6,6 +6,11 @@ import { AuthProvider } from '@/context/auth-context';
 export const metadata: Metadata = {
   title: 'CarCare Pro',
   description: 'Gérez l\'entretien de votre véhicule en toute simplicité.',
+  manifest: '/manifest.json',
+  icons: {
+    apple: '/apple-touch-icon.png',
+    icon: '/favicon.ico',
+  }
 };
 
 export default function RootLayout({
