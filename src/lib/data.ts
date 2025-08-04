@@ -1,3 +1,4 @@
+
 import { db } from './firebase';
 import {
   collection,
@@ -219,7 +220,7 @@ export async function deleteAiDiagnostic(id: string): Promise<void> {
 }
 
 // --- FCM Tokens ---
-export async function saveFcmToken(tokenData: Omit<FcmToken, 'id' | 'createdAt'>): Promise<void> {
+export async function saveFcmToken(tokenData: Omit<FcmToken, 'id' | 'createdAt'>): Promise<{isNew: boolean}> {
     const tokensRef = collection(db, 'fcmTokens');
     // Check if the token already exists for this user to avoid duplicates
     const q = query(tokensRef, where('userId', '==', tokenData.userId), where('token', '==', tokenData.token));
@@ -228,8 +229,10 @@ export async function saveFcmToken(tokenData: Omit<FcmToken, 'id' | 'createdAt'>
     if (querySnapshot.empty) {
         // If token doesn't exist, add it.
         await addDoc(tokensRef, { ...tokenData, createdAt: serverTimestamp() });
+        return { isNew: true };
     }
-    // If token exists, do nothing.
+    // If token exists, do nothing but report it's not new.
+    return { isNew: false };
 }
 
 

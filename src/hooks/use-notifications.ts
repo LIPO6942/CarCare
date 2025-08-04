@@ -1,3 +1,4 @@
+
 // src/hooks/use-notifications.ts
 'use client';
 
@@ -96,9 +97,13 @@ export function useNotifications() {
         });
 
         if (currentToken) {
-          await saveFcmToken({ userId: user.uid, token: currentToken });
+          const { isNew } = await saveFcmToken({ userId: user.uid, token: currentToken });
           console.log('FCM Token saved:', currentToken);
-          toast({ title: "Succès", description: "Notifications activées et token enregistré." });
+          if (isNew) {
+            toast({ title: "Succès", description: "Notifications activées et token enregistré." });
+          } else {
+            toast({ title: "Succès", description: "Token de notification regénéré avec succès." });
+          }
         } else {
           throw new Error("Impossible d'obtenir le token. Le Service Worker est peut-être mal configuré ou l'enregistrement a échoué.");
         }
