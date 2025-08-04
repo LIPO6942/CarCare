@@ -15,8 +15,6 @@ import type { Vehicle } from '@/lib/types';
 import { getVehicles } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
-import { NotificationSettings } from './notification-settings';
-
 
 const VignetteCostSchema = z.object({
   range: z.string(),
@@ -220,8 +218,6 @@ export function SettingsClient() {
             </CardFooter>
         </form>
         </Card>
-        
-        <NotificationSettings />
     </div>
   );
 }
