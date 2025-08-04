@@ -1,9 +1,10 @@
-import {genkit, Plugin} from 'genkit';
-import {googleAI, GoogleAIPlugin} from '@genkit-ai/googleai';
+'use server';
 
-// Déclarez explicitement que googleAI() retourne un Plugin<GoogleAIPlugin>
-const googleAIPlugin: Plugin<GoogleAIPlugin> = googleAI();
+import {genkit} from 'genkit';
+import {googleAI} from '@genkit-ai/googleai';
 
 export const ai = genkit({
-  plugins: [googleAIPlugin],
+  plugins: [googleAI()],
+  logLevel: 'debug',
+  enableTracing: true,
 });
