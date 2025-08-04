@@ -7,12 +7,12 @@ import { getMessaging, onBackgroundMessage } from 'firebase/messaging/sw';
 
 // Assurez-vous que ces valeurs correspondent exactement à votre configuration Firebase.
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDw9nRE2KLboTwoEUZqSYNGLKnYg7lNWH4",
+  authDomain: "car-care-3bc4d.firebaseapp.com",
+  projectId: "car-care-3bc4d",
+  storageBucket: "car-care-3bc4d.firebasestorage.app",
+  messagingSenderId: "1077651378480",
+  appId: "1:1077651378480:web:03f8bc830a077e4ad878f5"
 };
 
 
