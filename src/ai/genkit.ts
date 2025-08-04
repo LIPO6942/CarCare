@@ -7,7 +7,7 @@ import {config} from 'dotenv';
 config();
 
 export const ai = genkit({
-  plugins: [googleAI({apiKey: process.env.GOOGLE_API_KEY})],
+  plugins: [googleAI()],
   logLevel: 'debug',
   enableTracing: true,
 });
