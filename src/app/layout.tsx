@@ -3,7 +3,6 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/context/auth-context';
 import { PwaUpdateNotifier } from '@/components/pwa-update-notifier';
-import { OneSignalProvider } from '@/components/onesignal-provider';
 
 export const metadata: Metadata = {
   title: 'CarCare Pro',
@@ -32,11 +31,9 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <AuthProvider>
-          <OneSignalProvider>
             <PwaUpdateNotifier />
             {children}
             <Toaster />
-          </OneSignalProvider>
         </AuthProvider>
       </body>
     </html>
