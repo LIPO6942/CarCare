@@ -13,11 +13,15 @@ export function useNotifications() {
   const { toast } = useToast();
   const [isPermissionGranted, setIsPermissionGranted] = useState<boolean | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | null>(null);
+
 
   // Function to check and update permission status
   const checkPermission = useCallback(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
-      setIsPermissionGranted(Notification.permission === 'granted');
+      const currentPermission = Notification.permission;
+      setPermissionStatus(currentPermission);
+      setIsPermissionGranted(currentPermission === 'granted');
     }
   }, []);
 
@@ -76,6 +80,7 @@ export function useNotifications() {
 
     try {
       const permission = await Notification.requestPermission();
+      setPermissionStatus(permission); // Update status after request
       
       if (permission === 'granted') {
         setIsPermissionGranted(true);
@@ -113,5 +118,5 @@ export function useNotifications() {
     }
   }, [user, toast]);
 
-  return { requestPermission, isPermissionGranted, isRequesting };
+  return { requestPermission, isPermissionGranted, isRequesting, permissionStatus };
 }

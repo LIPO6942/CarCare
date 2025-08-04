@@ -34,11 +34,13 @@ const SettingsSchema = z.object({
 type SettingsFormData = z.infer<typeof SettingsSchema>;
 
 function NotificationSettingsCard() {
-    const { requestPermission, isPermissionGranted, isRequesting } = useNotifications();
+    const { requestPermission, isPermissionGranted, isRequesting, permissionStatus } = useNotifications();
 
     if (isPermissionGranted === null) {
         return null; // Don't render until we know the permission status
     }
+
+    const isBlocked = permissionStatus === 'denied';
 
     return (
         <Card className="max-w-4xl mx-auto">
@@ -50,15 +52,23 @@ function NotificationSettingsCard() {
             </CardHeader>
             <CardContent>
                 {isPermissionGranted ? (
-                    <div className="flex items-center gap-4 p-4 rounded-lg bg-green-50 text-green-800 border border-green-200">
+                    <div className="flex items-center gap-4 p-4 rounded-lg bg-green-50 text-green-800 border border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
                         <Bell className="h-6 w-6 text-green-600"/>
                         <div>
                             <h4 className="font-semibold">Les notifications sont activées.</h4>
                             <p className="text-sm">Vous recevrez des rappels pour les entretiens à venir.</p>
                         </div>
                     </div>
+                ) : isBlocked ? (
+                     <div className="flex items-center gap-4 p-4 rounded-lg bg-destructive/10 text-destructive border border-destructive/20">
+                         <BellOff className="h-6 w-6"/>
+                        <div>
+                            <h4 className="font-semibold">Les notifications sont bloquées.</h4>
+                            <p className="text-sm">Pour les réactiver, vous devez modifier les permissions directement dans les paramètres de votre navigateur pour ce site.</p>
+                        </div>
+                    </div>
                 ) : (
-                    <div className="flex items-center gap-4 p-4 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
+                    <div className="flex items-center gap-4 p-4 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
                          <BellOff className="h-6 w-6 text-amber-600"/>
                         <div>
                             <h4 className="font-semibold">Les notifications ne sont pas activées.</h4>
@@ -67,7 +77,7 @@ function NotificationSettingsCard() {
                     </div>
                 )}
             </CardContent>
-            {!isPermissionGranted && (
+            {!isPermissionGranted && !isBlocked && (
                  <CardFooter>
                     <Button onClick={requestPermission} disabled={isRequesting}>
                         {isRequesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bell className="mr-2 h-4 w-4"/>}
