@@ -1,6 +1,6 @@
 {
   "name": "CarCare Pro",
-  "short_name": "CarCare",
+  "short_name": "CarCare Pro",
   "description": "Gérez l'entretien de votre véhicule en toute simplicité.",
   "start_url": "/",
   "display": "standalone",
