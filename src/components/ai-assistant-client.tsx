@@ -138,11 +138,8 @@ export default function AiAssistantClient() {
         return;
     }
 
-    const issueDescription = `
-      Composant concerné: ${component}.
-      Symptôme principal: ${symptom}.
-      ${details ? `Détails supplémentaires: ${details}` : ''}
-    `;
+    // This was the source of the bug. Reverting to a simpler description format.
+    const issueDescription = `${component}: ${symptom}. ${details}`;
 
     try {
         const response = await suggestMaintenanceTasks({ 
