@@ -14,12 +14,28 @@ export function useNotifications() {
   const [isPermissionGranted, setIsPermissionGranted] = useState<boolean | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
 
-  // Check initial permission status on mount
-  useEffect(() => {
+  // Function to check and update permission status
+  const checkPermission = useCallback(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setIsPermissionGranted(Notification.permission === 'granted');
     }
   }, []);
+
+  // Check initial permission status on mount and when tab becomes visible
+  useEffect(() => {
+    checkPermission(); // Check on initial load
+
+    const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+            checkPermission(); // Re-check when tab is focused
+        }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [checkPermission]);
   
   // Effect for handling foreground messages
   useEffect(() => {
@@ -64,9 +80,9 @@ export function useNotifications() {
       if (permission === 'granted') {
         setIsPermissionGranted(true);
         
-        // --- Token retrieval is now here ---
         if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) {
-            throw new Error("VAPID key is not configured in .env file.");
+            console.error("VAPID key is missing from environment variables.");
+            throw new Error("La configuration des notifications est incomplète côté serveur.");
         }
 
         const messaging = getMessaging(app);
@@ -79,8 +95,7 @@ export function useNotifications() {
           console.log('FCM Token saved:', currentToken);
           toast({ title: "Succès", description: "Notifications activées et token enregistré." });
         } else {
-          // This case is unlikely if permission is granted, but good to have
-          throw new Error("Impossible d'obtenir le token de notification. L'enregistrement du Service Worker a peut-être échoué.");
+          throw new Error("Impossible d'obtenir le token. Le Service Worker est peut-être mal configuré ou l'enregistrement a échoué.");
         }
 
       } else {
@@ -92,7 +107,7 @@ export function useNotifications() {
       console.error('An error occurred during notification setup: ', error);
       const errorMessage = error instanceof Error ? error.message : "Une erreur inconnue est survenue.";
       toast({ title: "Erreur de Notification", description: errorMessage, variant: "destructive" });
-      setIsPermissionGranted(false); // Reset state on error
+      setIsPermissionGranted(false);
     } finally {
         setIsRequesting(false);
     }
