@@ -20,38 +20,7 @@ export function useNotifications() {
       setIsPermissionGranted(Notification.permission === 'granted');
     }
   }, []);
-
-  // Effect to retrieve and save FCM token when permission is granted
-  useEffect(() => {
-    const retrieveToken = async () => {
-      if (isPermissionGranted && user && process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) {
-        try {
-          const messaging = getMessaging(app);
-          const currentToken = await getToken(messaging, {
-            vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-          });
-
-          if (currentToken) {
-            await saveFcmToken({ userId: user.uid, token: currentToken });
-            console.log('FCM Token saved:', currentToken);
-            // Optionally, inform the user, but the UI state is the main feedback
-          } else {
-            console.error('No registration token available. Request permission to generate one.');
-            toast({ title: "Erreur de Token", description: "Impossible d'obtenir le token de notification. L'enregistrement du Service Worker a peut-être échoué.", variant: "destructive" });
-             setIsPermissionGranted(false); // Reset state as we failed
-          }
-        } catch (error) {
-          console.error('An error occurred while retrieving token. ', error);
-          toast({ title: "Erreur de Token", description: "Impossible d'obtenir le token. Vérifiez la console pour plus de détails.", variant: "destructive" });
-          setIsPermissionGranted(false); // Reset state as we failed
-        }
-      }
-    };
-
-    retrieveToken();
-  }, [isPermissionGranted, user, toast]);
-
-
+  
   // Effect for handling foreground messages
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && isPermissionGranted) {
@@ -72,12 +41,8 @@ export function useNotifications() {
   }, [toast, isPermissionGranted]);
 
   const requestPermission = useCallback(async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      toast({ title: "Non supporté", description: "Les notifications ne sont pas supportées par ce navigateur.", variant: "destructive" });
-      return;
-    }
-    if (!user) {
-       toast({ title: "Erreur", description: "Vous devez être connecté pour activer les notifications.", variant: "destructive" });
+    if (typeof window === 'undefined' || !('Notification' in window) || !user) {
+      toast({ title: "Erreur", description: "Les notifications ne peuvent pas être activées.", variant: "destructive" });
       return;
     }
     
@@ -95,16 +60,39 @@ export function useNotifications() {
 
     try {
       const permission = await Notification.requestPermission();
+      
       if (permission === 'granted') {
-        toast({ title: "Succès", description: "Notifications activées. Le token sera enregistré." });
         setIsPermissionGranted(true);
+        
+        // --- Token retrieval is now here ---
+        if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) {
+            throw new Error("VAPID key is not configured in .env file.");
+        }
+
+        const messaging = getMessaging(app);
+        const currentToken = await getToken(messaging, {
+          vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+        });
+
+        if (currentToken) {
+          await saveFcmToken({ userId: user.uid, token: currentToken });
+          console.log('FCM Token saved:', currentToken);
+          toast({ title: "Succès", description: "Notifications activées et token enregistré." });
+        } else {
+          // This case is unlikely if permission is granted, but good to have
+          throw new Error("Impossible d'obtenir le token de notification. L'enregistrement du Service Worker a peut-être échoué.");
+        }
+
       } else {
-        toast({ title: "Info", description: "Vous avez refusé les notifications.", variant: "default" });
         setIsPermissionGranted(false);
+        toast({ title: "Info", description: "Vous avez refusé la permission pour les notifications." });
       }
+
     } catch (error) {
-      console.error('An error occurred while requesting notification permission. ', error);
-      toast({ title: "Erreur", description: "Une erreur est survenue lors de la demande de permission.", variant: "destructive" });
+      console.error('An error occurred during notification setup: ', error);
+      const errorMessage = error instanceof Error ? error.message : "Une erreur inconnue est survenue.";
+      toast({ title: "Erreur de Notification", description: errorMessage, variant: "destructive" });
+      setIsPermissionGranted(false); // Reset state on error
     } finally {
         setIsRequesting(false);
     }
