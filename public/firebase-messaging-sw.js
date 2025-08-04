@@ -1,40 +1,40 @@
-// public/firebase-messaging-sw.js
+// Use importScripts to import the Firebase SDK
+importScripts("https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js");
 
-// IMPORTANT: This file cannot use ES6 modules (import/export),
-// so we use importScripts to load the Firebase SDK.
-
-// Use the latest version of the Firebase SDK
-importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
-
-// IMPORTANT: Replace with your actual Firebase project configuration
+// Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "YOUR_NEXT_PUBLIC_FIREBASE_API_KEY",
-    authDomain: "YOUR_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
-    projectId: "YOUR_NEXT_PUBLIC_FIREBASE_PROJECT_ID",
-    storageBucket: "YOUR_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
-    appId: "YOUR_NEXT_PUBLIC_FIREBASE_APP_ID"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_AUTH_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
-// Initialize the Firebase app in the service worker
-firebase.initializeApp(firebaseConfig);
+// Initialize Firebase
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
 
-// Retrieve an instance of Firebase Messaging so that it can handle background messages.
 const messaging = firebase.messaging();
 
+// --- NEW CODE STARTS HERE ---
+// This is the handler that will be called when a push message is received
+// while the app is in the background or closed.
 messaging.onBackgroundMessage((payload) => {
   console.log(
-    '[firebase-messaging-sw.js] Received background message ',
+    "[firebase-messaging-sw.js] Received background message ",
     payload
   );
   
-  // Customize notification here
+  // Customize the notification here
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
     body: payload.notification.body,
-    icon: '/android-chrome-192x192.png'
+    icon: "/apple-touch-icon.png", // You can use your app icon
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
+// --- NEW CODE ENDS HERE ---
