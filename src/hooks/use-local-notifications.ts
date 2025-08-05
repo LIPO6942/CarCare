@@ -9,7 +9,7 @@ const NOTIFICATION_SNOOZE_KEY = 'carcarepro_notified_deadlines';
 const REMINDER_DAYS_THRESHOLD = 7; // Notify 7 days before deadline
 
 interface NotifiedDeadline {
-    [id: string]: string; // { maintenanceId: isoDateString }
+    [id: string]: boolean; // { maintenanceId: true }
 }
 
 // Helper to get notified deadlines from localStorage
@@ -28,7 +28,7 @@ function getNotifiedDeadlines(): NotifiedDeadline {
 function addNotifiedDeadline(maintenanceId: string): void {
     if (typeof window === 'undefined') return;
     const notified = getNotifiedDeadlines();
-    notified[maintenanceId] = new Date().toISOString();
+    notified[maintenanceId] = true; // Mark as notified
     localStorage.setItem(NOTIFICATION_SNOOZE_KEY, JSON.stringify(notified));
 }
 
@@ -53,14 +53,9 @@ async function checkDeadlinesAndNotify(userId: string) {
 
         const dueDate = new Date(task.nextDueDate);
         
-        // Check if a notification was already sent for this task today
-        const lastNotifiedDateStr = notifiedDeadlines[task.id];
-        if (lastNotifiedDateStr) {
-            const lastNotifiedDate = new Date(lastNotifiedDateStr);
-            lastNotifiedDate.setHours(0,0,0,0);
-            if (lastNotifiedDate.getTime() === today.getTime()) {
-                continue; // Already notified today, skip.
-            }
+        // Check if a notification was already sent for this task, ever.
+        if (notifiedDeadlines[task.id]) {
+            continue; // Already notified for this task, skip.
         }
 
         // Check if the due date is within the reminder threshold
@@ -75,7 +70,7 @@ async function checkDeadlinesAndNotify(userId: string) {
                 badge: '/apple-touch-icon.png' // For mobile
             });
 
-            // Mark this task as notified for today
+            // Mark this task as notified so it doesn't get sent again
             addNotifiedDeadline(task.id);
         }
     }
