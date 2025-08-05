@@ -1,4 +1,3 @@
-
 // src/hooks/use-notifications.ts
 'use client';
 
@@ -17,14 +16,57 @@ export function useNotifications() {
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | null>(null);
 
 
+  // This function attempts to get and save the FCM token.
+  // It's the core logic for ensuring notifications are truly "active".
+  const syncFcmToken = useCallback(async () => {
+    if (!user || typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') {
+      setIsPermissionGranted(false);
+      return;
+    }
+    
+    try {
+        if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) {
+            console.error("VAPID key is missing.");
+            throw new Error("La configuration des notifications est incomplète.");
+        }
+        const messaging = getMessaging(app);
+        const currentToken = await getToken(messaging, {
+            vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+        });
+
+        if (currentToken) {
+            await saveFcmToken({ userId: user.uid, token: currentToken });
+            setIsPermissionGranted(true);
+        } else {
+            // This case is important. Permission is granted, but we can't get a token.
+            // This means something is wrong (e.g. service worker issue).
+            // By setting permission to false, we prompt the user to re-initiate.
+            console.warn("Permission granted, but no FCM token received.");
+            setIsPermissionGranted(false);
+        }
+
+    } catch(error) {
+        console.error("Error during token sync:", error);
+        setIsPermissionGranted(false);
+    }
+  }, [user]);
+
+
   // Function to check and update permission status
   const checkPermission = useCallback(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       const currentPermission = Notification.permission;
       setPermissionStatus(currentPermission);
-      setIsPermissionGranted(currentPermission === 'granted');
+
+      if (currentPermission === 'granted') {
+        // If permission is granted, always try to sync the token
+        // to ensure we have the latest valid one.
+        syncFcmToken();
+      } else {
+        setIsPermissionGranted(false);
+      }
     }
-  }, []);
+  }, [syncFcmToken]);
 
   // Check initial permission status on mount and when tab becomes visible
   useEffect(() => {
