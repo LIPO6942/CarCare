@@ -6,6 +6,7 @@ import { auth } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { addSampleData } from '@/lib/actions';
 import { AlertTriangle } from 'lucide-react';
+import { useLocalNotifications } from '@/hooks/use-local-notifications';
 
 interface AuthContextType {
   user: User | null;
@@ -16,6 +17,13 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
 });
+
+function AuthManager({ children }: { children: ReactNode }) {
+  // This custom hook will now handle the local notification logic.
+  // It will only run when a user is authenticated.
+  useLocalNotifications();
+  return <>{children}</>;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -86,7 +94,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                  <Skeleton className="h-32 w-full" />
                </div>
             </div>
-        ) : children}
+        ) : (
+          user ? <AuthManager>{children}</AuthManager> : children
+        )}
     </AuthContext.Provider>
   );
 }
