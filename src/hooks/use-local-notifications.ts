@@ -6,7 +6,7 @@ import { getAllUserMaintenance } from '@/lib/data';
 import type { Maintenance } from '@/lib/types';
 
 const NOTIFICATION_SNOOZE_KEY = 'carcarepro_notified_deadlines';
-const REMINDER_DAYS_THRESHOLD = 3; // Notify 3 days before deadline
+const REMINDER_DAYS_THRESHOLD = 7; // Notify 7 days before deadline
 
 interface NotifiedDeadline {
     [id: string]: string; // { maintenanceId: isoDateString }
