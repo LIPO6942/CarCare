@@ -2,30 +2,50 @@
 'use client';
 
 import { useMemo, useEffect, useState } from 'react';
-import type { Repair, FuelLog } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { Repair, FuelLog, Maintenance, Vehicle } from '@/lib/types';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { DollarSign, Fuel, Wrench, Route } from 'lucide-react';
+import { DollarSign, Fuel, Wrench, Route, Milestone } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
-import { getAllUserRepairs, getAllUserFuelLogs } from '@/lib/data';
+import { getAllUserRepairs, getAllUserFuelLogs, getAllUserMaintenance, getVehicles } from '@/lib/data';
 import { Skeleton } from './ui/skeleton';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+
+const safeFormatDate = (dateInput: any, formatString: string = 'd MMM yyyy') => {
+  try {
+    if (!dateInput) return 'N/A';
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return 'Date invalide';
+    return format(date, formatString, { locale: fr });
+  } catch (error) {
+    return 'Erreur date';
+  }
+};
+
 
 export function ReportsClient() {
   const { user } = useAuth();
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
+  const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
         if (!user) return;
         setIsLoading(true);
-        const [repairsData, fuelLogsData] = await Promise.all([
+        const [repairsData, fuelLogsData, maintenanceData, vehiclesData] = await Promise.all([
             getAllUserRepairs(user.uid),
-            getAllUserFuelLogs(user.uid)
+            getAllUserFuelLogs(user.uid),
+            getAllUserMaintenance(user.uid),
+            getVehicles(user.uid)
         ]);
         setRepairs(repairsData);
         setFuelLogs(fuelLogsData);
+        setMaintenance(maintenanceData);
+        setVehicles(vehiclesData);
         setIsLoading(false);
     }
     fetchData();
@@ -42,7 +62,6 @@ export function ReportsClient() {
       repairCategories[category] = (repairCategories[category] || 0) + repair.cost;
     });
     
-    // Create a new map to ensure "Carburant" is always first and has a distinct color
     const aggregatedCosts = new Map<string, { cost: number; fill: string }>();
     aggregatedCosts.set('Carburant', { cost: totalFuelCost, fill: 'hsl(var(--chart-1))' });
 
@@ -66,6 +85,34 @@ export function ReportsClient() {
   }, [repairs, fuelLogs]);
   
   const costPerKm = maxMileage > 0 ? (totalCost / maxMileage) : 0;
+  
+  const oilChangeDistances = useMemo(() => {
+    return vehicles.map(vehicle => {
+      const vehicleOilChanges = maintenance
+        .filter(m => m.vehicleId === vehicle.id && m.task === 'Vidange' && m.mileage > 0)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      if (vehicleOilChanges.length < 2) {
+        return null;
+      }
+
+      const lastChange = vehicleOilChanges[0];
+      const previousChange = vehicleOilChanges[1];
+      
+      const distance = lastChange.mileage - previousChange.mileage;
+
+      if (distance <= 0) return null;
+
+      return {
+        vehicleId: vehicle.id,
+        vehicleName: `${vehicle.brand} ${vehicle.model}`,
+        distance,
+        lastDate: lastChange.date,
+        previousDate: previousChange.date,
+      };
+    }).filter(item => item !== null) as { vehicleId: string; vehicleName: string; distance: number; lastDate: string; previousDate: string; }[];
+  }, [vehicles, maintenance]);
+
 
   if (isLoading) {
       return (
@@ -77,6 +124,7 @@ export function ReportsClient() {
                   <Skeleton className="h-28" />
               </div>
               <Skeleton className="h-96" />
+              <Skeleton className="h-48" />
           </div>
       )
   }
@@ -124,9 +172,9 @@ export function ReportsClient() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {costPerKm > 0 ? `${costPerKm.toLocaleString('fr-FR', { style: 'currency', currency: 'TND', minimumFractionDigits: 2 })} / km` : 'N/A'}
+              {costPerKm > 0 ? `${costPerKm.toLocaleString('fr-FR', { style: 'currency', currency: 'TND', minimumFractionDigits: 3 })} / km` : 'N/A'}
             </div>
-            <p className="text-xs text-muted-foreground">{maxMileage > 0 ? `Basé sur ${maxMileage.toLocaleString('fr-FR')} km` : 'Données insuffisantes'}</p>
+            <p className="text-xs text-muted-foreground">{maxMileage > 0 ? `Basé sur ${maxMileage.toLocaleString('fr-FR')} km parcourus` : 'Données insuffisantes'}</p>
           </CardContent>
         </Card>
       </div>
@@ -151,6 +199,32 @@ export function ReportsClient() {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+      
+      {oilChangeDistances.length > 0 && (
+        <Card>
+            <CardHeader>
+                <CardTitle>Distance entre Vidanges</CardTitle>
+                <CardDescription>Kilométrage réel parcouru entre les deux derniers changements d'huile.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+                {oilChangeDistances.map((item) => (
+                    <div key={item.vehicleId} className="p-4 border rounded-lg flex items-center gap-4">
+                        <div className="p-3 bg-primary/10 rounded-full">
+                            <Milestone className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-muted-foreground">{item.vehicleName}</p>
+                            <p className="text-2xl font-bold">{item.distance.toLocaleString('fr-FR')} km</p>
+                            <p className="text-xs text-muted-foreground">
+                                Entre le {safeFormatDate(item.previousDate)} et le {safeFormatDate(item.lastDate)}
+                            </p>
+                        </div>
+                    </div>
+                ))}
+            </CardContent>
+        </Card>
+      )}
+
     </div>
   );
 }
