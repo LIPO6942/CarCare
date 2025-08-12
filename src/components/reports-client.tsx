@@ -90,14 +90,14 @@ export function ReportsClient() {
     return vehicles.map(vehicle => {
       const vehicleOilChanges = maintenance
         .filter(m => m.vehicleId === vehicle.id && m.task === 'Vidange' && m.mileage > 0)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       if (vehicleOilChanges.length < 2) {
         return null;
       }
-
-      const lastChange = vehicleOilChanges[0];
-      const previousChange = vehicleOilChanges[1];
+      
+      const lastChange = vehicleOilChanges[vehicleOilChanges.length - 1];
+      const previousChange = vehicleOilChanges[vehicleOilChanges.length - 2];
       
       const distance = lastChange.mileage - previousChange.mileage;
 
