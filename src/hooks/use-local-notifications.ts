@@ -2,11 +2,12 @@
 
 import { useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
-import { getAllUserMaintenance } from '@/lib/data';
-import type { Maintenance } from '@/lib/types';
+import { getAllUserMaintenance, getAllUserRepairs, getAllUserFuelLogs } from '@/lib/data';
+import type { Maintenance, Repair, FuelLog } from '@/lib/types';
 
 const NOTIFICATION_SNOOZE_KEY = 'carcarepro_notified_deadlines';
-const REMINDER_DAYS_THRESHOLD = 7; // Notify 7 days before deadline
+const REMINDER_DAYS_THRESHOLD = 7; // Notify 7 days before date-based deadline
+const REMINDER_KM_THRESHOLD = 2000; // Notify 2000km before mileage-based deadline
 
 interface NotifiedDeadline {
     [id: string]: boolean; // { maintenanceId: true }
@@ -39,7 +40,12 @@ async function checkDeadlinesAndNotify(userId: string) {
         return;
     }
 
-    const maintenanceTasks = await getAllUserMaintenance(userId);
+    const [maintenanceTasks, repairs, fuelLogs] = await Promise.all([
+        getAllUserMaintenance(userId),
+        getAllUserRepairs(userId),
+        getAllUserFuelLogs(userId),
+    ]);
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -47,31 +53,67 @@ async function checkDeadlinesAndNotify(userId: string) {
     reminderDateThreshold.setDate(today.getDate() + REMINDER_DAYS_THRESHOLD);
 
     const notifiedDeadlines = getNotifiedDeadlines();
+    
+    // Create a map of the latest known mileage for each vehicle
+    const latestMileageMap = new Map<string, { mileage: number, date: Date }>();
+
+    const allEvents = [
+        ...repairs.map(item => ({...item, eventDate: new Date(item.date)})),
+        ...maintenance.map(item => ({...item, eventDate: new Date(item.date)})),
+        ...fuelLogs.map(item => ({...item, eventDate: new Date(item.date)}))
+    ].filter(e => e.mileage > 0 && e.date && !isNaN(new Date(e.date).getTime()));
+
+    allEvents.forEach(event => {
+        const existing = latestMileageMap.get(event.vehicleId);
+        if (!existing || event.eventDate > existing.date) {
+            latestMileageMap.set(event.vehicleId, { mileage: event.mileage, date: event.eventDate });
+        }
+    });
+
 
     for (const task of maintenanceTasks) {
-        if (!task.nextDueDate) continue;
-
-        const dueDate = new Date(task.nextDueDate);
-        
         // Check if a notification was already sent for this task, ever.
         if (notifiedDeadlines[task.id]) {
             continue; // Already notified for this task, skip.
         }
 
-        // Check if the due date is within the reminder threshold
-        if (dueDate >= today && dueDate <= reminderDateThreshold) {
-            const title = 'Rappel d\'Entretien Proche';
-            const body = `N'oubliez pas: "${task.task}" est à faire avant le ${dueDate.toLocaleDateString('fr-FR')}.`;
-            
-            // Use the Notification API to show the local notification
-            new Notification(title, {
-                body: body,
-                icon: '/apple-touch-icon.png', // Optional: adds an icon
-                badge: '/apple-touch-icon.png' // For mobile
-            });
+        // --- Logic for Mileage-Based Reminders (Vidange) ---
+        if (task.task === 'Vidange' && task.nextDueMileage && task.nextDueMileage > 0) {
+            const vehicleMileage = latestMileageMap.get(task.vehicleId);
+            if (!vehicleMileage) continue; // Cannot check if we don't know the current mileage
 
-            // Mark this task as notified so it doesn't get sent again
-            addNotifiedDeadline(task.id);
+            const kmRemaining = task.nextDueMileage - vehicleMileage.mileage;
+
+            if (kmRemaining <= REMINDER_KM_THRESHOLD) {
+                const title = 'Rappel de Vidange Proche';
+                const body = `Il reste environ ${kmRemaining.toLocaleString('fr-FR')} km avant votre prochaine vidange.`;
+                
+                new Notification(title, {
+                    body: body,
+                    icon: '/apple-touch-icon.png',
+                    badge: '/apple-touch-icon.png'
+                });
+                addNotifiedDeadline(task.id);
+                continue; // Move to the next task after sending notification
+            }
+        }
+        
+        // --- Logic for Date-Based Reminders (Others) ---
+        else if (task.nextDueDate) {
+            const dueDate = new Date(task.nextDueDate);
+            
+            // Check if the due date is within the reminder threshold
+            if (dueDate >= today && dueDate <= reminderDateThreshold) {
+                const title = 'Rappel d\'Entretien Proche';
+                const body = `N'oubliez pas: "${task.task}" est à faire avant le ${dueDate.toLocaleDateString('fr-FR')}.`;
+                
+                new Notification(title, {
+                    body: body,
+                    icon: '/apple-touch-icon.png',
+                    badge: '/apple-touch-icon.png'
+                });
+                addNotifiedDeadline(task.id);
+            }
         }
     }
 }
