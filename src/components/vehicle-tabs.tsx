@@ -108,19 +108,15 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataCha
   }, [fuelLogs]);
 
   return (
-    <Tabs defaultValue={initialTab || 'stats'} className="w-full">
+    <Tabs defaultValue={initialTab || 'history'} className="w-full">
       <div className="w-full overflow-x-auto pb-1 no-scrollbar">
         <TabsList>
-            <TabsTrigger value="stats"><BarChart3 className="mr-2 h-4 w-4" />Statistiques</TabsTrigger>
             <TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Historique</TabsTrigger>
             <TabsTrigger value="repairs"><Wrench className="mr-2 h-4 w-4" />Réparations</TabsTrigger>
             <TabsTrigger value="maintenance"><Calendar className="mr-2 h-4 w-4" />Entretien</TabsTrigger>
             <TabsTrigger value="fuel"><Fuel className="mr-2 h-4 w-4" />Carburant</TabsTrigger>
         </TabsList>
       </div>
-      <TabsContent value="stats">
-        <StatsTab vehicle={vehicle} maintenance={maintenance} fuelLogs={fuelLogs} />
-      </TabsContent>
        <TabsContent value="history">
         <HistoryTab repairs={repairs} maintenance={maintenance} monthlyFuelLogs={monthlyFuelLogs} />
       </TabsContent>
@@ -186,104 +182,6 @@ function DeleteConfirmationDialog({ open, onOpenChange, onConfirm, isDeleting, t
     );
 }
 
-
-// --- STATS TAB ---
-
-function StatsTab({ vehicle, maintenance, fuelLogs }: { vehicle: Vehicle, maintenance: Maintenance[], fuelLogs: FuelLog[] }) {
-    const oilChangeDistance = useMemo(() => {
-        const vehicleOilChanges = maintenance
-            .filter(m => m.vehicleId === vehicle.id && m.task === 'Vidange' && m.mileage > 0)
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-        if (vehicleOilChanges.length < 2) {
-            return null;
-        }
-        
-        const lastChange = vehicleOilChanges[vehicleOilChanges.length - 1];
-        const previousChange = vehicleOilChanges[vehicleOilChanges.length - 2];
-        
-        const distance = lastChange.mileage - previousChange.mileage;
-
-        if (distance <= 0) return null;
-
-        return {
-            distance,
-            lastDate: lastChange.date,
-            previousDate: previousChange.date,
-        };
-    }, [vehicle.id, maintenance]);
-
-    const fuelConsumption = useMemo(() => {
-        const vehicleFuelLogs = fuelLogs
-            .filter(log => log.vehicleId === vehicle.id && log.mileage > 0)
-            .sort((a, b) => a.mileage - b.mileage);
-
-        if (vehicleFuelLogs.length < 2) {
-            return null;
-        }
-
-        const firstLog = vehicleFuelLogs[0];
-        const lastLog = vehicleFuelLogs[vehicleFuelLogs.length - 1];
-        const totalDistance = lastLog.mileage - firstLog.mileage;
-
-        let totalFuel = 0;
-        for (let i = 0; i < vehicleFuelLogs.length - 1; i++) {
-            totalFuel += vehicleFuelLogs[i].quantity;
-        }
-
-        if (totalDistance > 0 && totalFuel > 0) {
-            return (totalFuel / totalDistance) * 100; // L/100km
-        }
-        return null;
-    }, [vehicle.id, fuelLogs]);
-    
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Statistiques du Véhicule</CardTitle>
-                <CardDescription>Indicateurs de performance basés sur vos données.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-6 md:grid-cols-2">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Distance entre Vidanges</CardTitle>
-                        <Milestone className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        {oilChangeDistance ? (
-                            <>
-                                <div className="text-2xl font-bold">{oilChangeDistance.distance.toLocaleString('fr-FR')} km</div>
-                                <p className="text-xs text-muted-foreground">
-                                    Entre le {safeFormatDate(oilChangeDistance.previousDate)} et le {safeFormatDate(oilChangeDistance.lastDate)}
-                                </p>
-                            </>
-                        ) : (
-                             <p className="text-sm text-muted-foreground pt-2">Données insuffisantes. Ajoutez au moins deux entretiens de type "Vidange" avec kilométrage.</p>
-                        )}
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Consommation Moyenne</CardTitle>
-                        <Droplets className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        {fuelConsumption !== null ? (
-                            <>
-                                <div className="text-2xl font-bold">{fuelConsumption.toFixed(1)} L / 100 km</div>
-                                <p className="text-xs text-muted-foreground">
-                                    Calculée sur la base de vos pleins de carburant.
-                                </p>
-                            </>
-                        ) : (
-                             <p className="text-sm text-muted-foreground pt-2">Données insuffisantes. Ajoutez au moins deux pleins de carburant avec kilométrage.</p>
-                        )}
-                    </CardContent>
-                </Card>
-            </CardContent>
-        </Card>
-    );
-}
 
 // --- HISTORY TAB ---
 

@@ -84,7 +84,7 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
                   maintenance={maintenance} 
                   fuelLogs={fuelLogs}
                   onDataChange={handleDataChange}
-                  initialTab="stats"
+                  initialTab="history"
               />
             )}
           </ErrorBoundary>
