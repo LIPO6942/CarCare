@@ -84,6 +84,7 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
                   maintenance={maintenance} 
                   fuelLogs={fuelLogs}
                   onDataChange={handleDataChange}
+                  initialTab="stats"
               />
             )}
           </ErrorBoundary>
@@ -92,3 +93,5 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
     </Dialog>
   );
 }
+
+    
