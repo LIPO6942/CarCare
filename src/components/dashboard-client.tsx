@@ -125,80 +125,90 @@ export function DashboardClient() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // 1. Get explicitly scheduled deadlines
-    const definedDeadlines = maintenance
-      .filter(m => m.nextDueDate && new Date(m.nextDueDate) >= today)
-      .map(m => ({
-        name: m.task,
-        date: new Date(m.nextDueDate!),
-        cost: m.cost,
-        vehicleId: m.vehicleId
-      }));
-
-    // 2. Estimate oil change deadlines
     const allEvents = [
         ...repairs.map(item => ({...item, eventDate: new Date(item.date)})),
         ...maintenance.map(item => ({...item, eventDate: new Date(item.date)})),
         ...fuelLogs.map(item => ({...item, eventDate: new Date(item.date)}))
     ].filter(e => e.mileage > 0 && e.date && !isNaN(new Date(e.date).getTime()));
+    
+    // 1. Get explicitly scheduled deadlines by date
+    const dateBasedDeadlines = maintenance
+      .filter(m => m.nextDueDate && new Date(m.nextDueDate) >= today)
+      .map(m => ({
+        type: 'date' as const,
+        name: m.task,
+        date: new Date(m.nextDueDate!),
+        cost: m.cost,
+        vehicleId: m.vehicleId,
+        sortValue: new Date(m.nextDueDate!).getTime()
+      }));
 
-    const estimatedOilChanges = vehicles.map(vehicle => {
-        const vehicleEvents = allEvents
-            .filter(e => e.vehicleId === vehicle.id)
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // 2. Get mileage-based deadlines (Vidange)
+    const mileageBasedDeadlines = vehicles.map(vehicle => {
+      const latestVehicleEvent = allEvents
+        .filter(e => e.vehicleId === vehicle.id)
+        .sort((a,b) => b.eventDate.getTime() - a.eventDate.getTime())[0];
+        
+      if (!latestVehicleEvent) return null;
 
-        if (vehicleEvents.length < 2) return null;
-
+      const lastOilChange = maintenance
+        .filter(m => m.vehicleId === vehicle.id && m.task === 'Vidange' && m.nextDueMileage && m.nextDueMileage > latestVehicleEvent.mileage)
+        .sort((a, b) => b.nextDueMileage! - a.nextDueMileage!)[0]; // Get the one with highest nextDueMileage (latest)
+        
+      if (!lastOilChange) return null;
+      
+      const kmRemaining = lastOilChange.nextDueMileage! - latestVehicleEvent.mileage;
+      
+      // Use average daily mileage to estimate a due date for sorting purposes
+      const vehicleEvents = allEvents.filter(e => e.vehicleId === vehicle.id).sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
+      let estimatedDate = new Date();
+      estimatedDate.setDate(estimatedDate.getDate() + 999); // Default to far future if no estimate possible
+      
+      if(vehicleEvents.length > 1) {
         const firstEvent = vehicleEvents[0];
         const lastEvent = vehicleEvents[vehicleEvents.length - 1];
-
         const totalMiles = lastEvent.mileage - firstEvent.mileage;
-        const totalDays = (new Date(lastEvent.date).getTime() - new Date(firstEvent.date).getTime()) / (1000 * 60 * 60 * 24);
+        const totalDays = (lastEvent.eventDate.getTime() - firstEvent.eventDate.getTime()) / (1000 * 60 * 60 * 24);
+        if(totalMiles > 0 && totalDays > 0){
+           const avgDailyMileage = totalMiles / totalDays;
+           const daysToNextChange = Math.ceil(kmRemaining / avgDailyMileage);
+           estimatedDate = new Date(lastEvent.eventDate);
+           estimatedDate.setDate(estimatedDate.getDate() + daysToNextChange);
+        }
+      }
 
-        if (totalMiles <= 0 || totalDays <= 0) return null;
-
-        const avgDailyMileage = totalMiles / totalDays;
-
-        const lastOilChange = maintenance
-            .filter(m => m.vehicleId === vehicle.id && m.task === 'Vidange')
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-
-        if (!lastOilChange || !lastOilChange.nextDueMileage) return null;
-
-        const milesRemaining = lastOilChange.nextDueMileage - lastEvent.mileage;
-
-        if (milesRemaining <= 0) return null;
-
-        const daysToNextChange = Math.ceil(milesRemaining / avgDailyMileage);
-        const estimatedDate = new Date(lastEvent.date);
-        estimatedDate.setDate(estimatedDate.getDate() + daysToNextChange);
-
-        if (estimatedDate < today) return null;
-
-        return {
-            name: `${lastOilChange.task} (Estimé)`,
-            date: estimatedDate,
-            cost: lastOilChange.cost,
-            vehicleId: vehicle.id,
-        };
+      return {
+        type: 'mileage' as const,
+        name: `${lastOilChange.task}`,
+        kmRemaining,
+        date: estimatedDate, // For sorting only
+        vehicleId: vehicle.id,
+        sortValue: estimatedDate.getTime(),
+      }
     }).filter((item): item is NonNullable<typeof item> => item !== null);
 
 
     // 3. Combine and sort all deadlines
     const upcomingDeadlines = [
-        ...definedDeadlines,
-        ...estimatedOilChanges
+        ...dateBasedDeadlines,
+        ...mileageBasedDeadlines
     ]
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
+    .sort((a, b) => a.sortValue - b.sortValue);
 
     const nextDeadline = upcomingDeadlines[0] || null;
     const secondNextDeadline = upcomingDeadlines[1] || null;
     
     const checkUrgency = (deadline: typeof nextDeadline) => {
         if (!deadline) return false;
-        const twentyDaysFromNow = new Date();
-        twentyDaysFromNow.setDate(today.getDate() + 20);
-        return deadline.date <= twentyDaysFromNow;
+        if (deadline.type === 'date') {
+          const twentyDaysFromNow = new Date();
+          twentyDaysFromNow.setDate(today.getDate() + 20);
+          return deadline.date <= twentyDaysFromNow;
+        }
+        if (deadline.type === 'mileage') {
+          return deadline.kmRemaining <= 2000;
+        }
+        return false;
     };
     
     return {
@@ -285,6 +295,19 @@ export function DashboardClient() {
       if (!vehicleId) return undefined;
       return vehicles.find(v => v.id === vehicleId);
   }
+  
+  const getNextDeadlineValue = (deadline: typeof nextDeadline) => {
+    if (!deadline) return "Aucune";
+    if (deadline.type === 'date') return format(deadline.date, 'd MMM yyyy', { locale: fr });
+    return `~ ${deadline.kmRemaining.toLocaleString('fr-FR')} km`;
+  }
+  
+  const getNextDeadlineDescription = (deadline: typeof nextDeadline) => {
+     if (!deadline) return "Aucune échéance à venir";
+     const vehicle = getVehicleForStat(deadline.vehicleId);
+     return `${deadline.name} (${vehicle?.licensePlate || 'N/A'})`;
+  }
+
 
   return (
     <>
@@ -309,9 +332,9 @@ export function DashboardClient() {
            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title={nextDeadline ? (isDeadlineUrgent ? "Échéance Proche !" : "Prochaine Échéance") : "Prochaine Échéance"}
-                value={nextDeadline ? `${format(nextDeadline.date, 'd MMM yyyy', { locale: fr })}` : "Aucune"}
+                value={getNextDeadlineValue(nextDeadline)}
                 icon={Bell}
-                description={nextDeadline ? `${nextDeadline.name} (${getVehicleForStat(nextDeadline.vehicleId)?.licensePlate || 'N/A'})` : "Aucune échéance à venir"}
+                description={getNextDeadlineDescription(nextDeadline)}
                 onClick={() => setVehicleForDetailView(getVehicleForStat(nextDeadline?.vehicleId) || null)}
                 disabled={!nextDeadline}
                 isLoading={isStatsLoading}
@@ -319,9 +342,9 @@ export function DashboardClient() {
               />
               <StatCard
                 title={secondNextDeadline ? (isSecondDeadlineUrgent ? "Échéance Suivante" : "Échéance Suivante") : "Échéance Suivante"}
-                value={secondNextDeadline ? `${format(secondNextDeadline.date, 'd MMM yyyy', { locale: fr })}` : "Aucune"}
+                value={getNextDeadlineValue(secondNextDeadline)}
                 icon={Bell}
-                description={secondNextDeadline ? `${secondNextDeadline.name} (${getVehicleForStat(secondNextDeadline.vehicleId)?.licensePlate || 'N/A'})` : " "}
+                description={getNextDeadlineDescription(secondNextDeadline)}
                 onClick={() => setVehicleForDetailView(getVehicleForStat(secondNextDeadline?.vehicleId) || null)}
                 disabled={!secondNextDeadline}
                 isLoading={isStatsLoading}
