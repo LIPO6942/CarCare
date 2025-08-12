@@ -37,6 +37,7 @@ import {
 import { DialogFooter } from './ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { getSettings } from '@/lib/settings';
+import { cn } from '@/lib/utils';
 
 interface VehicleTabsProps {
     vehicle: Vehicle;
@@ -905,8 +906,13 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
 
                     <fieldset className="border p-4 rounded-md">
                         <legend className="text-sm font-medium px-1">Prochain entretien (Optionnel)</legend>
-                        <div className="grid grid-cols-2 gap-4 pt-2">
-                            <Input name="nextDueDate" type="date" defaultValue={initialData?.nextDueDate?.split('T')[0]} />
+                        <div className={cn(
+                            "grid gap-4 pt-2",
+                            selectedTask === 'Vidange' ? "grid-cols-1 justify-items-center" : "grid-cols-2"
+                        )}>
+                            {selectedTask !== 'Vidange' && (
+                                <Input name="nextDueDate" type="date" defaultValue={initialData?.nextDueDate?.split('T')[0]} />
+                            )}
                             <Input name="nextDueMileage" type="number" placeholder="Prochain kilométrage" value={nextDueMileage} onChange={e => setNextDueMileage(e.target.value)} />
                         </div>
                     </fieldset>
@@ -1270,3 +1276,4 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
 
 
     
+
