@@ -1,28 +1,41 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, type ComponentType } from 'react';
+import { useState, useEffect, useCallback, useMemo, type ComponentType, type FormEvent, useRef } from 'react';
 import type { Vehicle, Repair, Maintenance, FuelLog } from '@/lib/types';
 import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { AddVehicleSheet } from '@/components/add-vehicle-sheet';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { RepairSummaryChart } from '@/components/repair-summary-chart';
 import { VehicleCard } from '@/components/vehicle-card';
-import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs } from '@/lib/data';
+import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 import { VehicleDetailModal } from './vehicle-detail-modal';
 import { AddInitialMaintenanceForm } from './add-initial-maintenance-form';
 import { QuickFuelLogForm } from './quick-fuel-log-form';
+import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogDescription, DialogFooter } from './ui/dialog';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
+import { getSettings } from '@/lib/settings';
+
+type Deadline = {
+    type: 'date' | 'mileage';
+    name: string;
+    vehicleId: string;
+    sortValue: number;
+    originalTask: Maintenance;
+} & ({ type: 'date'; date: Date } | { type: 'mileage'; kmRemaining: number });
 
 
-function StatCard({ title, value, icon: Icon, description, onClick, disabled, isLoading, isUrgent }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, onClick?: () => void, disabled?: boolean, isLoading?: boolean, isUrgent?: boolean }) {
+function StatCard({ title, value, icon: Icon, description, onClick, disabled, isLoading, isUrgent, onComplete }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, onClick?: () => void, disabled?: boolean, isLoading?: boolean, isUrgent?: boolean, onComplete?: () => void }) {
   const isClickable = !!onClick && !disabled;
   
   if (isLoading) {
@@ -32,7 +45,16 @@ function StatCard({ title, value, icon: Icon, description, onClick, disabled, is
   const IconToRender = isUrgent ? AlertTriangle : Icon;
   
   const cardContent = (
-      <Card className={cn("h-full flex flex-col", isUrgent && "bg-destructive/10 border-destructive text-destructive")}>
+      <Card className={cn("h-full flex flex-col relative", isUrgent && "bg-destructive/10 border-destructive text-destructive")}>
+        {onComplete && !disabled && (
+            <button 
+                onClick={(e) => { e.stopPropagation(); onComplete(); }}
+                className="absolute top-2 right-2 z-10 p-1 rounded-full text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors"
+                aria-label="Marquer comme terminé"
+            >
+                <CheckCircle2 className="h-5 w-5" />
+            </button>
+        )}
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">{title}</CardTitle>
           <IconToRender className={cn("h-4 w-4 text-muted-foreground", isUrgent && "text-destructive")} />
@@ -71,6 +93,9 @@ export function DashboardClient() {
   const [vehicleForDetailView, setVehicleForDetailView] = useState<Vehicle | null>(null);
   const [vehicleForInitialMaintenance, setVehicleForInitialMaintenance] = useState<Vehicle | null>(null);
   
+  const [deadlineToComplete, setDeadlineToComplete] = useState<Deadline | null>(null);
+
+
   const fetchData = useCallback(async (showLoadingIndicators = true) => {
     if (!user) return;
     if (showLoadingIndicators) {
@@ -140,7 +165,8 @@ export function DashboardClient() {
         date: new Date(m.nextDueDate!),
         cost: m.cost,
         vehicleId: m.vehicleId,
-        sortValue: new Date(m.nextDueDate!).getTime()
+        sortValue: new Date(m.nextDueDate!).getTime(),
+        originalTask: m,
       }));
 
     // 2. Get mileage-based deadlines (Vidange)
@@ -184,12 +210,13 @@ export function DashboardClient() {
         date: estimatedDate, // For sorting only
         vehicleId: vehicle.id,
         sortValue: estimatedDate.getTime(),
+        originalTask: lastOilChange,
       }
     }).filter((item): item is NonNullable<typeof item> => item !== null);
 
 
     // 3. Combine and sort all deadlines
-    const upcomingDeadlines = [
+    const upcomingDeadlines: Deadline[] = [
         ...dateBasedDeadlines,
         ...mileageBasedDeadlines
     ]
@@ -198,7 +225,7 @@ export function DashboardClient() {
     const nextDeadline = upcomingDeadlines[0] || null;
     const secondNextDeadline = upcomingDeadlines[1] || null;
     
-    const checkUrgency = (deadline: typeof nextDeadline) => {
+    const checkUrgency = (deadline: Deadline | null) => {
         if (!deadline) return false;
         if (deadline.type === 'date') {
           const twentyDaysFromNow = new Date();
@@ -281,7 +308,6 @@ export function DashboardClient() {
                     <Skeleton className="h-32" />
                     <Skeleton className="h-32" />
                 </div>
-                <Skeleton className="h-80" />
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     <Skeleton className="h-96" />
                     <Skeleton className="h-96" />
@@ -296,13 +322,13 @@ export function DashboardClient() {
       return vehicles.find(v => v.id === vehicleId);
   }
   
-  const getNextDeadlineValue = (deadline: typeof nextDeadline) => {
+  const getNextDeadlineValue = (deadline: Deadline | null) => {
     if (!deadline) return "Aucune";
     if (deadline.type === 'date') return format(deadline.date, 'd MMM yyyy', { locale: fr });
     return `~ ${deadline.kmRemaining.toLocaleString('fr-FR')} km`;
   }
   
-  const getNextDeadlineDescription = (deadline: typeof nextDeadline) => {
+  const getNextDeadlineDescription = (deadline: Deadline | null) => {
      if (!deadline) return "Aucune échéance à venir";
      const vehicle = getVehicleForStat(deadline.vehicleId);
      return `${deadline.name} (${vehicle?.licensePlate || 'N/A'})`;
@@ -336,6 +362,7 @@ export function DashboardClient() {
                 icon={Bell}
                 description={getNextDeadlineDescription(nextDeadline)}
                 onClick={() => setVehicleForDetailView(getVehicleForStat(nextDeadline?.vehicleId) || null)}
+                onComplete={() => setDeadlineToComplete(nextDeadline)}
                 disabled={!nextDeadline}
                 isLoading={isStatsLoading}
                 isUrgent={isDeadlineUrgent}
@@ -346,6 +373,7 @@ export function DashboardClient() {
                 icon={Bell}
                 description={getNextDeadlineDescription(secondNextDeadline)}
                 onClick={() => setVehicleForDetailView(getVehicleForStat(secondNextDeadline?.vehicleId) || null)}
+                onComplete={() => setDeadlineToComplete(secondNextDeadline)}
                 disabled={!secondNextDeadline}
                 isLoading={isStatsLoading}
                 isUrgent={isSecondDeadlineUrgent}
@@ -402,7 +430,6 @@ export function DashboardClient() {
                 )}
             </div>
 
-            <RepairSummaryChart repairs={repairs} totalCost={totalRepairCost} />
         </main>
       </AppLayout>
 
@@ -419,6 +446,154 @@ export function DashboardClient() {
         onOpenChange={(isOpen) => !isOpen && setVehicleForInitialMaintenance(null)}
         onFinished={handleInitialMaintenanceFinished}
       />
+
+      <CompleteDeadlineDialog
+        deadline={deadlineToComplete}
+        open={!!deadlineToComplete}
+        onOpenChange={(isOpen) => !isOpen && setDeadlineToComplete(null)}
+        onComplete={() => {
+            setDeadlineToComplete(null);
+            fetchData();
+        }}
+        vehicles={vehicles}
+      />
     </>
   );
 }
+
+
+function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehicles }: { deadline: Deadline | null, open: boolean, onOpenChange: (open: boolean) => void, onComplete: () => void, vehicles: Vehicle[]}) {
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const formRef = useRef<HTMLFormElement>(null);
+
+    const vehicle = useMemo(() => vehicles.find(v => v.id === deadline?.vehicleId), [vehicles, deadline]);
+
+    const needsCost = deadline?.name === 'Visite technique' || deadline?.name === 'Vidange';
+    const needsMileage = deadline?.name === 'Vidange';
+    
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!user || !deadline || !vehicle) return;
+        
+        setIsSubmitting(true);
+        const formData = new FormData(event.currentTarget);
+        const cost = parseFloat(formData.get('cost') as string || '0');
+        const mileage = parseInt(formData.get('mileage') as string || '0', 10);
+
+        try {
+            const today = new Date();
+            const newMaintenance: Omit<Maintenance, 'id' | 'userId'> = {
+                vehicleId: vehicle.id,
+                task: deadline.name,
+                date: today.toISOString().split('T')[0],
+                cost: 0,
+                mileage: 0,
+            };
+
+            // Add cost and mileage if applicable
+            if (needsCost) newMaintenance.cost = cost;
+            if (needsMileage) {
+                if (!mileage || mileage <= 0) {
+                    toast({ title: "Erreur", description: "Le kilométrage est requis pour une vidange.", variant: "destructive" });
+                    setIsSubmitting(false);
+                    return;
+                }
+                newMaintenance.mileage = mileage;
+            }
+
+            // Set default cost if not provided
+             if (!needsCost) {
+                const settings = getSettings();
+                if (deadline.name === 'Vignette' && vehicle.fiscalPower) {
+                    const vignetteSettings = vehicle.fuelType === 'Diesel' ? settings.vignetteDiesel : settings.vignetteEssence;
+                    const powerRange = vignetteSettings.find(v => {
+                       if (v.range.includes('-')) {
+                           const [min, max] = v.range.split('-').map(Number);
+                           return vehicle.fiscalPower! >= min && vehicle.fiscalPower! <= max;
+                       }
+                       return Number(v.range) === vehicle.fiscalPower!;
+                    });
+                    newMaintenance.cost = powerRange?.cost || 0;
+                }
+            }
+
+
+            // Calculate next deadline
+            if (deadline.name === 'Vidange') {
+                newMaintenance.nextDueMileage = mileage + 10000;
+            } else if (deadline.name === 'Visite technique') {
+                const nextDueDate = new Date(today);
+                nextDueDate.setFullYear(today.getFullYear() + 1);
+                newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
+            } else if (deadline.name === 'Paiement Assurance') {
+                const nextDueDate = new Date(today);
+                const isAnnual = deadline.originalTask.nextDueDate && (new Date(deadline.originalTask.nextDueDate).getTime() - new Date(deadline.originalTask.date).getTime()) > (8 * 30 * 24 * 60 * 60 * 1000); // check if previous was ~annual
+                nextDueDate.setMonth(today.getMonth() + (isAnnual ? 12 : 6));
+                newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
+            } else if (deadline.name === 'Vignette') {
+                 const nextDueDate = new Date(today);
+                nextDueDate.setFullYear(today.getFullYear() + 1);
+                newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
+            }
+
+            await addMaintenance(newMaintenance, user.uid);
+            toast({ title: 'Succès', description: `${deadline.name} a été enregistré.` });
+            onComplete();
+
+        } catch (error) {
+            console.error("Error completing deadline:", error);
+            toast({ title: "Erreur", description: "Impossible d'enregistrer l'entretien.", variant: "destructive" });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    if (!deadline || !vehicle) return null;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Confirmer l'entretien</DialogTitle>
+                    <DialogDescription>
+                        Avez-vous bien effectué l'entretien suivant pour {vehicle.brand} {vehicle.model} ?
+                        <br/>
+                        <span className="font-semibold text-foreground">{deadline.name}</span>
+                    </DialogDescription>
+                </DialogHeader>
+                <form ref={formRef} onSubmit={handleSubmit}>
+                    <div className="space-y-4 py-4">
+                        {needsMileage && (
+                            <div className="space-y-2">
+                                <Label htmlFor="mileage">Kilométrage actuel</Label>
+                                <Input id="mileage" name="mileage" type="number" required placeholder="ex: 125000" />
+                            </div>
+                        )}
+                        {needsCost && (
+                            <div className="space-y-2">
+                                <Label htmlFor="cost">Coût de l'entretien (TND)</Label>
+                                <Input id="cost" name="cost" type="number" step="0.01" placeholder="0" />
+                            </div>
+                        )}
+                        {!needsCost && !needsMileage && (
+                            <p className="text-sm text-muted-foreground">
+                                Un nouvel enregistrement sera créé à la date d'aujourd'hui pour confirmer cette action.
+                            </p>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                            Confirmer
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+    
