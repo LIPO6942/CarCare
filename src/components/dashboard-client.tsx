@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { VehicleCard } from '@/components/vehicle-card';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
@@ -55,7 +55,7 @@ function StatCard({ title, value, icon: Icon, description, onClick, disabled, is
           {description && <p className="text-sm text-foreground/90 pt-1">{description}</p>}
         </CardContent>
         {onComplete && !disabled && (
-             <div className="border-t p-2 flex justify-center items-center">
+             <CardFooter className="p-2 border-t -mx-0 -mb-0 mt-auto">
                 <Button 
                     variant="ghost" 
                     size="sm"
@@ -65,7 +65,7 @@ function StatCard({ title, value, icon: Icon, description, onClick, disabled, is
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                     Marquer comme terminé
                 </Button>
-            </div>
+            </CardFooter>
         )}
       </Card>
   );
@@ -610,6 +610,8 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
         </Dialog>
     )
 }
+
+    
 
     
 
