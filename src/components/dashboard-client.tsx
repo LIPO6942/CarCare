@@ -45,16 +45,7 @@ function StatCard({ title, value, icon: Icon, description, onClick, disabled, is
   const IconToRender = isUrgent ? AlertTriangle : Icon;
   
   const cardContent = (
-      <Card className={cn("h-full flex flex-col relative", isUrgent && "bg-destructive/10 border-destructive text-destructive")}>
-        {onComplete && !disabled && (
-            <button 
-                onClick={(e) => { e.stopPropagation(); onComplete(); }}
-                className="absolute top-2 right-2 z-10 p-1 rounded-full text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors"
-                aria-label="Marquer comme terminé"
-            >
-                <CheckCircle2 className="h-5 w-5" />
-            </button>
-        )}
+      <Card className={cn("h-full flex flex-col", isUrgent && "bg-destructive/10 border-destructive text-destructive")}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">{title}</CardTitle>
           <IconToRender className={cn("h-4 w-4 text-muted-foreground", isUrgent && "text-destructive")} />
@@ -63,6 +54,19 @@ function StatCard({ title, value, icon: Icon, description, onClick, disabled, is
           <div className="text-2xl font-bold">{value}</div>
           {description && <p className="text-sm text-foreground/90 pt-1">{description}</p>}
         </CardContent>
+        {onComplete && !disabled && (
+             <div className="border-t p-2 flex justify-center items-center">
+                <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="w-full text-muted-foreground"
+                    onClick={(e) => { e.stopPropagation(); onComplete(); }}
+                >
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Marquer comme terminé
+                </Button>
+            </div>
+        )}
       </Card>
   );
 
@@ -606,6 +610,8 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
         </Dialog>
     )
 }
+
+    
 
     
 
