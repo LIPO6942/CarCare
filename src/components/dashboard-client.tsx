@@ -485,7 +485,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
 
     const vehicle = useMemo(() => vehicles.find(v => v.id === deadline?.vehicleId), [vehicles, deadline]);
 
-    const needsCost = deadline?.name === 'Visite technique' || deadline?.name === 'Vidange';
+    const needsCost = deadline?.name === 'Visite technique' || deadline?.name === 'Vidange' || deadline?.name === 'Paiement Assurance';
     const needsMileage = deadline?.name === 'Vidange';
     
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -519,7 +519,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
             }
 
             // Set default cost if not provided
-             if (!needsCost) {
+             if (!needsCost || (needsCost && deadline.name === 'Paiement Assurance' && cost === 0)) {
                 const settings = getSettings();
                 if (deadline.name === 'Vignette' && vehicle.fiscalPower) {
                     const vignetteSettings = vehicle.fuelType === 'Diesel' ? settings.vignetteDiesel : settings.vignetteEssence;
@@ -610,11 +610,5 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
         </Dialog>
     )
 }
-
-    
-
-    
-
-    
 
     
