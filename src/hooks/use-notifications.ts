@@ -144,7 +144,8 @@ export function useNotifications() {
           if (isNew) {
             toast({ title: "Succès", description: "Notifications activées et token enregistré." });
           } else {
-            toast({ title: "Succès", description: "Token de notification regénéré avec succès." });
+            // Toast not needed if token is just being refreshed.
+            console.log("Notification token refreshed.");
           }
         } else {
           throw new Error("Impossible d'obtenir le token. Le Service Worker est peut-être mal configuré ou l'enregistrement a échoué.");

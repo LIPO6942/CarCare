@@ -52,8 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .catch((error) => {
             console.error("Firebase Authentication Error:", error);
             // Provide a more helpful error message for common configuration issues.
-            if (error.code === 'auth/invalid-api-key' || error.code === 'auth/internal-error') {
-                 setConfigError("Erreur de configuration Firebase. Veuillez vérifier que vos variables d'environnement (clés API) sont correctement configurées.");
+            if (error.code === 'auth/invalid-api-key' || error.code === 'auth/internal-error' || error.message.includes('auth/invalid-api-key')) {
+                 setConfigError("Erreur de configuration Firebase. Veuillez vérifier que vos variables d'environnement (clés API) sont correctement configurées dans le fichier .env et que le projet est bien initialisé.");
             } else {
                 setConfigError("Impossible de se connecter aux services de l'application. Veuillez vérifier votre connexion internet et réessayer.");
             }
