@@ -55,7 +55,7 @@ function StatCard({ title, value, icon: Icon, description, onClick, disabled, is
           {description && <p className="text-sm text-foreground/90 pt-1">{description}</p>}
         </CardContent>
         {onComplete && !disabled && (
-             <CardFooter className="p-2 border-t -mx-0 -mb-0 mt-auto">
+             <CardFooter className="p-2 border-t -mx-0 -mb-0 mt-auto bg-background/20 dark:bg-card/30">
                 <Button 
                     variant="ghost" 
                     size="sm"
@@ -63,7 +63,7 @@ function StatCard({ title, value, icon: Icon, description, onClick, disabled, is
                     onClick={(e) => { e.stopPropagation(); onComplete(); }}
                 >
                     <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Marquer comme terminé
+                    Échéance réglée
                 </Button>
             </CardFooter>
         )}
