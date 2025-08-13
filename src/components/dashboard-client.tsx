@@ -12,7 +12,7 @@ import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { VehicleCard } from '@/components/vehicle-card';
-import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance } from '@/lib/data';
+import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -538,22 +538,25 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
             // Calculate next deadline
             if (deadline.name === 'Vidange') {
                 newMaintenance.nextDueMileage = mileage + 10000;
-            } else if (deadline.name === 'Visite technique') {
-                const nextDueDate = new Date(today);
-                nextDueDate.setFullYear(today.getFullYear() + 1);
-                newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
-            } else if (deadline.name === 'Paiement Assurance') {
-                const nextDueDate = new Date(today);
-                const isAnnual = deadline.originalTask.nextDueDate && (new Date(deadline.originalTask.nextDueDate).getTime() - new Date(deadline.originalTask.date).getTime()) > (8 * 30 * 24 * 60 * 60 * 1000); // check if previous was ~annual
-                nextDueDate.setMonth(today.getMonth() + (isAnnual ? 12 : 6));
-                newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
-            } else if (deadline.name === 'Vignette') {
-                 const nextDueDate = new Date(today);
-                nextDueDate.setFullYear(today.getFullYear() + 1);
+            } else if (deadline.originalTask.nextDueDate) { // For date-based renewals
+                const oldDueDate = new Date(deadline.originalTask.nextDueDate);
+                const nextDueDate = new Date(oldDueDate);
+
+                if (deadline.name === 'Visite technique' || deadline.name === 'Vignette') {
+                    nextDueDate.setFullYear(oldDueDate.getFullYear() + 1);
+                } else if (deadline.name === 'Paiement Assurance') {
+                     const isAnnual = (new Date(deadline.originalTask.nextDueDate).getTime() - new Date(deadline.originalTask.date).getTime()) > (8 * 30 * 24 * 60 * 60 * 1000); // check if previous was ~annual
+                     nextDueDate.setMonth(oldDueDate.getMonth() + (isAnnual ? 12 : 6));
+                }
                 newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
             }
+            
+            // First, update the old task to "close" it by removing its future deadline
+            await updateMaintenance(deadline.originalTask.id, { nextDueDate: undefined, nextDueMileage: undefined });
 
+            // Then, add the new record for today's action, with the new future deadline
             await addMaintenance(newMaintenance, user.uid);
+            
             toast({ title: 'Succès', description: `${deadline.name} a été enregistré.` });
             onComplete();
 
@@ -610,5 +613,4 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
         </Dialog>
     )
 }
-
     

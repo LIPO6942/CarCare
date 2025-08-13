@@ -184,7 +184,11 @@ export async function updateRepair(id: string, data: Partial<Omit<Repair, 'id' |
 }
 
 export async function updateMaintenance(id:string, data: Partial<Omit<Maintenance, 'id'|'userId'|'vehicleId'>>): Promise<void> {
-    await updateDoc(doc(db, 'maintenance', id), data);
+    const docRef = doc(db, 'maintenance', id);
+    // Firestore's updateDoc throws an error if a field is set to `undefined`.
+    // We must clean the data object to remove any undefined values.
+    const cleanData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+    await updateDoc(docRef, cleanData);
 }
 
 export async function updateFuelLog(id: string, data: Partial<Omit<FuelLog, 'id' | 'userId' | 'vehicleId'>>): Promise<void> {
