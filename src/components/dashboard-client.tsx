@@ -68,9 +68,20 @@ function StatCard({ title, value, icon: Icon, description, onClick, disabled, is
 
   if (isClickable) {
     return (
-        <button onClick={onClick} disabled={disabled} className={cn("text-left w-full h-full", isClickable && "transition-all hover:shadow-md hover:-translate-y-1", disabled && "opacity-50 cursor-not-allowed")}>
+        <div 
+            onClick={() => !disabled && onClick ? onClick() : undefined} 
+            className={cn("text-left w-full h-full", isClickable && "cursor-pointer transition-all hover:shadow-md hover:-translate-y-1", disabled && "opacity-50 cursor-not-allowed")}
+            role="button"
+            tabIndex={disabled ? -1 : 0}
+            onKeyDown={(e) => {
+                if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    onClick?.();
+                }
+            }}
+        >
             {cardContent}
-        </button>
+        </div>
     )
   }
 
@@ -595,5 +606,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
         </Dialog>
     )
 }
+
+    
 
     
