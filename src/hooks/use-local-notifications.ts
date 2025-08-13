@@ -59,7 +59,7 @@ async function checkDeadlinesAndNotify(userId: string) {
 
     const allEvents = [
         ...repairs.map(item => ({...item, eventDate: new Date(item.date)})),
-        ...maintenance.map(item => ({...item, eventDate: new Date(item.date)})),
+        ...maintenanceTasks.map(item => ({...item, eventDate: new Date(item.date)})),
         ...fuelLogs.map(item => ({...item, eventDate: new Date(item.date)}))
     ].filter(e => e.mileage > 0 && e.date && !isNaN(new Date(e.date).getTime()));
 
