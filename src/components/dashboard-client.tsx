@@ -549,6 +549,9 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                     newMaintenance.cost = settings.costVisiteTechnique;
                 }
             }
+            
+            // First, archive the old task by removing its future due date/mileage
+            await updateMaintenance(deadline.originalTask.id, { nextDueDate: null, nextDueMileage: null });
 
             if (deadline.name === 'Vidange') {
                 newMaintenance.nextDueMileage = (newMaintenance.mileage || 0) + 10000;
@@ -568,10 +571,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                 newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
             }
             
-            // Archive the old task by removing its future due date/mileage
-            await updateMaintenance(deadline.originalTask.id, { nextDueDate: null, nextDueMileage: null });
-
-            // Add the new record with the new future due date/mileage
+            // Then, add the new record with the new future due date/mileage
             await addMaintenance(newMaintenance, user.uid);
             
             toast({ title: 'Succès', description: `${deadline.name} a été enregistré.` });
@@ -635,3 +635,6 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
     
 
 
+
+
+    
