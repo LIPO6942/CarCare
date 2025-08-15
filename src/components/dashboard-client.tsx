@@ -549,7 +549,8 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                 } else if (deadline.name === 'Paiement Assurance') {
                      // Check if previous period was ~annual or ~semestrial based on original task's dates
                      const oldDate = new Date(deadline.originalTask.date);
-                     const isAnnual = (oldDueDate.getTime() - oldDate.getTime()) > (8 * 30 * 24 * 60 * 60 * 1000); // More than 8 months -> annual
+                     const monthDiff = (oldDueDate.getFullYear() - oldDate.getFullYear()) * 12 + (oldDueDate.getMonth() - oldDate.getMonth());
+                     const isAnnual = monthDiff > 8; // More than 8 months -> annual
                      nextDueDate.setMonth(oldDueDate.getMonth() + (isAnnual ? 12 : 6));
                 }
                 newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
