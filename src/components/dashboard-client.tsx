@@ -124,7 +124,8 @@ export function DashboardClient() {
   const [vehicleForInitialMaintenance, setVehicleForInitialMaintenance] = useState<Vehicle | null>(null);
   
   const [deadlineToComplete, setDeadlineToComplete] = useState<Deadline | null>(null);
-  const [paidDeadlines, setPaidDeadlines] = useState<Record<string, boolean>>({});
+  // This local state was causing the bug. It will be removed.
+  // const [paidDeadlines, setPaidDeadlines] = useState<Record<string, boolean>>({});
 
 
   const fetchData = useCallback(async (showLoadingIndicators = true) => {
@@ -167,12 +168,11 @@ export function DashboardClient() {
     fetchData(); // Full refetch to update stats
   }
   
-  const handleDeadlineComplete = (deadline: Deadline) => {
+  const handleDeadlineComplete = () => {
       setDeadlineToComplete(null);
-      // Mark as paid locally to instantly update UI
-      setPaidDeadlines(prev => ({...prev, [deadline.originalTask.id]: true}));
-      // Fetch new data in background
-      fetchData(false);
+      // Don't use local state. Just refetch all data from Firestore.
+      // The UI will update once the data is fresh.
+      fetchData(true);
   }
 
   const { 
@@ -197,7 +197,7 @@ export function DashboardClient() {
     
     // 1. Get explicitly scheduled deadlines by date
     const dateBasedDeadlines = maintenance
-      .filter(m => m.nextDueDate) // Consider all with a due date
+      .filter(m => m.nextDueDate) // Only consider tasks with an active due date.
       .map(m => ({
         type: 'date' as const,
         name: m.task,
@@ -206,7 +206,6 @@ export function DashboardClient() {
         vehicleId: m.vehicleId,
         sortValue: new Date(m.nextDueDate!).getTime(),
         originalTask: m,
-        isPaid: paidDeadlines[m.id] || new Date(m.nextDueDate!) < today,
       }));
 
     // 2. Get mileage-based deadlines (Vidange)
@@ -219,15 +218,14 @@ export function DashboardClient() {
 
       const lastOilChange = maintenance
         .filter(m => m.vehicleId === vehicle.id && m.task === 'Vidange' && m.nextDueMileage && m.nextDueMileage > 0)
-        .sort((a, b) => b.nextDueMileage! - a.nextDueMileage!)[0]; 
+        .sort((a, b) => b.mileage! - a.mileage!)[0]; 
         
       if (!lastOilChange) return null;
       
       const kmRemaining = lastOilChange.nextDueMileage! - latestVehicleEvent.mileage;
-      const isPaid = paidDeadlines[lastOilChange.id] || kmRemaining > 10000; // if over 10k, it's the next one, so the previous is paid
       
       let estimatedDate = new Date();
-      if (!isPaid) {
+      if (kmRemaining > 0) {
           const vehicleEvents = allEvents.filter(e => e.vehicleId === vehicle.id).sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
           estimatedDate.setDate(estimatedDate.getDate() + 999);
           if(vehicleEvents.length > 1) {
@@ -243,8 +241,8 @@ export function DashboardClient() {
             }
           }
       } else {
-          // If it's paid, sort it to the end.
-          estimatedDate.setFullYear(estimatedDate.getFullYear() + 10);
+          // If km are negative, it's overdue, so sort it to the top.
+          estimatedDate.setFullYear(estimatedDate.getFullYear() - 10);
       }
 
 
@@ -256,7 +254,6 @@ export function DashboardClient() {
         vehicleId: vehicle.id,
         sortValue: estimatedDate.getTime(),
         originalTask: lastOilChange,
-        isPaid,
       }
     }).filter((item): item is NonNullable<typeof item> => item !== null);
 
@@ -266,17 +263,13 @@ export function DashboardClient() {
         ...dateBasedDeadlines,
         ...mileageBasedDeadlines
     ]
-    .sort((a, b) => {
-        if (a.isPaid && !b.isPaid) return 1;
-        if (!a.isPaid && b.isPaid) return -1;
-        return a.sortValue - b.sortValue;
-    });
+    .sort((a, b) => a.sortValue - b.sortValue);
 
     const nextDeadline = upcomingDeadlines[0] || null;
     const secondNextDeadline = upcomingDeadlines[1] || null;
     
     const checkUrgency = (deadline: Deadline | null) => {
-        if (!deadline || deadline.isPaid) return false;
+        if (!deadline) return false;
         if (deadline.type === 'date') {
           const twentyDaysFromNow = new Date();
           twentyDaysFromNow.setDate(today.getDate() + 20);
@@ -296,7 +289,7 @@ export function DashboardClient() {
         isDeadlineUrgent: checkUrgency(nextDeadline),
         isSecondDeadlineUrgent: checkUrgency(secondNextDeadline),
     }
-  }, [vehicles, repairs, maintenance, fuelLogs, paidDeadlines]);
+  }, [vehicles, repairs, maintenance, fuelLogs]);
 
   const fuelConsumptions = useMemo(() => {
     const consumptions = new Map<string, number | null>();
@@ -403,14 +396,14 @@ export function DashboardClient() {
         </DashboardHeader>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
             {vehicles.length > 0 && (
-                <QuickFuelLogForm vehicles={vehicles} onFuelLogAdded={fetchData} />
+                <QuickFuelLogForm vehicles={vehicles} onFuelLogAdded={() => fetchData(false)} />
             )}
 
            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title={nextDeadline ? (isDeadlineUrgent ? "Échéance Proche !" : "Prochaine Échéance") : "Prochaine Échéance"}
                 value={getNextDeadlineValue(nextDeadline)}
-                icon={nextDeadline?.isPaid ? CheckCircle2 : Bell}
+                icon={Bell}
                 description={getNextDeadlineDescription(nextDeadline)}
                 onClick={() => setVehicleForDetailView(getVehicleForStat(nextDeadline?.vehicleId) || null)}
                 onComplete={() => setDeadlineToComplete(nextDeadline)}
@@ -422,7 +415,7 @@ export function DashboardClient() {
               <StatCard
                 title={secondNextDeadline ? (isSecondDeadlineUrgent ? "Échéance Suivante" : "Échéance Suivante") : "Échéance Suivante"}
                 value={getNextDeadlineValue(secondNextDeadline)}
-                icon={secondNextDeadline?.isPaid ? CheckCircle2 : Bell}
+                icon={Bell}
                 description={getNextDeadlineDescription(secondNextDeadline)}
                 onClick={() => setVehicleForDetailView(getVehicleForStat(secondNextDeadline?.vehicleId) || null)}
                 onComplete={() => setDeadlineToComplete(secondNextDeadline)}
@@ -458,7 +451,7 @@ export function DashboardClient() {
                         key={vehicle.id} 
                         vehicle={vehicle} 
                         onShowDetails={() => setVehicleForDetailView(vehicle)}
-                        onDeleted={fetchData}
+                        onDeleted={() => fetchData(true)}
                         fuelConsumption={fuelConsumptions.get(vehicle.id)}
                        />
                     ))}
@@ -490,7 +483,7 @@ export function DashboardClient() {
         vehicle={vehicleForDetailView}
         open={!!vehicleForDetailView}
         onOpenChange={(isOpen) => !isOpen && setVehicleForDetailView(null)}
-        onDataChange={fetchData}
+        onDataChange={() => fetchData(false)}
       />
       
       <AddInitialMaintenanceForm
@@ -512,7 +505,7 @@ export function DashboardClient() {
 }
 
 
-function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehicles }: { deadline: Deadline | null, open: boolean, onOpenChange: (open: boolean) => void, onComplete: (deadline: Deadline) => void, vehicles: Vehicle[]}) {
+function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehicles }: { deadline: Deadline | null, open: boolean, onOpenChange: (open: boolean) => void, onComplete: () => void, vehicles: Vehicle[]}) {
     const { user } = useAuth();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -522,6 +515,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
 
     const needsCost = useMemo(() => {
         if (!deadline) return false;
+        // Insurance cost is now added here
         return ['Visite technique', 'Vidange', 'Paiement Assurance', 'Vignette'].includes(deadline.name);
     }, [deadline]);
 
@@ -559,6 +553,8 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                     return;
                 }
                 newMaintenance.mileage = mileage;
+            } else {
+                 newMaintenance.mileage = deadline.originalTask.mileage; // Carry over old mileage if not a vidange
             }
 
             // Set default cost if not provided and it's not an insurance payment
@@ -584,6 +580,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
             if (deadline.name === 'Vidange') {
                 newMaintenance.nextDueMileage = mileage + 10000;
             } else if (deadline.originalTask.nextDueDate) { // For date-based renewals
+                // The new due date is based on the OLD due date, not today's date
                 const oldDueDate = new Date(deadline.originalTask.nextDueDate);
                 const nextDueDate = new Date(oldDueDate);
 
@@ -599,14 +596,15 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                 newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
             }
             
-            // First, update the old task to "close" it by removing its future deadline
+            // First, update the old task to "close" it by removing its future deadline.
+            // This is the CRITICAL fix.
             await updateMaintenance(deadline.originalTask.id, { nextDueDate: null, nextDueMileage: null });
 
-            // Then, add the new record for today's action, with the new future deadline
+            // Then, add the new record for today's action, with the new future deadline.
             await addMaintenance(newMaintenance, user.uid);
             
             toast({ title: 'Succès', description: `${deadline.name} a été enregistré.` });
-            onComplete(deadline);
+            onComplete();
 
         } catch (error) {
             console.error("Error completing deadline:", error);
