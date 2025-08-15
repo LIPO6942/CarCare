@@ -32,7 +32,7 @@ type Deadline = {
     vehicleId: string;
     sortValue: number;
     originalTask: Maintenance;
-    isPaid?: boolean;
+    isPaid: boolean;
 } & ({ type: 'date'; date: Date } | { type: 'mileage'; kmRemaining: number });
 
 
@@ -124,8 +124,7 @@ export function DashboardClient() {
   const [vehicleForInitialMaintenance, setVehicleForInitialMaintenance] = useState<Vehicle | null>(null);
   
   const [deadlineToComplete, setDeadlineToComplete] = useState<Deadline | null>(null);
-  // This local state was causing the bug. It will be removed.
-  // const [paidDeadlines, setPaidDeadlines] = useState<Record<string, boolean>>({});
+  const [paidDeadlines, setPaidDeadlines] = useState<Record<string, boolean>>({});
 
 
   const fetchData = useCallback(async (showLoadingIndicators = true) => {
@@ -168,11 +167,10 @@ export function DashboardClient() {
     fetchData(); // Full refetch to update stats
   }
   
-  const handleDeadlineComplete = () => {
+  const handleDeadlineComplete = (deadline: Deadline) => {
+      setPaidDeadlines(prev => ({...prev, [deadline.originalTask.id]: true}));
       setDeadlineToComplete(null);
-      // Don't use local state. Just refetch all data from Firestore.
-      // The UI will update once the data is fresh.
-      fetchData(true);
+      fetchData(false); // Refetch in the background
   }
 
   const { 
@@ -196,7 +194,7 @@ export function DashboardClient() {
     ].filter(e => e.mileage > 0 && e.date && !isNaN(new Date(e.date).getTime()));
     
     // 1. Get explicitly scheduled deadlines by date
-    const dateBasedDeadlines = maintenance
+    const dateBasedDeadlines: Deadline[] = maintenance
       .filter(m => m.nextDueDate) // Only consider tasks with an active due date.
       .map(m => ({
         type: 'date' as const,
@@ -206,10 +204,11 @@ export function DashboardClient() {
         vehicleId: m.vehicleId,
         sortValue: new Date(m.nextDueDate!).getTime(),
         originalTask: m,
+        isPaid: !!paidDeadlines[m.id],
       }));
 
     // 2. Get mileage-based deadlines (Vidange)
-    const mileageBasedDeadlines = vehicles.map(vehicle => {
+    const mileageBasedDeadlines: Deadline[] = vehicles.map(vehicle => {
       const latestVehicleEvent = allEvents
         .filter(e => e.vehicleId === vehicle.id)
         .sort((a,b) => b.eventDate.getTime() - a.eventDate.getTime())[0];
@@ -254,8 +253,9 @@ export function DashboardClient() {
         vehicleId: vehicle.id,
         sortValue: estimatedDate.getTime(),
         originalTask: lastOilChange,
+        isPaid: !!paidDeadlines[lastOilChange.id],
       }
-    }).filter((item): item is NonNullable<typeof item> => item !== null);
+    }).filter((item): item is Deadline => item !== null);
 
 
     // 3. Combine and sort all deadlines
@@ -269,7 +269,7 @@ export function DashboardClient() {
     const secondNextDeadline = upcomingDeadlines[1] || null;
     
     const checkUrgency = (deadline: Deadline | null) => {
-        if (!deadline) return false;
+        if (!deadline || deadline.isPaid) return false;
         if (deadline.type === 'date') {
           const twentyDaysFromNow = new Date();
           twentyDaysFromNow.setDate(today.getDate() + 20);
@@ -289,7 +289,7 @@ export function DashboardClient() {
         isDeadlineUrgent: checkUrgency(nextDeadline),
         isSecondDeadlineUrgent: checkUrgency(secondNextDeadline),
     }
-  }, [vehicles, repairs, maintenance, fuelLogs]);
+  }, [vehicles, repairs, maintenance, fuelLogs, paidDeadlines]);
 
   const fuelConsumptions = useMemo(() => {
     const consumptions = new Map<string, number | null>();
@@ -367,7 +367,7 @@ export function DashboardClient() {
   
   const getNextDeadlineValue = (deadline: Deadline | null) => {
     if (!deadline) return "Aucune";
-    if (deadline.isPaid) return "Payé";
+    if (deadline.isPaid) return "Réglée";
     if (deadline.type === 'date') return format(deadline.date, 'd MMM yyyy', { locale: fr });
     return `~ ${deadline.kmRemaining.toLocaleString('fr-FR')} km`;
   }
@@ -401,7 +401,7 @@ export function DashboardClient() {
 
            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
-                title={nextDeadline ? (isDeadlineUrgent ? "Échéance Proche !" : "Prochaine Échéance") : "Prochaine Échéance"}
+                title={nextDeadline ? (isDeadlineUrgent && !nextDeadline.isPaid ? "Échéance Proche !" : "Prochaine Échéance") : "Prochaine Échéance"}
                 value={getNextDeadlineValue(nextDeadline)}
                 icon={Bell}
                 description={getNextDeadlineDescription(nextDeadline)}
@@ -413,7 +413,7 @@ export function DashboardClient() {
                 isPaid={nextDeadline?.isPaid}
               />
               <StatCard
-                title={secondNextDeadline ? (isSecondDeadlineUrgent ? "Échéance Suivante" : "Échéance Suivante") : "Échéance Suivante"}
+                title={secondNextDeadline ? (isSecondDeadlineUrgent && !secondNextDeadline.isPaid ? "Échéance Suivante" : "Échéance Suivante") : "Échéance Suivante"}
                 value={getNextDeadlineValue(secondNextDeadline)}
                 icon={Bell}
                 description={getNextDeadlineDescription(secondNextDeadline)}
@@ -505,7 +505,7 @@ export function DashboardClient() {
 }
 
 
-function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehicles }: { deadline: Deadline | null, open: boolean, onOpenChange: (open: boolean) => void, onComplete: () => void, vehicles: Vehicle[]}) {
+function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehicles }: { deadline: Deadline | null, open: boolean, onOpenChange: (open: boolean) => void, onComplete: (deadline: Deadline) => void, vehicles: Vehicle[]}) {
     const { user } = useAuth();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -597,14 +597,13 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
             }
             
             // First, update the old task to "close" it by removing its future deadline.
-            // This is the CRITICAL fix.
             await updateMaintenance(deadline.originalTask.id, { nextDueDate: null, nextDueMileage: null });
 
             // Then, add the new record for today's action, with the new future deadline.
             await addMaintenance(newMaintenance, user.uid);
             
             toast({ title: 'Succès', description: `${deadline.name} a été enregistré.` });
-            onComplete();
+            onComplete(deadline);
 
         } catch (error) {
             console.error("Error completing deadline:", error);

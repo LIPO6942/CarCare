@@ -618,7 +618,7 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
             <div>
                 <CardTitle>Journal des Entretiens</CardTitle>
                 <CardDescription>
-                    Historique de tous les entretiens effectués.
+                    Historique de tous les entretiens et paiements récurrents.
                 </CardDescription>
             </div>
             <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
