@@ -518,8 +518,8 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                 newMaintenance.mileage = mileage;
             }
 
-            // Set default cost if not provided
-             if (!needsCost || (needsCost && deadline.name === 'Paiement Assurance' && cost === 0)) {
+            // Set default cost if not provided and it's not an insurance payment
+             if (needsCost && cost === 0 && deadline.name !== 'Paiement Assurance') {
                 const settings = getSettings();
                 if (deadline.name === 'Vignette' && vehicle.fiscalPower) {
                     const vignetteSettings = vehicle.fuelType === 'Diesel' ? settings.vignetteDiesel : settings.vignetteEssence;
@@ -530,7 +530,9 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                        }
                        return Number(v.range) === vehicle.fiscalPower!;
                     });
-                    newMaintenance.cost = powerRange?.cost || 0;
+                    if (powerRange) newMaintenance.cost = powerRange.cost;
+                } else if (deadline.name === 'Visite technique') {
+                    newMaintenance.cost = settings.costVisiteTechnique;
                 }
             }
 
@@ -545,14 +547,16 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                 if (deadline.name === 'Visite technique' || deadline.name === 'Vignette') {
                     nextDueDate.setFullYear(oldDueDate.getFullYear() + 1);
                 } else if (deadline.name === 'Paiement Assurance') {
-                     const isAnnual = (new Date(deadline.originalTask.nextDueDate).getTime() - new Date(deadline.originalTask.date).getTime()) > (8 * 30 * 24 * 60 * 60 * 1000); // check if previous was ~annual
+                     // Check if previous period was ~annual or ~semestrial based on original task's dates
+                     const oldDate = new Date(deadline.originalTask.date);
+                     const isAnnual = (oldDueDate.getTime() - oldDate.getTime()) > (8 * 30 * 24 * 60 * 60 * 1000); // More than 8 months -> annual
                      nextDueDate.setMonth(oldDueDate.getMonth() + (isAnnual ? 12 : 6));
                 }
                 newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
             }
             
             // First, update the old task to "close" it by removing its future deadline
-            await updateMaintenance(deadline.originalTask.id, { nextDueDate: undefined, nextDueMileage: undefined });
+            await updateMaintenance(deadline.originalTask.id, { nextDueDate: null, nextDueMileage: null });
 
             // Then, add the new record for today's action, with the new future deadline
             await addMaintenance(newMaintenance, user.uid);
