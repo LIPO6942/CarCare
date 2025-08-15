@@ -485,8 +485,16 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
 
     const vehicle = useMemo(() => vehicles.find(v => v.id === deadline?.vehicleId), [vehicles, deadline]);
 
-    const needsCost = deadline?.name === 'Visite technique' || deadline?.name === 'Vidange' || deadline?.name === 'Paiement Assurance';
-    const needsMileage = deadline?.name === 'Vidange';
+    const needsCost = useMemo(() => {
+        if (!deadline) return false;
+        return ['Visite technique', 'Vidange', 'Paiement Assurance'].includes(deadline.name);
+    }, [deadline]);
+
+    const needsMileage = useMemo(() => {
+        if (!deadline) return false;
+        return deadline.name === 'Vidange';
+    }, [deadline]);
+    
     
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
