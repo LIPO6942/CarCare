@@ -176,7 +176,19 @@ export function DashboardClient() {
         ...fuelLogs.map(item => ({...item, eventDate: new Date(item.date)}))
     ].filter(e => e.mileage > 0 && e.date && !isNaN(new Date(e.date).getTime()));
     
-    const dateBasedDeadlines: Deadline[] = maintenance
+    // Group maintenance tasks by type and vehicle to find the most recent one.
+    const latestTasksMap = new Map<string, Maintenance>();
+    maintenance.forEach(task => {
+        const key = `${task.vehicleId}-${task.task}`;
+        const existingTask = latestTasksMap.get(key);
+        if (!existingTask || new Date(task.date) > new Date(existingTask.date)) {
+            latestTasksMap.set(key, task);
+        }
+    });
+
+    const latestTasks = Array.from(latestTasksMap.values());
+
+    const dateBasedDeadlines: Deadline[] = latestTasks
       .filter(m => m.nextDueDate)
       .map(m => ({
         type: 'date' as const,
@@ -195,9 +207,8 @@ export function DashboardClient() {
         
       if (!latestVehicleEvent) return null;
 
-      const lastOilChange = maintenance
-        .filter(m => m.vehicleId === vehicle.id && m.task === 'Vidange' && m.nextDueMileage && m.nextDueMileage > 0)
-        .sort((a, b) => b.mileage! - a.mileage!)[0]; 
+      const lastOilChange = latestTasks
+        .find(m => m.vehicleId === vehicle.id && m.task === 'Vidange' && m.nextDueMileage && m.nextDueMileage > 0); 
         
       if (!lastOilChange) return null;
       
@@ -550,28 +561,27 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                 }
             }
             
-            // First, archive the old task by removing its future due date/mileage
-            await updateMaintenance(deadline.originalTask.id, { nextDueDate: null, nextDueMileage: null });
-
+            // This is the simplified logic: just add the new record.
+            // The dashboard logic will automatically pick the latest one.
+            
             if (deadline.name === 'Vidange') {
                 newMaintenance.nextDueMileage = (newMaintenance.mileage || 0) + 10000;
             } else if (deadline.originalTask.nextDueDate) {
-                // Use today as the base for calculating the next due date
                 const nextDueDate = new Date(today);
 
                 if (deadline.name === 'Visite technique' || deadline.name === 'Vignette') {
                     nextDueDate.setFullYear(today.getFullYear() + 1);
                 } else if (deadline.name === 'Paiement Assurance') {
+                     // Heuristic to check if the previous interval was annual or semi-annual
                      const oldDueDate = new Date(deadline.originalTask.nextDueDate);
                      const oldDate = new Date(deadline.originalTask.date);
                      const monthDiff = (oldDueDate.getFullYear() - oldDate.getFullYear()) * 12 + (oldDueDate.getMonth() - oldDate.getMonth());
-                     const isAnnual = monthDiff > 8; // Heuristic to determine if it was annual
+                     const isAnnual = monthDiff > 8; 
                      nextDueDate.setMonth(today.getMonth() + (isAnnual ? 12 : 6));
                 }
                 newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
             }
             
-            // Then, add the new record with the new future due date/mileage
             await addMaintenance(newMaintenance, user.uid);
             
             toast({ title: 'Succès', description: `${deadline.name} a été enregistré.` });
