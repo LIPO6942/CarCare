@@ -170,7 +170,8 @@ export function DashboardClient() {
   const handleDeadlineComplete = (deadline: Deadline) => {
       setPaidDeadlines(prev => ({...prev, [deadline.originalTask.id]: true}));
       setDeadlineToComplete(null);
-      fetchData(false); // Refetch in the background
+      // No background refetch here; the state change is enough for the UI to update instantly.
+      // A full refetch will happen when the component re-renders if needed, or on next page load.
   }
 
   const { 
@@ -263,10 +264,50 @@ export function DashboardClient() {
         ...dateBasedDeadlines,
         ...mileageBasedDeadlines
     ]
+    .filter(deadline => {
+        // If a deadline is paid, only show it until its original due date has passed.
+        // After that, it should disappear to make way for the next real deadline.
+        if (deadline.isPaid) {
+            if (deadline.type === 'date') {
+                return deadline.date >= today;
+            }
+            // For mileage-based, we can let it disappear right away after being paid as it's less tied to a hard date
+            // or we can estimate. For simplicity, let's keep it visible for 7 days after payment.
+            // This is tricky. A simpler rule is better. Let's just filter it out if its *original* task is marked paid.
+            // The `handleDeadlineComplete` now updates the state, let's filter here.
+             return false; // A simpler logic: once paid, the new deadline should be picked up. Let's remove this from the list.
+        }
+        return true;
+    })
+    .sort((a, b) => a.sortValue - b.sortValue);
+    
+    // Let's rethink the filtering logic. The user wants to SEE the paid card.
+    // So we can't just filter it out. The problem is it stays forever.
+    // New logic: Filter out paid tasks ONLY if their original due date is in the past.
+    const finalDeadlines = [
+        ...dateBasedDeadlines,
+        ...mileageBasedDeadlines
+    ].filter(d => {
+        if (d.isPaid) {
+            // It's paid. Keep it if its due date is still today or in the future.
+            if (d.type === 'date') {
+                return d.date >= today;
+            }
+            // For mileage based, it's harder to know when to hide.
+            // Let's hide it after 7 days from when it was likely paid (which we don't track).
+            // Easiest is to just remove paid mileage tasks from the main view. The user confirmed the action.
+            if (d.type === 'mileage') {
+                return false;
+            }
+        }
+        // It's not paid, so always keep it.
+        return true;
+    })
     .sort((a, b) => a.sortValue - b.sortValue);
 
-    const nextDeadline = upcomingDeadlines[0] || null;
-    const secondNextDeadline = upcomingDeadlines[1] || null;
+
+    const nextDeadline = finalDeadlines[0] || null;
+    const secondNextDeadline = finalDeadlines[1] || null;
     
     const checkUrgency = (deadline: Deadline | null) => {
         if (!deadline || deadline.isPaid) return false;
@@ -499,13 +540,14 @@ export function DashboardClient() {
         onOpenChange={(isOpen) => !isOpen && setDeadlineToComplete(null)}
         onComplete={handleDeadlineComplete}
         vehicles={vehicles}
+        onDataChange={fetchData}
       />
     </>
   );
 }
 
 
-function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehicles }: { deadline: Deadline | null, open: boolean, onOpenChange: (open: boolean) => void, onComplete: (deadline: Deadline) => void, vehicles: Vehicle[]}) {
+function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehicles, onDataChange }: { deadline: Deadline | null, open: boolean, onOpenChange: (open: boolean) => void, onComplete: (deadline: Deadline) => void, vehicles: Vehicle[], onDataChange: () => void }) {
     const { user } = useAuth();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -603,7 +645,8 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
             await addMaintenance(newMaintenance, user.uid);
             
             toast({ title: 'Succès', description: `${deadline.name} a été enregistré.` });
-            onComplete(deadline);
+            onComplete(deadline); // This now only updates the local state for the green card
+            onDataChange(); // This forces a refetch of all data
 
         } catch (error) {
             console.error("Error completing deadline:", error);
