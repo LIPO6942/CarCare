@@ -551,24 +551,27 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
             }
 
             if (deadline.name === 'Vidange') {
-                newMaintenance.nextDueMileage = mileage + 10000;
+                newMaintenance.nextDueMileage = (newMaintenance.mileage || 0) + 10000;
             } else if (deadline.originalTask.nextDueDate) {
-                const oldDueDate = new Date(deadline.originalTask.nextDueDate);
-                const nextDueDate = new Date(oldDueDate);
+                // Use today as the base for calculating the next due date
+                const nextDueDate = new Date(today);
 
                 if (deadline.name === 'Visite technique' || deadline.name === 'Vignette') {
-                    nextDueDate.setFullYear(oldDueDate.getFullYear() + 1);
+                    nextDueDate.setFullYear(today.getFullYear() + 1);
                 } else if (deadline.name === 'Paiement Assurance') {
+                     const oldDueDate = new Date(deadline.originalTask.nextDueDate);
                      const oldDate = new Date(deadline.originalTask.date);
                      const monthDiff = (oldDueDate.getFullYear() - oldDate.getFullYear()) * 12 + (oldDueDate.getMonth() - oldDate.getMonth());
-                     const isAnnual = monthDiff > 8;
-                     nextDueDate.setMonth(oldDueDate.getMonth() + (isAnnual ? 12 : 6));
+                     const isAnnual = monthDiff > 8; // Heuristic to determine if it was annual
+                     nextDueDate.setMonth(today.getMonth() + (isAnnual ? 12 : 6));
                 }
                 newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
             }
             
+            // Archive the old task by removing its future due date/mileage
             await updateMaintenance(deadline.originalTask.id, { nextDueDate: null, nextDueMileage: null });
 
+            // Add the new record with the new future due date/mileage
             await addMaintenance(newMaintenance, user.uid);
             
             toast({ title: 'Succès', description: `${deadline.name} a été enregistré.` });
@@ -600,7 +603,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                         {needsMileage && (
                             <div className="space-y-2">
                                 <Label htmlFor="mileage">Kilométrage actuel</Label>
-                                <Input id="mileage" name="mileage" type="number" required placeholder="ex: 125000" />
+                                <Input id="mileage" name="mileage" type="number" required placeholder="ex: 125000" defaultValue={deadline.originalTask.nextDueMileage ? deadline.originalTask.nextDueMileage - 10000 : undefined} />
                             </div>
                         )}
                         {needsCost && (
@@ -630,4 +633,5 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
     
 
     
+
 
