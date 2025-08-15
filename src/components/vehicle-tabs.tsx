@@ -577,116 +577,135 @@ function RepairDialog({ open, onOpenChange, vehicleId, onDataChange, initialData
     )
 }
 
-// --- MAINTENANCE TAB (New Logic: Upcoming Deadlines) ---
-
-type UpcomingMaintenanceTask = {
-    task: string;
-    lastPerformed?: string;
-    nextDue?: string;
-    isOverdue: boolean;
-    originalTask?: Maintenance;
-};
-
+// --- MAINTENANCE TAB ---
 function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehicle, maintenance: Maintenance[], onDataChange: () => void }) {
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [itemToEdit, setItemToEdit] = useState<Maintenance | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [itemToEdit, setItemToEdit] = useState<Maintenance | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<Maintenance | null>(null);
+  const { toast } = useToast();
 
-    const isTechInspectionEligible = useMemo(() => {
-        if (!vehicle?.year) return true;
-        const vehicleAge = new Date().getFullYear() - vehicle.year;
-        return vehicleAge >= 4;
-    }, [vehicle]);
+  const handleEdit = (maint: Maintenance) => {
+    setItemToEdit(maint);
+    setIsDialogOpen(true);
+  };
+  
+  const handleAdd = () => {
+    setItemToEdit(null);
+    setIsDialogOpen(true);
+  };
 
-    const upcomingTasks = useMemo(() => {
-        const taskNames = ["Vidange", "Paiement Assurance", "Vignette"];
-        if (isTechInspectionEligible) {
-            taskNames.push("Visite technique");
-        }
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
+    try {
+        await deleteMaintenance(itemToDelete.id);
+        toast({ title: 'Succès', description: 'Entretien supprimé.' });
+        onDataChange();
+        setItemToDelete(null);
+    } catch (error) {
+        toast({ title: 'Erreur', description: "Impossible de supprimer l'entretien.", variant: 'destructive' });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        return taskNames.map(taskName => {
-            const latestTask = maintenance
-                .filter(m => m.task === taskName)
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-
-            let nextDue = "N/A";
-            let isOverdue = false;
-
-            if (latestTask?.nextDueDate) {
-                const dueDate = new Date(latestTask.nextDueDate);
-                if (!isNaN(dueDate.getTime())) {
-                    nextDue = safeFormatDate(dueDate);
-                    if (dueDate < today) {
-                        isOverdue = true;
-                    }
-                }
-            } else if (latestTask?.nextDueMileage) {
-                nextDue = `${safeFormatNumber(latestTask.nextDueMileage)} km`;
-                // Overdue logic for mileage would require current vehicle mileage, which is complex here.
-                // We will rely on color coding instead.
-            }
-            
-            return {
-                task: taskName,
-                lastPerformed: latestTask ? safeFormatDate(latestTask.date) : "Jamais",
-                nextDue,
-                isOverdue,
-                originalTask: latestTask,
-            };
-        });
-    }, [maintenance, isTechInspectionEligible]);
-
-    const handleEdit = (task: UpcomingMaintenanceTask) => {
-        // If there's an original task, we edit it. Otherwise, we create a new one.
-        setItemToEdit(task.originalTask || { task: task.task } as Maintenance);
-        setIsDialogOpen(true);
-    };
-
-    return (
-        <>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Prochaines Échéances</CardTitle>
-                    <CardDescription>
-                        Vue d'ensemble des prochains entretiens à ne pas manquer.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        {upcomingTasks.map(task => (
-                             <div key={task.task} className="flex items-center justify-between p-4 border rounded-lg">
+  return (
+    <>
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-start">
+            <div>
+                <CardTitle>Journal des Entretiens</CardTitle>
+                <CardDescription>
+                    Historique de tous les entretiens effectués.
+                </CardDescription>
+            </div>
+            <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
+                <PlusCircle className="h-6 w-6" />
+                <span className="sr-only">Ajouter un entretien</span>
+            </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {maintenance.length > 0 ? (
+            <div>
+                <div className="md:hidden space-y-4">
+                    {maintenance.map((maint) => (
+                        <div key={maint.id} className="p-4 border rounded-lg bg-card text-card-foreground">
+                            <div className="flex justify-between items-start mb-3">
                                 <div>
-                                    <p className="font-semibold">{task.task}</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Dernier: {task.lastPerformed}
-                                    </p>
-                                    <p className={cn("text-sm font-medium", task.isOverdue ? 'text-destructive' : 'text-foreground')}>
-                                        Prochain: {task.nextDue}
-                                    </p>
+                                    <p className="font-semibold text-base leading-tight">{maint.task || 'N/A'}</p>
                                 </div>
-                                <Button variant="outline" size="sm" onClick={() => handleEdit(task)}>
-                                    <Edit2 className="mr-2 h-4 w-4" />
-                                    Gérer
-                                </Button>
+                                <div className="flex-shrink-0 pl-2">
+                                    <ActionMenu onEdit={() => handleEdit(maint)} onDelete={() => setItemToDelete(maint)} />
+                                </div>
                             </div>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
+                            <div className="flex justify-between items-end">
+                                <div className="text-sm text-muted-foreground space-y-1">
+                                    <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(maint.date)}</span>
+                                    <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(maint.mileage)} km</span>
+                                </div>
+                                <p className="font-bold text-lg text-foreground">{safeFormatCurrency(maint.cost)}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="hidden md:block">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Tâche</TableHead>
+                            <TableHead>Kilométrage</TableHead>
+                            <TableHead>Échéance</TableHead>
+                            <TableHead className="text-right">Coût</TableHead>
+                            <TableHead className="w-[50px]"></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {maintenance.map((maint) => (
+                                <TableRow key={maint.id}>
+                                    <TableCell>{safeFormatDate(maint.date)}</TableCell>
+                                    <TableCell className="font-medium">{maint.task || 'N/A'}</TableCell>
+                                    <TableCell>{safeFormatNumber(maint.mileage)} km</TableCell>
+                                    <TableCell>{maint.nextDueDate ? safeFormatDate(maint.nextDueDate) : (maint.nextDueMileage ? `${safeFormatNumber(maint.nextDueMileage)} km` : 'N/A')}</TableCell>
+                                    <TableCell className="text-right">{safeFormatCurrency(maint.cost)}</TableCell>
+                                    <TableCell><ActionMenu onEdit={() => handleEdit(maint)} onDelete={() => setItemToDelete(maint)} /></TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </div>
+        ) : (
+            <div className="text-center py-12 text-muted-foreground">
+                <Calendar className="mx-auto h-12 w-12 mb-4" />
+                <h3 className="text-lg font-semibold">Aucun entretien enregistré</h3>
+                <p>Cliquez sur le bouton '+' pour commencer.</p>
+            </div>
+        )}
+      </CardContent>
+    </Card>
 
-            <MaintenanceDialog
-                key={itemToEdit ? itemToEdit.id : 'add'}
-                open={isDialogOpen}
-                onOpenChange={setIsDialogOpen}
-                vehicle={vehicle}
-                onDataChange={onDataChange}
-                initialData={itemToEdit}
-                isNewEntry={!itemToEdit?.id} // Pass flag to identify if it's a new entry for a task type
-            />
-        </>
-    );
+    <MaintenanceDialog 
+        key={itemToEdit ? itemToEdit.id : 'add'}
+        open={isDialogOpen} 
+        onOpenChange={setIsDialogOpen}
+        vehicle={vehicle}
+        onDataChange={onDataChange}
+        initialData={itemToEdit}
+    />
+    <DeleteConfirmationDialog 
+        open={!!itemToDelete}
+        onOpenChange={() => setItemToDelete(null)}
+        onConfirm={handleDeleteConfirm}
+        isDeleting={isDeleting}
+        title="Supprimer l'entretien ?"
+        description="Cette action est irréversible et supprimera définitivement cette entrée."
+    />
+    </>
+  );
 }
 
 const MaintenanceSchema = z.object({
@@ -698,81 +717,12 @@ const MaintenanceSchema = z.object({
   nextDueMileage: z.coerce.number().optional(),
 });
 
-function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialData, isNewEntry }: { open: boolean, onOpenChange: (open: boolean) => void, vehicle: Vehicle, onDataChange: () => void, initialData: Maintenance | null, isNewEntry: boolean }) {
+function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialData }: { open: boolean, onOpenChange: (open: boolean) => void, vehicle: Vehicle, onDataChange: () => void, initialData: Maintenance | null }) {
     const { toast } = useToast();
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     
-    const isTechInspectionEligible = useMemo(() => {
-        if (!vehicle?.year) return true;
-        const vehicleAge = new Date().getFullYear() - vehicle.year;
-        return vehicleAge >= 4;
-    }, [vehicle]);
-
-    const maintenanceTasks = useMemo(() => {
-        const tasks = ["Vidange", "Paiement Assurance", "Vignette", "Autre"];
-        if (isTechInspectionEligible) {
-            tasks.push("Visite technique");
-        }
-        if (initialData?.task && !tasks.includes(initialData.task)) {
-            tasks.push(initialData.task);
-        }
-        return tasks;
-    }, [isTechInspectionEligible, initialData]);
-
-    const [selectedTask, setSelectedTask] = useState(initialData?.task || '');
-    const [mileage, setMileage] = useState(initialData?.mileage?.toString() || '');
-    const [nextDueMileage, setNextDueMileage] = useState(initialData?.nextDueMileage?.toString() || '');
-    const [cost, setCost] = useState(initialData?.cost?.toString() || '');
-    
-    // Reset state when dialog opens or initial data changes
-    useEffect(() => {
-        if (open) {
-            setSelectedTask(initialData?.task || '');
-            setCost(initialData?.cost?.toString() || '');
-            setMileage(initialData?.mileage?.toString() || '');
-            setNextDueMileage(initialData?.nextDueMileage?.toString() || '');
-        }
-    }, [initialData, open]);
-    
-    // Auto-calculate next due mileage for "Vidange"
-    useEffect(() => {
-        if (selectedTask === 'Vidange') {
-            const currentMileage = parseInt(mileage, 10);
-            if (!isNaN(currentMileage) && currentMileage > 0) {
-                setNextDueMileage((currentMileage + 10000).toString());
-            } else {
-                setNextDueMileage('');
-            }
-        }
-    }, [mileage, selectedTask]);
-
-    // Auto-fill cost for certain tasks
-    useEffect(() => {
-        if (isNewEntry) {
-            const settings = getSettings();
-            const power = vehicle.fiscalPower;
-
-            if (selectedTask === 'Visite technique') {
-                setCost(settings.costVisiteTechnique.toString());
-            } else if (selectedTask === 'Vignette' && power) {
-                 const vignetteSettings = vehicle.fuelType === 'Diesel' ? settings.vignetteDiesel : settings.vignetteEssence;
-                 const powerRange = vignetteSettings.find(v => {
-                    if (v.range.includes('-')) {
-                        const [min, max] = v.range.split('-').map(Number);
-                        return power >= min && power <= max;
-                    }
-                    return Number(v.range) === power;
-                 })
-                 if (powerRange) setCost(powerRange.cost.toString());
-                 else setCost('');
-            } else if (['Paiement Assurance', 'Vidange'].includes(selectedTask)) {
-                setCost('');
-            }
-        }
-    }, [selectedTask, vehicle, isNewEntry]);
-    
-    const showMileageField = useMemo(() => selectedTask === 'Vidange', [selectedTask]);
+    const maintenanceTasks = ["Vidange", "Paiement Assurance", "Vignette", "Visite technique", "Autre"];
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -792,12 +742,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
         if (rawData.nextDueMileage === '') delete rawData.nextDueMileage;
         if (rawData.mileage === '') delete rawData.mileage;
         
-        // Ensure mileage is required only when needed
-        const schema = MaintenanceSchema.extend({
-            mileage: showMileageField ? z.coerce.number().min(0, 'Le kilométrage est requis.') : z.coerce.number().optional(),
-        });
-
-        const validatedFields = schema.safeParse(rawData);
+        const validatedFields = MaintenanceSchema.safeParse(rawData);
 
         if (!validatedFields.success) {
             toast({ title: "Erreur de validation", description: validatedFields.error.issues[0].message, variant: 'destructive' });
@@ -806,10 +751,10 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
         }
 
         try {
-            if (initialData?.id) { // This is an update
+            if (initialData) {
                 await updateMaintenance(initialData.id, validatedFields.data);
                 toast({ title: "Succès", description: "Entretien mis à jour." });
-            } else { // This is a new entry
+            } else {
                 await addMaintenance({ ...validatedFields.data, vehicleId: vehicle.id }, user.uid);
                 toast({ title: "Succès", description: "Entretien ajouté." });
             }
@@ -828,35 +773,28 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Gérer l'entretien : {selectedTask}</DialogTitle>
+                    <DialogTitle>{initialData ? 'Modifier' : 'Nouvel'} Entretien</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-                    <Input name="task" type="hidden" value={selectedTask} />
-                    <div className="space-y-2">
-                        <label>Date de réalisation</label>
+                     <div className="grid grid-cols-2 gap-4">
                         <Input name="date" type="date" required defaultValue={initialData?.date || new Date().toISOString().split('T')[0]} />
+                        <Input name="mileage" type="number" placeholder="Kilométrage (optionnel)" defaultValue={initialData?.mileage} />
                     </div>
-                    {showMileageField && (
-                        <div className="space-y-2">
-                             <label>Kilométrage</label>
-                            <Input name="mileage" type="number" placeholder="Kilométrage" required={showMileageField} value={mileage} onChange={e => setMileage(e.target.value)} />
-                        </div>
-                    )}
-                     <div className="space-y-2">
-                        <label htmlFor="cost">Coût de l'entretien (TND)</label>
-                        <Input id="cost" name="cost" type="number" step="0.001" placeholder="Coût (TND)" required value={cost} onChange={e => setCost(e.target.value)} />
-                    </div>
+                    <Select name="task" required defaultValue={initialData?.task}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Sélectionnez une tâche" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {maintenanceTasks.map(task => <SelectItem key={task} value={task}>{task}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    <Input name="cost" type="number" step="0.001" placeholder="Coût (TND)" required defaultValue={initialData?.cost} />
 
                     <fieldset className="border p-4 rounded-md">
                         <legend className="text-sm font-medium px-1">Prochain entretien (Optionnel)</legend>
-                        <div className={cn(
-                            "grid gap-4 pt-2",
-                            selectedTask === 'Vidange' ? "grid-cols-1 justify-items-center" : "grid-cols-2"
-                        )}>
-                            {selectedTask !== 'Vidange' && (
-                                <Input name="nextDueDate" type="date" defaultValue={initialData?.nextDueDate?.split('T')[0]} />
-                            )}
-                             <Input name="nextDueMileage" type="number" placeholder="Prochain kilométrage" value={nextDueMileage} onChange={e => setNextDueMileage(e.target.value)} disabled={selectedTask === 'Vidange'}/>
+                        <div className="grid grid-cols-2 gap-4 pt-2">
+                            <Input name="nextDueDate" type="date" defaultValue={initialData?.nextDueDate?.split('T')[0]} />
+                            <Input name="nextDueMileage" type="number" placeholder="Prochain kilométrage" defaultValue={initialData?.nextDueMileage} />
                         </div>
                     </fieldset>
                     
