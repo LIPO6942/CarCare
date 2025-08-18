@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { addFuelLog } from '@/lib/data';
-import type { Vehicle } from '@/lib/types';
+import type { Vehicle, FuelLog } from '@/lib/types';
 import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Fuel, Loader2 } from 'lucide-react';
 import { getSettings } from '@/lib/settings';
+import { formatDistanceToNow } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 const QuickFuelLogSchema = z.object({
   vehicleId: z.string().min(1, 'Veuillez sélectionner un véhicule.'),
@@ -21,10 +23,11 @@ const QuickFuelLogSchema = z.object({
 
 interface QuickFuelLogFormProps {
   vehicles: Vehicle[];
+  fuelLogs: FuelLog[];
   onFuelLogAdded: () => void;
 }
 
-export function QuickFuelLogForm({ vehicles, onFuelLogAdded }: QuickFuelLogFormProps) {
+export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFuelLogFormProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -38,6 +41,21 @@ export function QuickFuelLogForm({ vehicles, onFuelLogAdded }: QuickFuelLogFormP
     }
     return settings.priceEssence;
   }, [selectedVehicleId, vehicles]);
+
+  const lastFuelLogInfo = useMemo(() => {
+    if (!selectedVehicleId) return null;
+
+    const lastLog = fuelLogs
+      .filter(log => log.vehicleId === selectedVehicleId)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
+    if (!lastLog) return "Aucun plein précédent enregistré pour ce véhicule.";
+
+    const timeAgo = formatDistanceToNow(new Date(lastLog.date), { addSuffix: true, locale: fr });
+    const cost = lastLog.totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
+    
+    return `Dernier plein : ${timeAgo} (${cost})`;
+  }, [selectedVehicleId, fuelLogs]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -112,7 +130,7 @@ export function QuickFuelLogForm({ vehicles, onFuelLogAdded }: QuickFuelLogFormP
     <Card>
       <CardHeader>
         <CardTitle>Ajout Rapide de Carburant</CardTitle>
-        <CardDescription>Enregistrez rapidement un plein en quelques clics.</CardDescription>
+        <CardDescription>{lastFuelLogInfo}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-end gap-4">

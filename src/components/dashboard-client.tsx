@@ -384,7 +384,11 @@ export function DashboardClient() {
         </DashboardHeader>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
             {vehicles.length > 0 && (
-                <QuickFuelLogForm vehicles={vehicles} onFuelLogAdded={() => fetchData(false)} />
+                <QuickFuelLogForm 
+                    vehicles={vehicles} 
+                    fuelLogs={fuelLogs}
+                    onFuelLogAdded={() => fetchData(false)} 
+                />
             )}
 
            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -561,28 +565,40 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                 }
             }
             
-            // This is the simplified logic: just add the new record.
-            // The dashboard logic will automatically pick the latest one.
+            // Create the new maintenance record
+            const addedMaintenance = await addMaintenance(newMaintenance, user.uid);
+
+            // Now, update the OLD maintenance task to remove its deadline fields
+            if (deadline.originalTask.id) {
+                await updateMaintenance(deadline.originalTask.id, {
+                    nextDueDate: undefined,
+                    nextDueMileage: undefined,
+                } as any); // Use 'any' to allow 'undefined' for deletion
+            }
+            
+            // Finally, create the *next* deadline based on the one just entered
+            const nextMaintenanceData: Partial<Maintenance> = {};
             
             if (deadline.name === 'Vidange') {
-                newMaintenance.nextDueMileage = (newMaintenance.mileage || 0) + 10000;
+                nextMaintenanceData.nextDueMileage = (addedMaintenance.mileage || 0) + 10000;
             } else if (deadline.originalTask.nextDueDate) {
                 const nextDueDate = new Date(today);
-
                 if (deadline.name === 'Visite technique' || deadline.name === 'Vignette') {
                     nextDueDate.setFullYear(today.getFullYear() + 1);
                 } else if (deadline.name === 'Paiement Assurance') {
-                     // Heuristic to check if the previous interval was annual or semi-annual
                      const oldDueDate = new Date(deadline.originalTask.nextDueDate);
                      const oldDate = new Date(deadline.originalTask.date);
                      const monthDiff = (oldDueDate.getFullYear() - oldDate.getFullYear()) * 12 + (oldDueDate.getMonth() - oldDate.getMonth());
                      const isAnnual = monthDiff > 8; 
                      nextDueDate.setMonth(today.getMonth() + (isAnnual ? 12 : 6));
                 }
-                newMaintenance.nextDueDate = nextDueDate.toISOString().split('T')[0];
+                nextMaintenanceData.nextDueDate = nextDueDate.toISOString().split('T')[0];
             }
-            
-            await addMaintenance(newMaintenance, user.uid);
+
+            if(Object.keys(nextMaintenanceData).length > 0) {
+                await updateMaintenance(addedMaintenance.id, nextMaintenanceData);
+            }
+
             
             toast({ title: 'Succès', description: `${deadline.name} a été enregistré.` });
             onComplete();
@@ -648,3 +664,4 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
 
 
     
+
