@@ -63,7 +63,7 @@ export function FloatingChatbot() {
         }
     }, [conversation]);
 
-    const handleSubmit = async () => {
+    const handleSubmit = useCallback(async () => {
         if (!input.trim() || isGenerating || !selectedVehicleId) return;
 
         const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
@@ -101,7 +101,7 @@ export function FloatingChatbot() {
         } finally {
             setIsGenerating(false);
         }
-    };
+    }, [input, isGenerating, selectedVehicleId, vehicles, user, conversation]);
     
     const handleVehicleChange = (vehicleId: string) => {
         setSelectedVehicleId(vehicleId);
@@ -194,7 +194,13 @@ export function FloatingChatbot() {
                     </div>
                 )}
                 <SheetFooter className="p-4 border-t bg-background">
-                    <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="w-full flex items-center gap-2">
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            handleSubmit();
+                        }}
+                        className="w-full flex items-center gap-2"
+                    >
                         <Textarea
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
