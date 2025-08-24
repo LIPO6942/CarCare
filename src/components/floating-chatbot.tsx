@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react';
@@ -28,10 +29,10 @@ export function FloatingChatbot() {
     const [isLoadingVehicles, setIsLoadingVehicles] = useState(true);
 
     const [conversation, setConversation] = useState<ChatMessage[]>([]);
-    const [input, setInput] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
 
 
     const fetchVehicles = useCallback(async () => {
@@ -64,7 +65,8 @@ export function FloatingChatbot() {
     }, [conversation]);
 
     const handleSubmit = useCallback(async () => {
-        if (!input.trim() || isGenerating || !selectedVehicleId) return;
+        const currentInput = inputRef.current?.value;
+        if (!currentInput?.trim() || isGenerating || !selectedVehicleId) return;
 
         const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
         if (!user || !selectedVehicle) {
@@ -72,11 +74,12 @@ export function FloatingChatbot() {
             return;
         }
 
-        const currentInput = input;
         const newConversation: ChatMessage[] = [...conversation, { role: 'user', content: currentInput }];
         
         setConversation(newConversation);
-        setInput('');
+        if (inputRef.current) {
+            inputRef.current.value = '';
+        }
         setIsGenerating(true);
         setError(null);
 
@@ -84,7 +87,7 @@ export function FloatingChatbot() {
             const response = await answerVehicleQuestion({
                 userId: user.uid,
                 vehicle: selectedVehicle,
-                history: newConversation.slice(0, -1), // Send history *before* the new question
+                history: conversation,
                 question: currentInput,
             });
 
@@ -95,13 +98,15 @@ export function FloatingChatbot() {
             console.error(err);
             const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
             setError(`Désolé, une erreur est survenue lors de la communication avec le copilote IA. Détails : ${errorMessage}`);
-            // If there's an error, restore the user's input so they don't lose it
-            setConversation(newConversation.slice(0,-1));
-            setInput(currentInput);
+            // Restore previous state without the user message that failed
+            setConversation(conversation);
+             if (inputRef.current) {
+                inputRef.current.value = currentInput;
+            }
         } finally {
             setIsGenerating(false);
         }
-    }, [input, isGenerating, selectedVehicleId, vehicles, user, conversation]);
+    }, [isGenerating, selectedVehicleId, vehicles, user, conversation]);
     
     const handleVehicleChange = (vehicleId: string) => {
         setSelectedVehicleId(vehicleId);
@@ -202,8 +207,7 @@ export function FloatingChatbot() {
                         className="w-full flex items-center gap-2"
                     >
                         <Textarea
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
+                            ref={inputRef}
                             placeholder="Posez une question sur votre véhicule..."
                             className="flex-1 text-sm min-h-0 h-10 resize-none"
                             rows={1}
@@ -215,7 +219,7 @@ export function FloatingChatbot() {
                             }}
                             disabled={!selectedVehicleId || isGenerating}
                         />
-                        <Button type="submit" size="icon" disabled={!input.trim() || isGenerating}>
+                        <Button type="submit" size="icon" disabled={isGenerating}>
                             <Send className="h-4 w-4" />
                         </Button>
                     </form>
