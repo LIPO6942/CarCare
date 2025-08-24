@@ -89,7 +89,7 @@ const answerVehicleQuestionFlow = ai.defineFlow(
                     }
                 ]
             },
-            ...history,
+            ...history.map(h => ({ role: h.role, content: [{ text: h.content }] })),
             {role: 'user' as const, content: [{text: question}]},
         ];
 
