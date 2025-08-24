@@ -2,15 +2,15 @@
 
 /**
  * @fileOverview A chatbot flow that can answer questions about a user's vehicle data.
- * It uses a dedicated tool to fetch all vehicle data at once.
+ * It manually fetches all vehicle data and injects it into the prompt context.
  */
 
 import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/googleai';
 import type { answerVehicleQuestionInput, answerVehicleQuestionOutput } from './vehicle-data-chatbot-types';
 import { answerVehicleQuestionInputSchema, answerVehicleQuestionOutputSchema } from './vehicle-data-chatbot-types';
-import { getVehicleDataTool } from '@/ai/tools/get-vehicle-data-tool';
-import type { Tool } from 'genkit/action';
+import { getVehicleData } from '@/ai/services/vehicle-data-service';
+
 
 export async function answerVehicleQuestion(input: answerVehicleQuestionInput): Promise<answerVehicleQuestionOutput> {
     return answerVehicleQuestionFlow(input);
@@ -31,33 +31,35 @@ const answerVehicleQuestionFlow = ai.defineFlow(
                 content: [{
                     text: `You are an expert automotive data analyst called "CarCare Copilot". Your role is to answer questions about a user's vehicle based on their data.
 - The user is asking about their ${vehicle.brand} ${vehicle.model} (${vehicle.year}).
-- You MUST use the tools provided to you to answer the user's question.
-- Do not make up information. If the data from the tool is not sufficient, ask the user to add more data to their vehicle logs.
+- You have been provided with the complete data for the vehicle (repairs, maintenance, fuel logs) directly in the conversation history. You MUST use this data to answer the user's question.
+- Do not make up information. If the data provided is not sufficient to answer, state that you don't have enough information in a helpful way.
 - Respond in clear, concise French.
 - Today's date is ${new Date().toLocaleDateString('fr-FR')}.`
                 }]
             },
             ...history.map(h => ({ role: h.role as 'user' | 'model', content: [{ text: h.content }] })),
-            {role: 'user' as const, content: [{text: question}]},
         ];
-
-        // Call the tool manually within the flow and provide its output to the model.
-        // This is a more robust pattern than relying on the model to call the tool with the right parameters.
-        const toolResult = await getVehicleDataTool({ vehicleId: vehicle.id });
         
+        // Fetch all vehicle data using the service.
+        const vehicleData = await getVehicleData(vehicle.id);
+        
+        // Inject the fetched data directly into the message history for the model to use.
         messages.push({
             role: 'user', // This is a "tool" role in some models, but 'user' works to provide context.
             content: [
                 {
-                    text: `Here is the data for the vehicle. Use it to answer my question:\n${JSON.stringify(toolResult)}`
+                    text: `Here is all the data for the vehicle. Use it to answer my next question:\n${JSON.stringify(vehicleData)}`
                 }
             ]
         });
 
+        // Add the user's actual question last.
+        messages.push({role: 'user' as const, content: [{text: question}]});
+
+
         const llmResponse = await ai.generate({
             model: googleAI.model('gemini-1.5-flash-latest'),
             messages: messages,
-            // We no longer need to provide the tool to the model, as we are calling it ourselves.
         });
         
         const answerText = llmResponse.text;
