@@ -24,9 +24,11 @@ const getRepairsTool = ai.defineTool(
         outputSchema: z.array(z.custom<Repair>()),
     },
     async (input, context) => {
-        const vehicleId = (context as any)?.vehicle?.id;
-        if (!vehicleId) return [];
-        return await getRepairsForVehicle(vehicleId, '');
+        const flowInput = (context as any)?.flow?.input as answerVehicleQuestionInput;
+        const vehicleId = flowInput?.vehicle?.id;
+        const userId = flowInput?.userId;
+        if (!vehicleId || !userId) return [];
+        return await getRepairsForVehicle(vehicleId, userId);
     }
 );
 
@@ -37,10 +39,12 @@ const getMaintenanceTool = ai.defineTool(
         inputSchema: z.object({}), // No input needed
         outputSchema: z.array(z.custom<Maintenance>()),
     },
-    async (input, context) => {
-        const vehicleId = (context as any)?.vehicle?.id;
-        if (!vehicleId) return [];
-        return await getMaintenanceForVehicle(vehicleId, '');
+     async (input, context) => {
+        const flowInput = (context as any)?.flow?.input as answerVehicleQuestionInput;
+        const vehicleId = flowInput?.vehicle?.id;
+        const userId = flowInput?.userId;
+        if (!vehicleId || !userId) return [];
+        return await getMaintenanceForVehicle(vehicleId, userId);
     }
 );
 
@@ -51,10 +55,12 @@ const getFuelLogsTool = ai.defineTool(
         inputSchema: z.object({}), // No input needed
         outputSchema: z.array(z.custom<FuelLog>()),
     },
-    async (input, context) => {
-        const vehicleId = (context as any)?.vehicle?.id;
-        if (!vehicleId) return [];
-        return await getFuelLogsForVehicle(vehicleId, '');
+     async (input, context) => {
+        const flowInput = (context as any)?.flow?.input as answerVehicleQuestionInput;
+        const vehicleId = flowInput?.vehicle?.id;
+        const userId = flowInput?.userId;
+        if (!vehicleId || !userId) return [];
+        return await getFuelLogsForVehicle(vehicleId, userId);
     }
 );
 
@@ -91,7 +97,7 @@ const answerVehicleQuestionFlow = ai.defineFlow(
             model: googleAI.model('gemini-1.5-flash-latest'),
             messages: messages,
             tools: tools,
-            context: { vehicle: vehicle }
+            context: { flow: { input } }
         });
         
         const answerText = llmResponse.text;
