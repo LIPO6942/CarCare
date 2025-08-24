@@ -93,7 +93,7 @@ const answerVehicleQuestionFlow = ai.defineFlow(
             tools: tools,
         });
         
-        const answerText = llmResponse.text();
+        const answerText = llmResponse.text;
 
         return {
             answer: answerText ?? "Je n'ai pas pu générer de réponse. Veuillez réessayer."
