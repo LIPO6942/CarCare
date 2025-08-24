@@ -64,7 +64,8 @@ export function FloatingChatbot() {
         }
     }, [conversation]);
 
-    const handleSubmit = useCallback(async () => {
+    const handleSubmit = async (e: FormEvent) => {
+        e.preventDefault();
         const currentInput = inputRef.current?.value;
         if (!currentInput?.trim() || isGenerating || !selectedVehicleId) return;
 
@@ -73,7 +74,7 @@ export function FloatingChatbot() {
             setError("Impossible d'envoyer le message. Utilisateur ou véhicule non valide.");
             return;
         }
-
+        
         const newConversation: ChatMessage[] = [...conversation, { role: 'user', content: currentInput }];
         
         setConversation(newConversation);
@@ -106,7 +107,7 @@ export function FloatingChatbot() {
         } finally {
             setIsGenerating(false);
         }
-    }, [isGenerating, selectedVehicleId, vehicles, user, conversation]);
+    };
     
     const handleVehicleChange = (vehicleId: string) => {
         setSelectedVehicleId(vehicleId);
@@ -200,10 +201,7 @@ export function FloatingChatbot() {
                 )}
                 <SheetFooter className="p-4 border-t bg-background">
                     <form
-                        onSubmit={(e) => {
-                            e.preventDefault();
-                            handleSubmit();
-                        }}
+                        onSubmit={handleSubmit}
                         className="w-full flex items-center gap-2"
                     >
                         <Textarea
@@ -214,7 +212,7 @@ export function FloatingChatbot() {
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
-                                    handleSubmit();
+                                    handleSubmit(e as any);
                                 }
                             }}
                             disabled={!selectedVehicleId || isGenerating}

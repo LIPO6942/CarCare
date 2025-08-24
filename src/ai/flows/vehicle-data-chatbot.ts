@@ -60,14 +60,6 @@ const vehicleDataChatbotPrompt = ai.definePrompt({
     name: 'vehicleDataChatbotPrompt',
     model: googleAI.model('gemini-1.5-flash-latest'),
     tools: [getRepairsTool, getMaintenanceTool, getFuelLogsTool],
-    system: `You are an expert automotive data analyst called "CarCare Copilot". Your role is to answer questions about a user's vehicle based on their data.
-- The user's vehicle is a {{vehicle.brand}} {{vehicle.model}} ({{vehicle.year}}).
-- Use the provided tools to fetch repair history, maintenance logs, and fuel logs.
-- You MUST pass the user's ID and the vehicle's ID to the tools. The user ID is {{userId}} and the vehicle ID is {{vehicle.id}}.
-- If you don't have enough information from the tools, ask the user to add more data to their logs.
-- Base your calculations on the data provided. For mileage-based questions, find the most recent event (repair, maintenance, or fuel log) to determine the current mileage.
-- Respond in clear, concise French.
-- Today's date is ${new Date().toLocaleDateString('fr-FR')}.`,
 });
 
 
@@ -82,14 +74,27 @@ const answerVehicleQuestionFlow = ai.defineFlow(
         
         // Construct the full chat history including the system prompt and the new question
         const messages = [
+            {
+                role: 'system' as const,
+                content: [
+                    {
+                        text: `You are an expert automotive data analyst called "CarCare Copilot". Your role is to answer questions about a user's vehicle based on their data.
+- The user's vehicle is a ${vehicle.brand} ${vehicle.model} (${vehicle.year}).
+- Use the provided tools to fetch repair history, maintenance logs, and fuel logs.
+- You MUST pass the user's ID and the vehicle's ID to the tools. The user ID is ${userId} and the vehicle ID is ${vehicle.id}.
+- If you don't have enough information from the tools, ask the user to add more data to their logs.
+- Base your calculations on the data provided. For mileage-based questions, find the most recent event (repair, maintenance, or fuel log) to determine the current mileage.
+- Respond in clear, concise French.
+- Today's date is ${new Date().toLocaleDateString('fr-FR')}.`
+                    }
+                ]
+            },
             ...history,
-            {role: 'user' as const, content: question},
+            {role: 'user' as const, content: [{text: question}]},
         ];
 
         const llmResponse = await vehicleDataChatbotPrompt({
-            history: messages,
-            vehicle: vehicle,
-            userId: userId,
+            messages
         });
         
         const answerText = llmResponse.text();
