@@ -97,9 +97,10 @@ export const answerVehicleQuestion = ai.defineFlow(
             getFuelLogHistory: (args: any) => getAllUserFuelLogs(userId).then(data => data.filter(d => d.vehicleId === vehicle.id)),
         };
 
-        const llmResponse = await vehicleDataChatbotPrompt.generate({
+        const llmResponse = await vehicleDataChatbotPrompt({
             history: messages,
-            input: { vehicle },
+            vehicle: vehicle,
+        }, {
             tools: tools,
             toolChoice: 'auto',
         });
