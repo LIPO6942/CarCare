@@ -48,6 +48,7 @@ Your role is to answer questions about a user's vehicle based *only* on the data
 - You MUST use this data to answer the user's question. Do not make up information.
 - If the data provided is not sufficient to answer, state that you don't have enough information in a helpful way.
 - Respond in clear, concise French.
+- ALL CURRENCY VALUES MUST BE IN TND (Tunisian Dinar).
 - Today's date is ${new Date().toLocaleDateString('fr-FR')}.`;
 
     const messages: Part[] = [
