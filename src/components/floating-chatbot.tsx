@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { Bot, User, Send, Loader2, X, AlertTriangle, Car } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
-import { getVehicles } from '@/lib/data';
+import { getVehicles, getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle } from '@/lib/data';
 import type { Vehicle } from '@/lib/types';
 import { Textarea } from './ui/textarea';
-import { answerVehicleQuestion } from '@/ai/flows/vehicle-data-chatbot';
+import { answerFromHistory } from '@/ai/flows/answer-from-history';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
@@ -18,7 +18,7 @@ import Link from 'next/link';
 
 type ChatMessage = {
     role: 'user' | 'model';
-    content: string;
+    content: { text: string }[];
 };
 
 export function FloatingChatbot() {
@@ -74,7 +74,8 @@ export function FloatingChatbot() {
             return;
         }
         
-        const newConversation: ChatMessage[] = [...conversation, { role: 'user', content: currentInput }];
+        const userMessage: ChatMessage = { role: 'user', content: [{ text: currentInput }] };
+        const newConversation: ChatMessage[] = [...conversation, userMessage];
         
         setConversation(newConversation);
         if (inputRef.current) {
@@ -84,14 +85,24 @@ export function FloatingChatbot() {
         setError(null);
 
         try {
-            const response = await answerVehicleQuestion({
-                userId: user.uid,
-                vehicleId: selectedVehicleId,
-                history: conversation,
+            // --- NEW LOGIC: Fetch data directly on the client ---
+            const [repairs, maintenance, fuelLogs] = await Promise.all([
+                getRepairsForVehicle(selectedVehicleId, user.uid),
+                getMaintenanceForVehicle(selectedVehicleId, user.uid),
+                getFuelLogsForVehicle(selectedVehicleId, user.uid),
+            ]);
+
+            const vehicleData = { repairs, maintenance, fuelLogs };
+            const vehicleDataJson = JSON.stringify(vehicleData, null, 2);
+            // --- END NEW LOGIC ---
+
+            const response = await answerFromHistory({
+                history: conversation, // Pass previous messages
                 question: currentInput,
+                vehicleDataJson: vehicleDataJson,
             });
 
-            const modelMessage: ChatMessage = { role: 'model', content: response.answer };
+            const modelMessage: ChatMessage = { role: 'model', content: [{ text: response.answer }] };
             setConversation(prev => [...prev, modelMessage]);
 
         } catch (err) {
@@ -177,7 +188,7 @@ export function FloatingChatbot() {
                                     "p-3 rounded-lg max-w-[80%] text-sm",
                                     msg.role === 'model' ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground"
                                 )}>
-                                    {msg.content}
+                                    {msg.content[0]?.text}
                                 </div>
                                 {msg.role === 'user' && <User className="h-6 w-6 text-muted-foreground flex-shrink-0" />}
                             </div>
