@@ -24,9 +24,9 @@ const getRepairsTool = ai.defineTool(
         outputSchema: z.array(z.custom<Repair>()),
     },
     async (input, context) => {
-        const vehicleId = (context as any)?.vehicle?.id;
+        const vehicleId = (context as any)?.flow.input.vehicle?.id;
         if (!vehicleId) return [];
-        return await getRepairsForVehicle(vehicleId);
+        return await getRepairsForVehicle(vehicleId, '');
     }
 );
 
@@ -38,9 +38,9 @@ const getMaintenanceTool = ai.defineTool(
         outputSchema: z.array(z.custom<Maintenance>()),
     },
     async (input, context) => {
-        const vehicleId = (context as any)?.vehicle?.id;
+        const vehicleId = (context as any)?.flow.input.vehicle?.id;
         if (!vehicleId) return [];
-        return await getMaintenanceForVehicle(vehicleId);
+        return await getMaintenanceForVehicle(vehicleId, '');
     }
 );
 
@@ -52,9 +52,9 @@ const getFuelLogsTool = ai.defineTool(
         outputSchema: z.array(z.custom<FuelLog>()),
     },
     async (input, context) => {
-        const vehicleId = (context as any)?.vehicle?.id;
+        const vehicleId = (context as any)?.flow.input.vehicle?.id;
         if (!vehicleId) return [];
-        return await getFuelLogsForVehicle(vehicleId);
+        return await getFuelLogsForVehicle(vehicleId, '');
     }
 );
 
