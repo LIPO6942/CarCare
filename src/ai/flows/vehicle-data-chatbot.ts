@@ -87,7 +87,7 @@ const answerVehicleQuestionFlow = ai.defineFlow(
         ];
 
         const llmResponse = await vehicleDataChatbotPrompt({
-            history: messages.map(m => ({ role: m.role, content: [{ text: m.content }] })),
+            history: messages,
             vehicle: vehicle,
             userId: userId,
         });
