@@ -9,7 +9,7 @@
 import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'genkit';
-import { getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs } from '@/lib/data';
+import { getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle } from '@/lib/data';
 import type { Repair, Maintenance, FuelLog, Vehicle } from '@/lib/types';
 import type { answerVehicleQuestionInput, answerVehicleQuestionOutput } from './vehicle-data-chatbot-types';
 import { answerVehicleQuestionInputSchema, answerVehicleQuestionOutputSchema } from './vehicle-data-chatbot-types';
@@ -24,9 +24,9 @@ const getRepairsTool = ai.defineTool(
         outputSchema: z.array(z.custom<Repair>()),
     },
     async (input, context) => {
-        const vehicleId = (context as any)?.vehicleId;
+        const vehicleId = (context as any)?.vehicle?.id;
         if (!vehicleId) return [];
-        return await getAllUserRepairs(vehicleId);
+        return await getRepairsForVehicle(vehicleId);
     }
 );
 
@@ -38,9 +38,9 @@ const getMaintenanceTool = ai.defineTool(
         outputSchema: z.array(z.custom<Maintenance>()),
     },
     async (input, context) => {
-        const vehicleId = (context as any)?.vehicleId;
+        const vehicleId = (context as any)?.vehicle?.id;
         if (!vehicleId) return [];
-        return await getAllUserMaintenance(vehicleId);
+        return await getMaintenanceForVehicle(vehicleId);
     }
 );
 
@@ -52,9 +52,9 @@ const getFuelLogsTool = ai.defineTool(
         outputSchema: z.array(z.custom<FuelLog>()),
     },
     async (input, context) => {
-        const vehicleId = (context as any)?.vehicleId;
+        const vehicleId = (context as any)?.vehicle?.id;
         if (!vehicleId) return [];
-        return await getAllUserFuelLogs(vehicleId);
+        return await getFuelLogsForVehicle(vehicleId);
     }
 );
 
@@ -91,7 +91,7 @@ const answerVehicleQuestionFlow = ai.defineFlow(
             model: googleAI.model('gemini-1.5-flash-latest'),
             messages: messages,
             tools: tools,
-            context: { vehicleId: vehicle.id } // Pass vehicleId to tool context
+            context: { vehicle: vehicle }
         });
         
         const answerText = llmResponse.text;
