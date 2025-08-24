@@ -20,14 +20,12 @@ const getRepairsTool = ai.defineTool(
     {
         name: 'getRepairHistory',
         description: 'Get the repair history for the specified vehicle.',
-        inputSchema: z.object({ vehicleId: z.string() }),
+        inputSchema: z.object({ userId: z.string(), vehicleId: z.string() }),
         outputSchema: z.array(z.custom<Repair>()),
     },
-    async ({ vehicleId }) => {
-        // This is a placeholder for getting the current user's ID.
-        // In a real scenario, you'd get this from the session.
-        const userId = 'placeholder-user-id'; // This will be replaced by the real user ID in the flow
-        return await getAllUserRepairs(userId);
+    async ({ userId, vehicleId }) => {
+        const allRepairs = await getAllUserRepairs(userId);
+        return allRepairs.filter(r => r.vehicleId === vehicleId);
     }
 );
 
@@ -35,12 +33,12 @@ const getMaintenanceTool = ai.defineTool(
     {
         name: 'getMaintenanceHistory',
         description: 'Get the maintenance history for the specified vehicle.',
-        inputSchema: z.object({ vehicleId: z.string() }),
+        inputSchema: z.object({ userId: z.string(), vehicleId: z.string() }),
         outputSchema: z.array(z.custom<Maintenance>()),
     },
-    async ({ vehicleId }) => {
-        const userId = 'placeholder-user-id'; // This will be replaced by the real user ID in the flow
-        return await getAllUserMaintenance(userId);
+    async ({ userId, vehicleId }) => {
+        const allMaintenance = await getAllUserMaintenance(userId);
+        return allMaintenance.filter(m => m.vehicleId === vehicleId);
     }
 );
 
@@ -48,12 +46,12 @@ const getFuelLogsTool = ai.defineTool(
     {
         name: 'getFuelLogHistory',
         description: 'Get the fuel log history for the specified vehicle.',
-        inputSchema: z.object({ vehicleId: z.string() }),
+        inputSchema: z.object({ userId: z.string(), vehicleId: z.string() }),
         outputSchema: z.array(z.custom<FuelLog>()),
     },
-    async ({ vehicleId }) => {
-        const userId = 'placeholder-user-id'; // This will be replaced by the real user ID in the flow
-        return await getAllUserFuelLogs(userId);
+    async ({ userId, vehicleId }) => {
+        const allLogs = await getAllUserFuelLogs(userId);
+        return allLogs.filter(l => l.vehicleId === vehicleId);
     }
 );
 
@@ -65,8 +63,7 @@ const vehicleDataChatbotPrompt = ai.definePrompt({
     system: `You are an expert automotive data analyst called "CarCare Copilot". Your role is to answer questions about a user's vehicle based on their data.
 - The user's vehicle is a {{vehicle.brand}} {{vehicle.model}} ({{vehicle.year}}).
 - Use the provided tools to fetch repair history, maintenance logs, and fuel logs.
-- When you use a tool, you are fetching data for ALL of the user's vehicles. You must filter this data down to the vehicle ID: {{vehicle.id}}.
-- You MUST use the provided tools to answer questions. Do not make up information.
+- You MUST pass the user's ID and the vehicle's ID to the tools. The user ID is {{userId}} and the vehicle ID is {{vehicle.id}}.
 - If you don't have enough information from the tools, ask the user to add more data to their logs.
 - Base your calculations on the data provided. For mileage-based questions, find the most recent event (repair, maintenance, or fuel log) to determine the current mileage.
 - Respond in clear, concise French.
@@ -92,19 +89,10 @@ const answerVehicleQuestionFlow = ai.defineFlow(
             { role: 'user', content: [{ text: question }] }
         ];
 
-        // Replace the placeholder userId in the tools with the actual userId
-        const tools = [
-            (args: any) => getAllUserRepairs(userId).then(data => data.filter(d => d.vehicleId === vehicle.id)),
-            (args: any) => getAllUserMaintenance(userId).then(data => data.filter(d => d.vehicleId === vehicle.id)),
-            (args: any) => getAllUserFuelLogs(userId).then(data => data.filter(d => d.vehicleId === vehicle.id)),
-        ];
-
         const llmResponse = await vehicleDataChatbotPrompt({
             history: messages,
             vehicle: vehicle,
-        }, {
-            tools: tools,
-            toolChoice: 'auto',
+            userId: userId,
         });
         
         const answerText = llmResponse.text();
