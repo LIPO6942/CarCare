@@ -10,49 +10,53 @@ import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'genkit';
 import { getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle } from '@/lib/data';
-import type { Repair, Maintenance, FuelLog, Vehicle } from '@/lib/types';
+import type { Repair, Maintenance, FuelLog } from '@/lib/types';
 import type { answerVehicleQuestionInput, answerVehicleQuestionOutput } from './vehicle-data-chatbot-types';
 import { answerVehicleQuestionInputSchema, answerVehicleQuestionOutputSchema } from './vehicle-data-chatbot-types';
 
 
-// Define tools for the AI to use
-const getRepairsTool = ai.defineTool(
-    {
-        name: 'getRepairHistory',
-        description: 'Obtient l\'historique des réparations (pannes, accidents, remplacements de pièces) pour le véhicule de l\'utilisateur.',
-        inputSchema: z.object({ vehicleId: z.string(), userId: z.string() }),
-        outputSchema: z.array(z.custom<Repair>()),
-    },
-    async ({ vehicleId, userId }) => {
-        return await getRepairsForVehicle(vehicleId, userId);
-    }
-);
+export async function answerVehicleQuestion(input: answerVehicleQuestionInput): Promise<answerVehicleQuestionOutput> {
+  // Define tools inside the function to capture vehicleId and userId from the input scope.
+  const getRepairsTool = ai.defineTool(
+      {
+          name: 'getRepairHistory',
+          description: 'Obtient l\'historique des réparations (pannes, accidents, remplacements de pièces) pour le véhicule de l\'utilisateur.',
+          inputSchema: z.object({}), // No input needed from the LLM
+          outputSchema: z.array(z.custom<Repair>()),
+      },
+      async () => {
+          return await getRepairsForVehicle(input.vehicle.id, input.userId);
+      }
+  );
 
-const getMaintenanceTool = ai.defineTool(
-    {
-        name: 'getMaintenanceHistory',
-        description: 'Obtient l\'historique de l\'entretien pour un véhicule. Cela inclut les paiements (assurance, vignette), les vidanges, et les visites techniques. Utilisez cet outil pour les questions sur les coûts et les dates d\'échéance.',
-        inputSchema: z.object({ vehicleId: z.string(), userId: z.string() }),
-        outputSchema: z.array(z.custom<Maintenance>()),
-    },
-     async ({ vehicleId, userId }) => {
-        return await getMaintenanceForVehicle(vehicleId, userId);
-    }
-);
+  const getMaintenanceTool = ai.defineTool(
+      {
+          name: 'getMaintenanceHistory',
+          description: 'Obtient l\'historique de l\'entretien pour un véhicule. Cela inclut les paiements (assurance, vignette), les vidanges, et les visites techniques. Utilisez cet outil pour les questions sur les coûts et les dates d\'échéance.',
+          inputSchema: z.object({}), // No input needed from the LLM
+          outputSchema: z.array(z.custom<Maintenance>()),
+      },
+       async () => {
+          return await getMaintenanceForVehicle(input.vehicle.id, input.userId);
+      }
+  );
 
-const getFuelLogsTool = ai.defineTool(
-    {
-        name: 'getFuelLogHistory',
-        description: 'Obtient l\'historique des pleins de carburant pour un véhicule spécifique, y compris les coûts, les quantités et les dates. Utilisez cet outil pour les questions sur la consommation et les dépenses de carburant.',
-        inputSchema: z.object({ vehicleId: z.string(), userId: z.string() }),
-        outputSchema: z.array(z.custom<FuelLog>()),
-    },
-     async ({ vehicleId, userId }) => {
-        return await getFuelLogsForVehicle(vehicleId, userId);
-    }
-);
+  const getFuelLogsTool = ai.defineTool(
+      {
+          name: 'getFuelLogHistory',
+          description: 'Obtient l\'historique des pleins de carburant pour un véhicule spécifique, y compris les coûts, les quantités et les dates. Utilisez cet outil pour les questions sur la consommation et les dépenses de carburant.',
+          inputSchema: z.object({}), // No input needed from the LLM
+          outputSchema: z.array(z.custom<FuelLog>()),
+      },
+       async () => {
+          return await getFuelLogsForVehicle(input.vehicle.id, input.userId);
+      }
+  );
 
-const tools = [getRepairsTool, getMaintenanceTool, getFuelLogsTool];
+  const tools = [getRepairsTool, getMaintenanceTool, getFuelLogsTool];
+
+  return answerVehicleQuestionFlow(input, tools);
+}
 
 
 const answerVehicleQuestionFlow = ai.defineFlow(
@@ -61,16 +65,16 @@ const answerVehicleQuestionFlow = ai.defineFlow(
         inputSchema: answerVehicleQuestionInputSchema,
         outputSchema: answerVehicleQuestionOutputSchema,
     },
-    async (input: answerVehicleQuestionInput): Promise<answerVehicleQuestionOutput> => {
-        const { vehicle, history, question, userId } = input;
+    async (input, tools) => {
+        const { vehicle, history, question } = input;
         
         const messages = [
             {
                 role: 'system' as const,
                 content: [{
                     text: `You are an expert automotive data analyst called "CarCare Copilot". Your role is to answer questions about a user's vehicle based on their data.
-- The user is asking about their ${vehicle.brand} ${vehicle.model} (${vehicle.year}) with ID: ${vehicle.id}.
-- You have access to tools that can retrieve the vehicle's repair, maintenance, and fuel history. You MUST use these tools to answer the user's question. For every tool call, you MUST pass both the vehicleId: "${vehicle.id}" and the userId: "${userId}".
+- The user is asking about their ${vehicle.brand} ${vehicle.model} (${vehicle.year}).
+- You have access to tools that can retrieve the vehicle's repair, maintenance, and fuel history. You MUST use these tools to answer the user's question. Call the tool without any parameters.
 - If you don't have enough information from the tools, ask the user to add more data to their logs. For example, if they ask about insurance but the maintenance log is empty, tell them to add their insurance payment history.
 - Base your calculations and answers *only* on the data provided by the tools. Do not make up information.
 - Respond in clear, concise French.
@@ -94,8 +98,3 @@ const answerVehicleQuestionFlow = ai.defineFlow(
         };
     }
 );
-
-
-export async function answerVehicleQuestion(input: answerVehicleQuestionInput): Promise<answerVehicleQuestionOutput> {
-  return answerVehicleQuestionFlow(input);
-}
