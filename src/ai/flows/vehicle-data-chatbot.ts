@@ -4,18 +4,17 @@
  * @fileOverview A chatbot flow that can answer questions about a user's vehicle data.
  *
  * - answerVehicleQuestion - The main function that answers a user's question about their vehicle.
- * - answerVehicleQuestionInput - The input schema for the chatbot.
- * - answerVehicleQuestionOutput - The output schema for the chatbot.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs } from '@/lib/data';
 import type { Repair, Maintenance, FuelLog, Vehicle } from '@/lib/types';
+import type { answerVehicleQuestionInput, answerVehicleQuestionOutput } from './vehicle-data-chatbot-types';
+import { answerVehicleQuestionInputSchema, answerVehicleQuestionOutputSchema } from './vehicle-data-chatbot-types';
 
 
 // Define tools for the AI to use
-
 const getRepairsTool = ai.defineTool(
     {
         name: 'getRepairHistory',
@@ -58,24 +57,6 @@ const getFuelLogsTool = ai.defineTool(
 );
 
 
-// Define the main chat flow
-
-export const answerVehicleQuestionInput = z.object({
-  userId: z.string(),
-  vehicle: z.custom<Vehicle>(),
-  history: z.array(z.object({
-    role: z.enum(['user', 'model']),
-    content: z.string(),
-  })),
-  question: z.string(),
-});
-export type answerVehicleQuestionInput = z.infer<typeof answerVehicleQuestionInput>;
-
-export const answerVehicleQuestionOutput = z.object({
-  answer: z.string(),
-});
-export type answerVehicleQuestionOutput = z.infer<typeof answerVehicleQuestionOutput>;
-
 const vehicleDataChatbotPrompt = ai.definePrompt({
     name: 'vehicleDataChatbotPrompt',
     tools: [getRepairsTool, getMaintenanceTool, getFuelLogsTool],
@@ -94,10 +75,10 @@ const vehicleDataChatbotPrompt = ai.definePrompt({
 export const answerVehicleQuestion = ai.defineFlow(
     {
         name: 'answerVehicleQuestionFlow',
-        inputSchema: answerVehicleQuestionInput,
-        outputSchema: answerVehicleQuestionOutput,
+        inputSchema: answerVehicleQuestionInputSchema,
+        outputSchema: answerVehicleQuestionOutputSchema,
     },
-    async (input) => {
+    async (input: answerVehicleQuestionInput): Promise<answerVehicleQuestionOutput> => {
         const { userId, vehicle, history, question } = input;
         
         // Construct the full chat history including the system prompt and the new question
@@ -122,9 +103,11 @@ export const answerVehicleQuestion = ai.defineFlow(
             tools: tools,
             toolChoice: 'auto',
         });
+        
+        const answerText = llmResponse.text();
 
         return {
-            answer: llmResponse.text() ?? "Je n'ai pas pu générer de réponse. Veuillez réessayer."
+            answer: answerText ?? "Je n'ai pas pu générer de réponse. Veuillez réessayer."
         };
     }
 );

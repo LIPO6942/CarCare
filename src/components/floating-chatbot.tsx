@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { Bot, User, Send, Loader2, X, AlertTriangle, Car } from 'lucide-react';
@@ -63,7 +63,8 @@ export function FloatingChatbot() {
         }
     }, [conversation]);
 
-    const handleSubmit = async () => {
+    const handleSubmit = async (event: FormEvent) => {
+        event.preventDefault();
         if (!input.trim() || isGenerating || !selectedVehicleId) return;
 
         const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
@@ -74,6 +75,7 @@ export function FloatingChatbot() {
 
         const userMessage: ChatMessage = { role: 'user', content: input };
         setConversation(prev => [...prev, userMessage]);
+        const currentInput = input;
         setInput('');
         setIsGenerating(true);
         setError(null);
@@ -83,7 +85,7 @@ export function FloatingChatbot() {
                 userId: user.uid,
                 vehicle: selectedVehicle,
                 history: conversation,
-                question: input,
+                question: currentInput,
             });
 
             const modelMessage: ChatMessage = { role: 'model', content: response.answer };
@@ -189,7 +191,7 @@ export function FloatingChatbot() {
                     </div>
                 )}
                 <SheetFooter className="p-4 border-t bg-background">
-                    <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="w-full flex items-center gap-2">
+                    <form onSubmit={handleSubmit} className="w-full flex items-center gap-2">
                         <Textarea
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
@@ -199,7 +201,7 @@ export function FloatingChatbot() {
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
-                                    handleSubmit();
+                                    handleSubmit(e);
                                 }
                             }}
                             disabled={!selectedVehicleId || isGenerating}
