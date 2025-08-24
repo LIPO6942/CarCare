@@ -60,7 +60,7 @@ Your role is to answer questions about a user's vehicle based *only* on the data
     ];
 
     const llmResponse = await ai.generate({
-      model: googleAI.model('gemini-1.5-flash-latest'),
+      model: googleAI.model('gemini-1.5-pro-latest'),
       system: systemPrompt,
       messages: messages,
     });
