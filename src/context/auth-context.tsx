@@ -1,10 +1,9 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { onAuthStateChanged, signInAnonymously, type User, getAdditionalUserInfo } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
-import { addSampleData } from '@/lib/actions';
 import { AlertTriangle } from 'lucide-react';
 import { useLocalNotifications } from '@/hooks/use-local-notifications';
 
@@ -37,15 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       } else {
         signInAnonymously(auth)
-          .then(async (anonymousUserCredential) => {
-            const additionalInfo = getAdditionalUserInfo(anonymousUserCredential);
-            if (additionalInfo?.isNewUser) {
-              try {
-                await addSampleData(anonymousUserCredential.user.uid);
-              } catch (e) {
-                console.error("Failed to add sample data for new user.", e);
-              }
-            }
+          .then((anonymousUserCredential) => {
             setUser(anonymousUserCredential.user);
             setIsLoading(false);
           })
