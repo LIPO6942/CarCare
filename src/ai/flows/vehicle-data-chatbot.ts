@@ -81,12 +81,9 @@ const answerVehicleQuestionFlow = ai.defineFlow(
         const { userId, vehicle, history, question } = input;
         
         // Construct the full chat history including the system prompt and the new question
-        const messages: any[] = [
-             ...history.map(h => ({
-                role: h.role,
-                content: [{ text: h.content }]
-            })),
-            { role: 'user', content: [{ text: question }] }
+        const messages = [
+            ...history,
+            {role: 'user' as const, content: question},
         ];
 
         const llmResponse = await vehicleDataChatbotPrompt({
