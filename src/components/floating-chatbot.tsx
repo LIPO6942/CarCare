@@ -142,7 +142,7 @@ export function FloatingChatbot() {
         }
 
         return (
-            <div className="h-full flex flex-col">
+            <>
                 <div className="p-4 border-b">
                     <Select onValueChange={handleVehicleChange} value={selectedVehicleId}>
                         <SelectTrigger>
@@ -222,7 +222,7 @@ export function FloatingChatbot() {
                         </Button>
                     </form>
                 </SheetFooter>
-            </div>
+            </>
         )
     }
 
@@ -239,7 +239,7 @@ export function FloatingChatbot() {
                 <span className="sr-only">Ouvrir le chatbot</span>
             </Button>
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
-                <SheetContent className="p-0 flex flex-col w-full sm:max-w-md" side="right">
+                <SheetContent className="p-0 flex flex-col w-full sm:max-w-md h-full" side="right">
                     <SheetHeader className="p-4 border-b flex-row justify-between items-center space-y-0">
                         <div>
                             <SheetTitle>Copilote IA</SheetTitle>
@@ -249,9 +249,13 @@ export function FloatingChatbot() {
                             <X className="h-4 w-4" />
                          </Button>
                     </SheetHeader>
-                    <ChatbotContent />
+                    <div className="flex-1 flex flex-col min-h-0">
+                        <ChatbotContent />
+                    </div>
                 </SheetContent>
             </Sheet>
         </>
     );
 }
+
+    
