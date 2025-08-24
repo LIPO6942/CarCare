@@ -72,7 +72,7 @@ const vehicleDataChatbotPrompt = ai.definePrompt({
 });
 
 
-export const answerVehicleQuestion = ai.defineFlow(
+const answerVehicleQuestionFlow = ai.defineFlow(
     {
         name: 'answerVehicleQuestionFlow',
         inputSchema: answerVehicleQuestionInputSchema,
@@ -91,11 +91,11 @@ export const answerVehicleQuestion = ai.defineFlow(
         ];
 
         // Replace the placeholder userId in the tools with the actual userId
-        const tools = {
-            getRepairHistory: (args: any) => getAllUserRepairs(userId).then(data => data.filter(d => d.vehicleId === vehicle.id)),
-            getMaintenanceHistory: (args: any) => getAllUserMaintenance(userId).then(data => data.filter(d => d.vehicleId === vehicle.id)),
-            getFuelLogHistory: (args: any) => getAllUserFuelLogs(userId).then(data => data.filter(d => d.vehicleId === vehicle.id)),
-        };
+        const tools = [
+            (args: any) => getAllUserRepairs(userId).then(data => data.filter(d => d.vehicleId === vehicle.id)),
+            (args: any) => getAllUserMaintenance(userId).then(data => data.filter(d => d.vehicleId === vehicle.id)),
+            (args: any) => getAllUserFuelLogs(userId).then(data => data.filter(d => d.vehicleId === vehicle.id)),
+        ];
 
         const llmResponse = await vehicleDataChatbotPrompt({
             history: messages,
@@ -112,3 +112,8 @@ export const answerVehicleQuestion = ai.defineFlow(
         };
     }
 );
+
+
+export async function answerVehicleQuestion(input: answerVehicleQuestionInput): Promise<answerVehicleQuestionOutput> {
+  return answerVehicleQuestionFlow(input);
+}
