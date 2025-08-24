@@ -55,13 +55,7 @@ const getFuelLogsTool = ai.defineTool(
     }
 );
 
-
-const vehicleDataChatbotPrompt = ai.definePrompt({
-    name: 'vehicleDataChatbotPrompt',
-    model: googleAI.model('gemini-1.5-flash-latest'),
-    tools: [getRepairsTool, getMaintenanceTool, getFuelLogsTool],
-});
-
+const tools = [getRepairsTool, getMaintenanceTool, getFuelLogsTool];
 
 const answerVehicleQuestionFlow = ai.defineFlow(
     {
@@ -93,8 +87,10 @@ const answerVehicleQuestionFlow = ai.defineFlow(
             {role: 'user' as const, content: [{text: question}]},
         ];
 
-        const llmResponse = await vehicleDataChatbotPrompt({
-            messages
+        const llmResponse = await ai.generate({
+            model: googleAI.model('gemini-1.5-flash-latest'),
+            messages: messages,
+            tools: tools,
         });
         
         const answerText = llmResponse.text();
