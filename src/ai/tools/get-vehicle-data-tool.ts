@@ -19,14 +19,9 @@ const GetVehicleDataOutputSchema = z.object({
     fuelLogs: z.array(z.custom<FuelLog>()),
 });
 
-export const getVehicleDataTool = ai.defineTool(
-    {
-        name: 'getVehicleData',
-        description: "Obtient un résumé complet de toutes les données d'un véhicule, y compris l'historique des réparations, de l'entretien et des pleins de carburant.",
-        inputSchema: GetVehicleDataInputSchema,
-        outputSchema: GetVehicleDataOutputSchema,
-    },
-    async ({ vehicleId }) => {
-        return await getVehicleData(vehicleId);
-    }
-);
+
+// This is now a simple async function, not a Genkit Tool defined with ai.defineTool.
+// We will call it directly from our flow.
+export async function getVehicleDataTool(input: { vehicleId: string }): Promise<{ repairs: Repair[], maintenance: Maintenance[], fuelLogs: FuelLog[] }> {
+    return await getVehicleData(input.vehicleId);
+}
