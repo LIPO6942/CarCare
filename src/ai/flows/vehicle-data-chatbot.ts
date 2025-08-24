@@ -23,7 +23,7 @@ const answerVehicleQuestionFlow = ai.defineFlow(
         outputSchema: answerVehicleQuestionOutputSchema,
     },
     async (input) => {
-        const { vehicle, history, question } = input;
+        const { vehicle, history, question, userId } = input;
         
         const messages = [
             {
@@ -40,8 +40,8 @@ const answerVehicleQuestionFlow = ai.defineFlow(
             ...history.map(h => ({ role: h.role as 'user' | 'model', content: [{ text: h.content }] })),
         ];
         
-        // Fetch all vehicle data using the service.
-        const vehicleData = await getVehicleData(vehicle.id);
+        // Fetch all vehicle data using the service, passing the userId correctly.
+        const vehicleData = await getVehicleData(vehicle.id, userId);
         
         // Inject the fetched data directly into the message history for the model to use.
         messages.push({

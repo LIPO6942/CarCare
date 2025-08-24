@@ -96,10 +96,10 @@ export async function deleteVehicleById(id: string): Promise<void> {
     await batch.commit();
 }
 
-async function getSubCollectionForVehicle<T>(vehicleId: string, collectionName: string, dateField: string = 'date', sortOrder: 'asc' | 'desc' = 'desc'): Promise<T[]> {
+async function getSubCollectionForVehicle<T>(vehicleId: string, userId: string, collectionName: string, dateField: string = 'date', sortOrder: 'asc' | 'desc' = 'desc'): Promise<T[]> {
     try {
         const colRef = collection(db, collectionName);
-        const q = query(colRef, where('vehicleId', '==', vehicleId));
+        const q = query(colRef, where('vehicleId', '==', vehicleId), where('userId', '==', userId));
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(d => docToType<T>(d));
 
@@ -126,16 +126,16 @@ async function getSubCollectionForVehicle<T>(vehicleId: string, collectionName: 
 }
 
 
-export async function getRepairsForVehicle(vehicleId: string): Promise<Repair[]> {
-  return getSubCollectionForVehicle<Repair>(vehicleId, 'repairs');
+export async function getRepairsForVehicle(vehicleId: string, userId: string): Promise<Repair[]> {
+  return getSubCollectionForVehicle<Repair>(vehicleId, userId, 'repairs');
 }
 
-export async function getMaintenanceForVehicle(vehicleId: string): Promise<Maintenance[]> {
-    return getSubCollectionForVehicle<Maintenance>(vehicleId, 'maintenance');
+export async function getMaintenanceForVehicle(vehicleId: string, userId: string): Promise<Maintenance[]> {
+    return getSubCollectionForVehicle<Maintenance>(vehicleId, userId, 'maintenance');
 }
 
-export async function getFuelLogsForVehicle(vehicleId: string): Promise<FuelLog[]> {
-    return getSubCollectionForVehicle<FuelLog>(vehicleId, 'fuelLogs');
+export async function getFuelLogsForVehicle(vehicleId: string, userId: string): Promise<FuelLog[]> {
+    return getSubCollectionForVehicle<FuelLog>(vehicleId, userId, 'fuelLogs');
 }
 
 
@@ -217,7 +217,7 @@ export async function addAiDiagnostic(diagnosticData: Omit<AiDiagnostic, 'id'>):
 }
 
 export async function getAiDiagnosticsForVehicle(vehicleId: string, userId: string): Promise<AiDiagnostic[]> {
-    return getSubCollectionForVehicle<AiDiagnostic>(vehicleId, 'aiDiagnostics', 'createdAt');
+    return getSubCollectionForVehicle<AiDiagnostic>(vehicleId, userId, 'aiDiagnostics', 'createdAt');
 }
 
 export async function deleteAiDiagnostic(id: string): Promise<void> {
