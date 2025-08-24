@@ -63,8 +63,7 @@ export function FloatingChatbot() {
         }
     }, [conversation]);
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
+    const handleSubmit = async () => {
         if (!input.trim() || isGenerating || !selectedVehicleId) return;
 
         const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
@@ -190,7 +189,7 @@ export function FloatingChatbot() {
                     </div>
                 )}
                 <SheetFooter className="p-4 border-t bg-background">
-                    <form onSubmit={handleSubmit} className="w-full flex items-center gap-2">
+                    <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="w-full flex items-center gap-2">
                         <Textarea
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
@@ -200,7 +199,7 @@ export function FloatingChatbot() {
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
-                                    handleSubmit(e as any);
+                                    handleSubmit();
                                 }
                             }}
                             disabled={!selectedVehicleId || isGenerating}
