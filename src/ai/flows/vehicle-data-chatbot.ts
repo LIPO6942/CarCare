@@ -7,6 +7,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'genkit';
 import { getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs } from '@/lib/data';
 import type { Repair, Maintenance, FuelLog, Vehicle } from '@/lib/types';
@@ -59,6 +60,7 @@ const getFuelLogsTool = ai.defineTool(
 
 const vehicleDataChatbotPrompt = ai.definePrompt({
     name: 'vehicleDataChatbotPrompt',
+    model: googleAI.model('gemini-1.5-flash-latest'),
     tools: [getRepairsTool, getMaintenanceTool, getFuelLogsTool],
     system: `You are an expert automotive data analyst called "CarCare Copilot". Your role is to answer questions about a user's vehicle based on their data.
 - The user's vehicle is a {{vehicle.brand}} {{vehicle.model}} ({{vehicle.year}}).
