@@ -139,28 +139,28 @@ export async function getFuelLogsForVehicle(vehicleId: string, userId: string): 
 }
 
 
-async function getAllFromVehicleCollection<T>(vehicleId: string, collectionName: string): Promise<T[]> {
+async function getAllFromUserCollection<T>(userId: string, collectionName: string): Promise<T[]> {
     try {
         const colRef = collection(db, collectionName);
-        const q = query(colRef, where('vehicleId', '==', vehicleId));
+        const q = query(colRef, where('userId', '==', userId));
         const snapshot = await getDocs(q);
         return snapshot.docs.map(d => docToType<T>(d));
     } catch (error) {
-        console.error(`Firebase error fetching all ${collectionName} for vehicle. Returning empty array.`, error);
+        console.error(`Firebase error fetching all ${collectionName} for user. Returning empty array.`, error);
         return [];
     }
 }
 
-export async function getAllUserRepairs(vehicleId: string): Promise<Repair[]> {
-    return getAllFromVehicleCollection<Repair>(vehicleId, 'repairs');
+export async function getAllUserRepairs(userId: string): Promise<Repair[]> {
+    return getAllFromUserCollection<Repair>(userId, 'repairs');
 }
 
-export async function getAllUserFuelLogs(vehicleId: string): Promise<FuelLog[]> {
-    return getAllFromVehicleCollection<FuelLog>(vehicleId, 'fuelLogs');
+export async function getAllUserFuelLogs(userId: string): Promise<FuelLog[]> {
+    return getAllFromUserCollection<FuelLog>(userId, 'fuelLogs');
 }
 
-export async function getAllUserMaintenance(vehicleId: string): Promise<Maintenance[]> {
-    return getAllFromVehicleCollection<Maintenance>(vehicleId, 'maintenance');
+export async function getAllUserMaintenance(userId: string): Promise<Maintenance[]> {
+    return getAllFromUserCollection<Maintenance>(userId, 'maintenance');
 }
 
 // --- Add Functions ---
