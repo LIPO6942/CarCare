@@ -63,8 +63,7 @@ export function FloatingChatbot() {
         }
     }, [conversation]);
 
-    const handleSubmit = async (event: FormEvent) => {
-        event.preventDefault();
+    const handleSubmit = async () => {
         if (!input.trim() || isGenerating || !selectedVehicleId) return;
 
         const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
@@ -73,9 +72,10 @@ export function FloatingChatbot() {
             return;
         }
 
-        const userMessage: ChatMessage = { role: 'user', content: input };
-        setConversation(prev => [...prev, userMessage]);
         const currentInput = input;
+        const newConversation: ChatMessage[] = [...conversation, { role: 'user', content: currentInput }];
+        
+        setConversation(newConversation);
         setInput('');
         setIsGenerating(true);
         setError(null);
@@ -84,7 +84,7 @@ export function FloatingChatbot() {
             const response = await answerVehicleQuestion({
                 userId: user.uid,
                 vehicle: selectedVehicle,
-                history: conversation,
+                history: newConversation.slice(0, -1), // Send history *before* the new question
                 question: currentInput,
             });
 
@@ -95,6 +95,9 @@ export function FloatingChatbot() {
             console.error(err);
             const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
             setError(`Désolé, une erreur est survenue lors de la communication avec le copilote IA. Détails : ${errorMessage}`);
+            // If there's an error, restore the user's input so they don't lose it
+            setConversation(newConversation.slice(0,-1));
+            setInput(currentInput);
         } finally {
             setIsGenerating(false);
         }
@@ -191,7 +194,7 @@ export function FloatingChatbot() {
                     </div>
                 )}
                 <SheetFooter className="p-4 border-t bg-background">
-                    <form onSubmit={handleSubmit} className="w-full flex items-center gap-2">
+                    <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="w-full flex items-center gap-2">
                         <Textarea
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
@@ -201,7 +204,7 @@ export function FloatingChatbot() {
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
-                                    handleSubmit(e);
+                                    handleSubmit();
                                 }
                             }}
                             disabled={!selectedVehicleId || isGenerating}
