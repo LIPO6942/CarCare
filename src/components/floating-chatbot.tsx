@@ -240,14 +240,9 @@ export function FloatingChatbot() {
             </Button>
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
                 <SheetContent className="p-0 flex flex-col w-full sm:max-w-md h-full" side="right">
-                    <SheetHeader className="p-4 border-b flex-row justify-between items-center space-y-0">
-                        <div>
-                            <SheetTitle>Copilote IA</SheetTitle>
-                            <SheetDescription>Posez des questions sur vos données.</SheetDescription>
-                        </div>
-                         <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="h-8 w-8">
-                            <X className="h-4 w-4" />
-                         </Button>
+                    <SheetHeader className="p-4 border-b">
+                        <SheetTitle>Copilote IA</SheetTitle>
+                        <SheetDescription>Posez des questions sur vos données.</SheetDescription>
                     </SheetHeader>
                     <div className="flex-1 flex flex-col min-h-0">
                         <ChatbotContent />
