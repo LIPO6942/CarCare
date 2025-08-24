@@ -126,15 +126,15 @@ async function getSubCollectionForVehicle<T>(vehicleId: string, collectionName: 
 }
 
 
-export async function getRepairsForVehicle(vehicleId: string, userId: string): Promise<Repair[]> {
+export async function getRepairsForVehicle(vehicleId: string): Promise<Repair[]> {
   return getSubCollectionForVehicle<Repair>(vehicleId, 'repairs');
 }
 
-export async function getMaintenanceForVehicle(vehicleId: string, userId: string): Promise<Maintenance[]> {
+export async function getMaintenanceForVehicle(vehicleId: string): Promise<Maintenance[]> {
     return getSubCollectionForVehicle<Maintenance>(vehicleId, 'maintenance');
 }
 
-export async function getFuelLogsForVehicle(vehicleId: string, userId: string): Promise<FuelLog[]> {
+export async function getFuelLogsForVehicle(vehicleId: string): Promise<FuelLog[]> {
     return getSubCollectionForVehicle<FuelLog>(vehicleId, 'fuelLogs');
 }
 
