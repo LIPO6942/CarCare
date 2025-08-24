@@ -1,5 +1,6 @@
 import { Sidebar } from './sidebar';
 import { MobileSidebar } from './mobile-sidebar';
+import { FloatingChatbot } from './floating-chatbot';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,6 +12,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <MobileSidebar />
         {children}
       </div>
+      <FloatingChatbot />
     </div>
   );
 }
