@@ -23,7 +23,7 @@ const getRepairsTool = ai.defineTool(
         inputSchema: z.object({}), // No input needed, it uses the flow's context
         outputSchema: z.array(z.custom<Repair>()),
     },
-    async (input, context) => {
+    async (_, context) => {
         const flowInput = (context as any)?.flow?.input as answerVehicleQuestionInput;
         const vehicleId = flowInput?.vehicle?.id;
         const userId = flowInput?.userId;
@@ -39,7 +39,7 @@ const getMaintenanceTool = ai.defineTool(
         inputSchema: z.object({}), // No input needed
         outputSchema: z.array(z.custom<Maintenance>()),
     },
-     async (input, context) => {
+     async (_, context) => {
         const flowInput = (context as any)?.flow?.input as answerVehicleQuestionInput;
         const vehicleId = flowInput?.vehicle?.id;
         const userId = flowInput?.userId;
@@ -55,7 +55,7 @@ const getFuelLogsTool = ai.defineTool(
         inputSchema: z.object({}), // No input needed
         outputSchema: z.array(z.custom<FuelLog>()),
     },
-     async (input, context) => {
+     async (_, context) => {
         const flowInput = (context as any)?.flow?.input as answerVehicleQuestionInput;
         const vehicleId = flowInput?.vehicle?.id;
         const userId = flowInput?.userId;
