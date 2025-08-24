@@ -19,12 +19,12 @@ import { answerVehicleQuestionInputSchema, answerVehicleQuestionOutputSchema } f
 const getRepairsTool = ai.defineTool(
     {
         name: 'getRepairHistory',
-        description: 'Get the repair history for the specified vehicle.',
-        inputSchema: z.object({ userId: z.string(), vehicleId: z.string() }),
+        description: 'Obtient l\'historique des réparations (pannes, accidents, remplacements de pièces) pour un véhicule spécifique.',
+        inputSchema: z.object({ vehicleId: z.string() }),
         outputSchema: z.array(z.custom<Repair>()),
     },
-    async ({ userId, vehicleId }) => {
-        const allRepairs = await getAllUserRepairs(userId);
+    async ({ vehicleId }) => {
+        const allRepairs = await getAllUserRepairs(vehicleId); // userId is now vehicleId from the context
         return allRepairs.filter(r => r.vehicleId === vehicleId);
     }
 );
@@ -32,12 +32,12 @@ const getRepairsTool = ai.defineTool(
 const getMaintenanceTool = ai.defineTool(
     {
         name: 'getMaintenanceHistory',
-        description: 'Get the maintenance history for the specified vehicle.',
-        inputSchema: z.object({ userId: z.string(), vehicleId: z.string() }),
+        description: 'Obtient l\'historique de l\'entretien pour un véhicule. Cela inclut les paiements (assurance, vignette), les vidanges, et les visites techniques. Utilisez cet outil pour les questions sur les coûts et les dates d\'échéance.',
+        inputSchema: z.object({ vehicleId: z.string() }),
         outputSchema: z.array(z.custom<Maintenance>()),
     },
-    async ({ userId, vehicleId }) => {
-        const allMaintenance = await getAllUserMaintenance(userId);
+    async ({ vehicleId }) => {
+        const allMaintenance = await getAllUserMaintenance(vehicleId); // userId is now vehicleId from the context
         return allMaintenance.filter(m => m.vehicleId === vehicleId);
     }
 );
@@ -45,17 +45,18 @@ const getMaintenanceTool = ai.defineTool(
 const getFuelLogsTool = ai.defineTool(
     {
         name: 'getFuelLogHistory',
-        description: 'Get the fuel log history for the specified vehicle.',
-        inputSchema: z.object({ userId: z.string(), vehicleId: z.string() }),
+        description: 'Obtient l\'historique des pleins de carburant pour un véhicule spécifique, y compris les coûts, les quantités et les dates.',
+        inputSchema: z.object({ vehicleId: z.string() }),
         outputSchema: z.array(z.custom<FuelLog>()),
     },
-    async ({ userId, vehicleId }) => {
-        const allLogs = await getAllUserFuelLogs(userId);
+    async ({ vehicleId }) => {
+        const allLogs = await getAllUserFuelLogs(vehicleId); // userId is now vehicleId from the context
         return allLogs.filter(l => l.vehicleId === vehicleId);
     }
 );
 
 const tools = [getRepairsTool, getMaintenanceTool, getFuelLogsTool];
+
 
 const answerVehicleQuestionFlow = ai.defineFlow(
     {
@@ -66,24 +67,21 @@ const answerVehicleQuestionFlow = ai.defineFlow(
     async (input: answerVehicleQuestionInput): Promise<answerVehicleQuestionOutput> => {
         const { userId, vehicle, history, question } = input;
         
-        // Construct the full chat history including the system prompt and the new question
         const messages = [
             {
                 role: 'system' as const,
-                content: [
-                    {
-                        text: `You are an expert automotive data analyst called "CarCare Copilot". Your role is to answer questions about a user's vehicle based on their data.
-- The user's vehicle is a ${vehicle.brand} ${vehicle.model} (${vehicle.year}).
-- Use the provided tools to fetch repair history, maintenance logs, and fuel logs.
-- You MUST pass the user's ID and the vehicle's ID to the tools. The user ID is ${userId} and the vehicle ID is ${vehicle.id}.
-- If you don't have enough information from the tools, ask the user to add more data to their logs.
-- Base your calculations on the data provided. For mileage-based questions, find the most recent event (repair, maintenance, or fuel log) to determine the current mileage.
+                content: [{
+                    text: `You are an expert automotive data analyst called "CarCare Copilot". Your role is to answer questions about a user's vehicle based on their data.
+- The user is asking about their ${vehicle.brand} ${vehicle.model} (${vehicle.year}).
+- To answer the question, you MUST use the provided tools to fetch the relevant data.
+- When calling a tool, you MUST pass the vehicle's ID to the \`vehicleId\` parameter. The ID for the current vehicle is: ${vehicle.id}.
+- If you don't have enough information from the tools, ask the user to add more data to their logs. For example, if they ask about insurance but the maintenance log is empty, tell them to add their insurance payment history.
+- Base your calculations and answers *only* on the data provided by the tools.
 - Respond in clear, concise French.
 - Today's date is ${new Date().toLocaleDateString('fr-FR')}.`
-                    }
-                ]
+                }]
             },
-            ...history.map(h => ({ role: h.role, content: [{ text: h.content }] })),
+            ...history.map(h => ({ role: h.role as 'user' | 'model', content: [{ text: h.content }] })),
             {role: 'user' as const, content: [{text: question}]},
         ];
 
