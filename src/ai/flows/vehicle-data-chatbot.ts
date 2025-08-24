@@ -71,7 +71,6 @@ const answerVehicleQuestionFlow = ai.defineFlow(
         name: 'answerVehicleQuestionFlow',
         inputSchema: answerVehicleQuestionInputSchema,
         outputSchema: answerVehicleQuestionOutputSchema,
-        tools: [getRepairsTool, getMaintenanceTool, getFuelLogsTool]
     },
     async (input) => {
         const { vehicle, history, question, userId } = input;
