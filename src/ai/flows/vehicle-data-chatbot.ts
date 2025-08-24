@@ -20,14 +20,10 @@ const getRepairsTool = ai.defineTool(
     {
         name: 'getRepairHistory',
         description: 'Obtient l\'historique des réparations (pannes, accidents, remplacements de pièces) pour le véhicule de l\'utilisateur.',
-        inputSchema: z.object({}), // No input needed, it uses the flow's context
+        inputSchema: z.object({ vehicleId: z.string(), userId: z.string() }),
         outputSchema: z.array(z.custom<Repair>()),
     },
-    async (_, context) => {
-        const flowInput = (context as any)?.flow?.input as answerVehicleQuestionInput;
-        const vehicleId = flowInput?.vehicle?.id;
-        const userId = flowInput?.userId;
-        if (!vehicleId || !userId) return [];
+    async ({ vehicleId, userId }) => {
         return await getRepairsForVehicle(vehicleId, userId);
     }
 );
@@ -36,14 +32,10 @@ const getMaintenanceTool = ai.defineTool(
     {
         name: 'getMaintenanceHistory',
         description: 'Obtient l\'historique de l\'entretien pour un véhicule. Cela inclut les paiements (assurance, vignette), les vidanges, et les visites techniques. Utilisez cet outil pour les questions sur les coûts et les dates d\'échéance.',
-        inputSchema: z.object({}), // No input needed
+        inputSchema: z.object({ vehicleId: z.string(), userId: z.string() }),
         outputSchema: z.array(z.custom<Maintenance>()),
     },
-     async (_, context) => {
-        const flowInput = (context as any)?.flow?.input as answerVehicleQuestionInput;
-        const vehicleId = flowInput?.vehicle?.id;
-        const userId = flowInput?.userId;
-        if (!vehicleId || !userId) return [];
+     async ({ vehicleId, userId }) => {
         return await getMaintenanceForVehicle(vehicleId, userId);
     }
 );
@@ -52,14 +44,10 @@ const getFuelLogsTool = ai.defineTool(
     {
         name: 'getFuelLogHistory',
         description: 'Obtient l\'historique des pleins de carburant pour un véhicule spécifique, y compris les coûts, les quantités et les dates. Utilisez cet outil pour les questions sur la consommation et les dépenses de carburant.',
-        inputSchema: z.object({}), // No input needed
+        inputSchema: z.object({ vehicleId: z.string(), userId: z.string() }),
         outputSchema: z.array(z.custom<FuelLog>()),
     },
-     async (_, context) => {
-        const flowInput = (context as any)?.flow?.input as answerVehicleQuestionInput;
-        const vehicleId = flowInput?.vehicle?.id;
-        const userId = flowInput?.userId;
-        if (!vehicleId || !userId) return [];
+     async ({ vehicleId, userId }) => {
         return await getFuelLogsForVehicle(vehicleId, userId);
     }
 );
@@ -74,7 +62,7 @@ const answerVehicleQuestionFlow = ai.defineFlow(
         outputSchema: answerVehicleQuestionOutputSchema,
     },
     async (input: answerVehicleQuestionInput): Promise<answerVehicleQuestionOutput> => {
-        const { vehicle, history, question } = input;
+        const { vehicle, history, question, userId } = input;
         
         const messages = [
             {
@@ -82,9 +70,9 @@ const answerVehicleQuestionFlow = ai.defineFlow(
                 content: [{
                     text: `You are an expert automotive data analyst called "CarCare Copilot". Your role is to answer questions about a user's vehicle based on their data.
 - The user is asking about their ${vehicle.brand} ${vehicle.model} (${vehicle.year}) with ID: ${vehicle.id}.
-- To answer the question, you MUST use the provided tools to fetch the relevant data. Do not ask the user for the data, use the tools.
+- You have access to tools that can retrieve the vehicle's repair, maintenance, and fuel history. You MUST use these tools to answer the user's question. For every tool call, you MUST pass both the vehicleId: "${vehicle.id}" and the userId: "${userId}".
 - If you don't have enough information from the tools, ask the user to add more data to their logs. For example, if they ask about insurance but the maintenance log is empty, tell them to add their insurance payment history.
-- Base your calculations and answers *only* on the data provided by the tools.
+- Base your calculations and answers *only* on the data provided by the tools. Do not make up information.
 - Respond in clear, concise French.
 - Today's date is ${new Date().toLocaleDateString('fr-FR')}.`
                 }]
@@ -97,7 +85,6 @@ const answerVehicleQuestionFlow = ai.defineFlow(
             model: googleAI.model('gemini-1.5-flash-latest'),
             messages: messages,
             tools: tools,
-            context: { flow: { input } }
         });
         
         const answerText = llmResponse.text;
