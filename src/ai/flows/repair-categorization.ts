@@ -47,7 +47,16 @@ const categorizeRepairFlow = ai.defineFlow(
     outputSchema: CategorizeRepairOutputSchema,
   },
   async input => {
-    const {output} = await categorizeRepairPrompt(input);
-    return output!;
+    try {
+      const {output} = await categorizeRepairPrompt(input);
+      return output!;
+    } catch (error: any) {
+        console.error("AI Error in categorizeRepairFlow:", error);
+        const errorMessage = error.message || String(error);
+         if (errorMessage.includes('429') || errorMessage.toLowerCase().includes('quota')) {
+            throw new Error("La limite de requêtes gratuites pour l'assistant IA a été atteinte pour aujourd'hui.");
+        }
+        throw new Error("Une erreur est survenue lors de la communication avec l'assistant IA.");
+    }
   }
 );

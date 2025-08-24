@@ -58,17 +58,32 @@ Your role is to answer questions about a user's vehicle based *only* on the data
           content: [{ text: `Here is all the data for the vehicle. Use it to answer my question:\n\n${vehicleDataJson}\n\nQuestion: ${question}` }],
         },
     ];
+    
+    try {
+        const llmResponse = await ai.generate({
+          model: googleAI.model('gemini-1.5-flash-latest'),
+          system: systemPrompt,
+          messages: messages,
+        });
 
-    const llmResponse = await ai.generate({
-      model: googleAI.model('gemini-1.5-pro-latest'),
-      system: systemPrompt,
-      messages: messages,
-    });
-
-    const answer = llmResponse.text;
-
-    return {
-      answer: answer ?? "Je n'ai pas pu générer de réponse. Veuillez réessayer.",
-    };
+        const answer = llmResponse.text;
+        
+        return {
+          answer: answer ?? "Je n'ai pas pu générer de réponse. Veuillez réessayer.",
+        };
+    } catch (error: any) {
+        console.error("AI Error in answerFromHistoryFlow:", error);
+        
+        const errorMessage = error.message || String(error);
+        if (errorMessage.includes('429') || errorMessage.toLowerCase().includes('quota')) {
+             return {
+                answer: "Désolé, la limite de requêtes gratuites pour l'assistant IA a été atteinte pour aujourd'hui. Veuillez réessayer demain."
+             }
+        }
+        
+        return {
+            answer: "Une erreur est survenue en contactant l'assistant IA. Veuillez réessayer."
+        }
+    }
   }
 );
