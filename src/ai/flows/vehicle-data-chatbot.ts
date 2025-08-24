@@ -10,6 +10,7 @@ import { googleAI } from '@genkit-ai/googleai';
 import type { answerVehicleQuestionInput, answerVehicleQuestionOutput } from './vehicle-data-chatbot-types';
 import { answerVehicleQuestionInputSchema, answerVehicleQuestionOutputSchema } from './vehicle-data-chatbot-types';
 import { getVehicleData } from '@/ai/services/vehicle-data-service';
+import { getVehicleById } from '@/lib/data';
 
 
 export async function answerVehicleQuestion(input: answerVehicleQuestionInput): Promise<answerVehicleQuestionOutput> {
@@ -23,8 +24,17 @@ const answerVehicleQuestionFlow = ai.defineFlow(
         outputSchema: answerVehicleQuestionOutputSchema,
     },
     async (input) => {
-        const { vehicle, history, question, userId } = input;
+        const { vehicleId, history, question, userId } = input;
         
+        // Fetch the full vehicle object using the ID
+        const vehicle = await getVehicleById(vehicleId);
+
+        if (!vehicle) {
+            return {
+                answer: "Je n'ai pas pu trouver les informations pour le véhicule sélectionné. Veuillez réessayer."
+            };
+        }
+
         // Fetch all vehicle data using the service.
         const vehicleData = await getVehicleData(vehicle.id, userId);
 

@@ -69,9 +69,8 @@ export function FloatingChatbot() {
         const currentInput = inputRef.current?.value;
         if (!currentInput?.trim() || isGenerating || !selectedVehicleId) return;
 
-        const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
-        if (!user || !selectedVehicle) {
-            setError("Impossible d'envoyer le message. Utilisateur ou véhicule non valide.");
+        if (!user) {
+            setError("Impossible d'envoyer le message. Utilisateur non valide.");
             return;
         }
         
@@ -87,7 +86,7 @@ export function FloatingChatbot() {
         try {
             const response = await answerVehicleQuestion({
                 userId: user.uid,
-                vehicle: selectedVehicle,
+                vehicleId: selectedVehicleId,
                 history: conversation,
                 question: currentInput,
             });
@@ -252,5 +251,3 @@ export function FloatingChatbot() {
         </>
     );
 }
-
-    

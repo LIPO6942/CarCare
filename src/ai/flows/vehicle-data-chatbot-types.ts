@@ -4,12 +4,10 @@
  */
 
 import { z } from 'genkit';
-import type { Vehicle } from '@/lib/types';
-
 
 export const answerVehicleQuestionInputSchema = z.object({
   userId: z.string(),
-  vehicle: z.custom<Vehicle>(),
+  vehicleId: z.string(), // Changed from vehicle object to just ID
   history: z.array(z.object({
     role: z.enum(['user', 'model']),
     content: z.string(),
