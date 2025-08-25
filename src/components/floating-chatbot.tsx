@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react';
@@ -23,7 +22,7 @@ type ChatMessage = {
     content: { text: string }[];
 };
 
-function ChatbotContent() {
+function ChatbotBody() {
     const { user } = useAuth();
     const { toast } = useToast();
     const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -34,7 +33,6 @@ function ChatbotContent() {
     const [conversation, setConversation] = useState<ChatMessage[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [isMounted, setIsMounted] = useState(false);
 
     const { transcript, startListening, stopListening, isListening, browserSupportsSpeechRecognition } = useSpeechRecognition();
     
@@ -52,7 +50,6 @@ function ChatbotContent() {
     }, [user]);
     
     useEffect(() => {
-        setIsMounted(true);
         fetchVehicles();
     }, [fetchVehicles]);
     
@@ -127,21 +124,6 @@ function ChatbotContent() {
         }
     };
     
-     if (!isMounted) {
-        return (
-            <div className="flex flex-col h-full p-4">
-                <div className="flex-1 space-y-4">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-16 w-3/4 self-end" />
-                    <Skeleton className="h-16 w-3/4" />
-                </div>
-                <div className="mt-4">
-                    <Skeleton className="h-12 w-full" />
-                </div>
-            </div>
-        );
-    }
-
     if (isLoadingVehicles) {
         return (
             <div className="flex flex-col h-full p-4 items-center justify-center">
@@ -165,21 +147,17 @@ function ChatbotContent() {
     }
 
     return (
-        <>
-            <SheetHeader className="p-4 border-b">
-                <SheetTitle>CarCare Copilot</SheetTitle>
-                <SheetDescription>
-                     Posez des questions sur les données de votre véhicule sélectionné.
-                </SheetDescription>
+        <div className="flex flex-col h-full">
+            <div className="p-4 border-b">
                  <Select onValueChange={setSelectedVehicleId} value={selectedVehicleId}>
-                    <SelectTrigger className="w-full mt-2">
+                    <SelectTrigger className="w-full">
                         <SelectValue placeholder="Sélectionnez un véhicule" />
                     </SelectTrigger>
                     <SelectContent>
                         {vehicles.map(v => <SelectItem key={v.id} value={v.id}>{v.brand} {v.model} ({v.licensePlate})</SelectItem>)}
                     </SelectContent>
                 </Select>
-            </SheetHeader>
+            </div>
             <ScrollArea className="flex-1">
                 <div className="p-4 space-y-4">
                     {conversation.length === 0 && (
@@ -255,7 +233,7 @@ function ChatbotContent() {
                     </Button>
                 </form>
             </SheetFooter>
-        </>
+        </div>
     )
 }
 
@@ -273,11 +251,15 @@ export function FloatingChatbot() {
       </Button>
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetContent className="sm:max-w-lg p-0 flex flex-col h-full">
-            <ChatbotContent />
+            <SheetHeader className="p-4 border-b">
+                <SheetTitle>CarCare Copilot</SheetTitle>
+                <SheetDescription>
+                     Posez des questions sur les données de votre véhicule sélectionné.
+                </SheetDescription>
+            </SheetHeader>
+            <ChatbotBody />
         </SheetContent>
       </Sheet>
     </>
   );
 }
-
-    
