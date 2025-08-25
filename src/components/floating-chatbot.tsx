@@ -25,14 +25,13 @@ type ChatMessage = {
 };
 
 
-function ChatbotContent() {
+function ChatbotContent({ conversation, setConversation }: { conversation: ChatMessage[], setConversation: React.Dispatch<React.SetStateAction<ChatMessage[]>> }) {
     const { user } = useAuth();
     const { toast } = useToast();
     const [vehicles, setVehicles] = useState<Vehicle[]>([]);
     const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
     const [isLoadingVehicles, setIsLoadingVehicles] = useState(true);
     
-    const [conversation, setConversation] = useState<ChatMessage[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -251,6 +250,7 @@ function ChatbotContent() {
 
 export function FloatingChatbot() {
   const [isOpen, setIsOpen] = useState(false);
+  const [conversation, setConversation] = useState<ChatMessage[]>([]);
 
   return (
     <>
@@ -273,7 +273,7 @@ export function FloatingChatbot() {
                      Posez des questions sur les données de votre véhicule sélectionné.
                 </SheetDescription>
             </SheetHeader>
-            <ChatbotContent />
+            <ChatbotContent conversation={conversation} setConversation={setConversation} />
         </SheetContent>
       </Sheet>
     </>
