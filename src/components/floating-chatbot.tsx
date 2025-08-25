@@ -259,10 +259,9 @@ export function FloatingChatbot() {
         onClick={() => setIsOpen(true)}
       >
         <img 
-            src="https://placehold.co/40x40.png" 
+            src="https://images.unsplash.com/photo-1542282088-fe8426682b8f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxNXx8Y2FyfGVufDB8fHx8MTc1NjExNzMxNXww&ixlib=rb-4.1.0&q=80&w=1080" 
             alt="Chatbot" 
-            className="rounded-full"
-            data-ai-hint="robot chat"
+            className="rounded-full h-full w-full object-cover"
         />
         <span className="sr-only">Ouvrir le chatbot</span>
       </button>
