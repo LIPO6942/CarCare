@@ -17,17 +17,13 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
 });
 
-function AuthManager({ children }: { children: ReactNode }) {
-  // This custom hook will now handle the local notification logic.
-  // It will only run when a user is authenticated.
-  useLocalNotifications();
-  return <>{children}</>;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [configError, setConfigError] = useState<string | null>(null);
+
+  // The local notifications hook will only activate its logic when the user is authenticated.
+  useLocalNotifications();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -72,22 +68,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         </div>
     )
   }
+  
+  if (isLoading) {
+    return (
+        <div className="flex min-h-screen w-full items-center justify-center">
+           <div className="w-full max-w-md space-y-4 p-4">
+             <Skeleton className="h-12 w-full" />
+             <Skeleton className="h-32 w-full" />
+             <Skeleton className="h-32 w-full" />
+           </div>
+        </div>
+    )
+  }
 
-  const value = { user, isLoading };
+  const value = { user, isLoading: false }; // Since we handle loading above, it's false here.
 
   return (
     <AuthContext.Provider value={value}>
-        {isLoading ? (
-            <div className="flex min-h-screen w-full items-center justify-center">
-               <div className="w-full max-w-md space-y-4 p-4">
-                 <Skeleton className="h-12 w-full" />
-                 <Skeleton className="h-32 w-full" />
-                 <Skeleton className="h-32 w-full" />
-               </div>
-            </div>
-        ) : (
-          user ? <AuthManager>{children}</AuthManager> : children
-        )}
+        {children}
     </AuthContext.Provider>
   );
 }
