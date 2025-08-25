@@ -158,7 +158,7 @@ function ChatbotContent({ conversation, setConversation }: { conversation: ChatM
 
     return (
         <div className="flex flex-col h-full">
-            <div className="p-4 border-b">
+             <div className="p-4 border-b">
                  <Select onValueChange={setSelectedVehicleId} value={selectedVehicleId}>
                     <SelectTrigger className="w-full">
                         <SelectValue placeholder="Sélectionnez un véhicule" />
@@ -206,13 +206,13 @@ function ChatbotContent({ conversation, setConversation }: { conversation: ChatM
             </ScrollArea>
 
             {error && (
-                <div className="p-4 border-t text-sm text-destructive flex items-start gap-2">
+                <div className="p-2 text-sm text-destructive flex items-start gap-2">
                     <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
                     <p>{error}</p>
                 </div>
             )}
-
-            <SheetFooter className="p-4 border-t">
+            
+            <div className="p-4 border-t bg-background">
                 <form onSubmit={handleNewMessage} className="w-full flex items-center gap-2">
                      <Textarea
                         ref={textareaRef}
@@ -243,7 +243,7 @@ function ChatbotContent({ conversation, setConversation }: { conversation: ChatM
                         <Send />
                     </Button>
                 </form>
-            </SheetFooter>
+            </div>
         </div>
     )
 }
@@ -261,6 +261,7 @@ export function FloatingChatbot() {
         <img 
             src="https://images.unsplash.com/photo-1542282088-fe8426682b8f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxNXx8Y2FyfGVufDB8fHx8MTc1NjExNzMxNXww&ixlib=rb-4.1.0&q=80&w=1080" 
             alt="Chatbot" 
+            data-ai-hint="robot chat"
             className="rounded-full h-full w-full object-cover"
         />
         <span className="sr-only">Ouvrir le chatbot</span>
