@@ -42,6 +42,7 @@ export function FloatingChatbot() {
         transcript,
         startListening,
         stopListening,
+        clearTranscript,
         browserSupportsSpeechRecognition
     } = useSpeechRecognition();
 
@@ -83,8 +84,13 @@ export function FloatingChatbot() {
         if (isOpen) {
             fetchVehicles();
             setError(null);
+        } else {
+             // When the sheet closes, stop listening if it's active
+            if (isListening) {
+                stopListening();
+            }
         }
-    }, [isOpen, fetchVehicles]);
+    }, [isOpen, fetchVehicles, isListening, stopListening]);
 
     useEffect(() => {
         // Auto scroll to bottom
@@ -116,6 +122,7 @@ export function FloatingChatbot() {
         if (inputRef.current) {
             inputRef.current.value = '';
         }
+        clearTranscript();
         setIsGenerating(true);
         setError(null);
 

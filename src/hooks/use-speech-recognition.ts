@@ -89,11 +89,16 @@ export const useSpeechRecognition = () => {
     }
   };
 
+  const clearTranscript = () => {
+      setTranscript('');
+  }
+
   return {
     isListening,
     transcript,
     startListening,
     stopListening,
+    clearTranscript,
     browserSupportsSpeechRecognition: !!recognitionRef.current,
   };
 };
