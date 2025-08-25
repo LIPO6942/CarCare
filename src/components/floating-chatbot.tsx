@@ -77,9 +77,11 @@ function ChatbotContent() {
     }, [user, selectedVehicleId]);
     
     useEffect(() => {
-        fetchVehicles();
-        setError(null);
-    }, [fetchVehicles]);
+        if(isOpen) {
+            fetchVehicles();
+            setError(null);
+        }
+    }, [isOpen, fetchVehicles]);
 
     useEffect(() => {
         // Auto scroll to bottom
@@ -148,7 +150,8 @@ function ChatbotContent() {
     
     const handleVehicleChange = (vehicleId: string) => {
         setSelectedVehicleId(vehicleId);
-        setConversation([]); // Reset conversation when vehicle changes
+        // Do not reset conversation here anymore
+        // setConversation([]);
         setError(null);
     }
     
@@ -254,7 +257,14 @@ function ChatbotContent() {
                         }}
                         disabled={!selectedVehicleId || isGenerating}
                     />
-                    <Button type="button" size="icon" onClick={handleMicClick} disabled={!browserSupportsSpeechRecognition || isGenerating} variant={isListening ? "destructive" : "secondary"}>
+                    <Button 
+                        type="button" 
+                        size="icon" 
+                        onClick={handleMicClick} 
+                        disabled={!browserSupportsSpeechRecognition || isGenerating} 
+                        variant={isListening ? "destructive" : "secondary"}
+                        className={cn(isListening && "animate-pulse")}
+                    >
                         {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                         <span className="sr-only">{isListening ? 'Arrêter l\'écoute' : 'Démarrer l\'écoute'}</span>
                     </Button>
@@ -295,3 +305,5 @@ export function FloatingChatbot() {
         </>
     );
 }
+
+    
