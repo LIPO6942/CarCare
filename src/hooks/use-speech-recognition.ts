@@ -76,7 +76,7 @@ export const useSpeechRecognition = () => {
 
   const startListening = () => {
     if (recognitionRef.current && !isListening) {
-      setTranscript(''); // Clear previous transcript
+      setTranscript(''); // Clear previous transcript only when starting a new session
       recognitionRef.current.start();
       setIsListening(true);
     }
@@ -89,16 +89,13 @@ export const useSpeechRecognition = () => {
     }
   };
 
-  const clearTranscript = () => {
-      setTranscript('');
-  }
-
   return {
     isListening,
     transcript,
     startListening,
     stopListening,
-    clearTranscript,
     browserSupportsSpeechRecognition: !!recognitionRef.current,
   };
 };
+
+    

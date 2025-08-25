@@ -30,26 +30,23 @@ export function FloatingChatbot() {
     const [vehicles, setVehicles] = useState<Vehicle[]>([]);
     const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
     const [isLoadingVehicles, setIsLoadingVehicles] = useState(true);
+    const [inputValue, setInputValue] = useState('');
 
     const [conversation, setConversation] = useState<ChatMessage[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLTextAreaElement>(null);
     
     const {
         isListening,
         transcript,
         startListening,
         stopListening,
-        clearTranscript,
         browserSupportsSpeechRecognition
     } = useSpeechRecognition();
 
     useEffect(() => {
-        if (transcript && inputRef.current) {
-            inputRef.current.value = transcript;
-        }
+        setInputValue(transcript);
     }, [transcript]);
 
     const handleMicClick = () => {
@@ -107,7 +104,7 @@ export function FloatingChatbot() {
         
         if (isListening) stopListening();
 
-        const currentInput = inputRef.current?.value;
+        const currentInput = inputValue;
         if (!currentInput?.trim() || isGenerating || !selectedVehicleId) return;
 
         if (!user) {
@@ -119,10 +116,7 @@ export function FloatingChatbot() {
         const newConversation: ChatMessage[] = [...conversation, userMessage];
         
         setConversation(newConversation);
-        if (inputRef.current) {
-            inputRef.current.value = '';
-        }
-        clearTranscript();
+        setInputValue('');
         setIsGenerating(true);
         setError(null);
 
@@ -154,9 +148,7 @@ export function FloatingChatbot() {
             const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
             setError(`Désolé, une erreur est survenue lors de la communication avec le copilote IA. Détails : ${errorMessage}`);
             setConversation(conversation);
-             if (inputRef.current) {
-                inputRef.current.value = currentInput;
-            }
+            setInputValue(currentInput);
         } finally {
             setIsGenerating(false);
         }
@@ -258,7 +250,8 @@ export function FloatingChatbot() {
                         className="w-full flex items-center gap-2"
                     >
                         <Textarea
-                            ref={inputRef}
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
                             placeholder={isListening ? "Écoute en cours..." : "Posez une question sur votre véhicule..."}
                             className="flex-1 text-sm min-h-0 h-10 resize-none"
                             rows={1}
@@ -309,3 +302,5 @@ export function FloatingChatbot() {
         </>
     );
 }
+
+    
