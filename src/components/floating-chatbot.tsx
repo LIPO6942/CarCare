@@ -73,16 +73,15 @@ export function FloatingChatbot() {
         setIsLoadingVehicles(true);
         const userVehicles = await getVehicles(user.uid);
         setVehicles(userVehicles);
-        if (userVehicles.length > 0) {
+        if (userVehicles.length > 0 && !selectedVehicleId) {
             setSelectedVehicleId(userVehicles[0].id);
         }
         setIsLoadingVehicles(false);
-    }, [user]);
+    }, [user, selectedVehicleId]);
     
     useEffect(() => {
         if (isOpen) {
             fetchVehicles();
-            setConversation([]); // Reset conversation on open
             setError(null);
         }
     }, [isOpen, fetchVehicles]);
