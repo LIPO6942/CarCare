@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react';
@@ -257,7 +258,7 @@ export function FloatingChatbot() {
         className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-lg z-50 flex items-center justify-center bg-primary hover:bg-primary/90 transition-all"
         onClick={() => setIsOpen(true)}
       >
-        <Image src="https://storage.googleapis.com/project-spark-341015.appspot.com/static/docs/images/chat-bot.png" width={40} height={40} alt="Chatbot" />
+        <img src="https://placehold.co/40x40.png" alt="Chatbot" className="rounded-full" />
         <span className="sr-only">Ouvrir le chatbot</span>
       </button>
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
