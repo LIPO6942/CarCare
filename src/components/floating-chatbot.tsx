@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
-import { Bot, User, Send, Loader2, X, AlertTriangle, Car } from 'lucide-react';
+import { Bot, User, Send, Loader2, AlertTriangle, Car, Mic, MicOff } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { getVehicles, getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle } from '@/lib/data';
 import type { Vehicle } from '@/lib/types';
@@ -15,6 +15,8 @@ import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { useSpeechRecognition } from '@/hooks/use-speech-recognition';
+import { useToast } from '@/hooks/use-toast';
 
 type ChatMessage = {
     role: 'user' | 'model';
@@ -23,6 +25,7 @@ type ChatMessage = {
 
 export function FloatingChatbot() {
     const { user } = useAuth();
+    const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [vehicles, setVehicles] = useState<Vehicle[]>([]);
     const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
@@ -33,6 +36,36 @@ export function FloatingChatbot() {
     const [error, setError] = useState<string | null>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+    
+    const {
+        isListening,
+        transcript,
+        startListening,
+        stopListening,
+        browserSupportsSpeechRecognition
+    } = useSpeechRecognition();
+
+    useEffect(() => {
+        if (transcript && inputRef.current) {
+            inputRef.current.value = transcript;
+        }
+    }, [transcript]);
+
+    const handleMicClick = () => {
+        if (!browserSupportsSpeechRecognition) {
+            toast({
+                title: "Fonctionnalité non supportée",
+                description: "Votre navigateur ne supporte pas la reconnaissance vocale.",
+                variant: 'destructive'
+            });
+            return;
+        }
+        if (isListening) {
+            stopListening();
+        } else {
+            startListening();
+        }
+    };
 
 
     const fetchVehicles = useCallback(async () => {
@@ -66,6 +99,9 @@ export function FloatingChatbot() {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+        
+        if (isListening) stopListening();
+
         const currentInput = inputRef.current?.value;
         if (!currentInput?.trim() || isGenerating || !selectedVehicleId) return;
 
@@ -85,7 +121,6 @@ export function FloatingChatbot() {
         setError(null);
 
         try {
-            // --- NEW LOGIC: Fetch data directly on the client ---
             const [repairs, maintenance, fuelLogs] = await Promise.all([
                 getRepairsForVehicle(selectedVehicleId, user.uid),
                 getMaintenanceForVehicle(selectedVehicleId, user.uid),
@@ -94,22 +129,24 @@ export function FloatingChatbot() {
 
             const vehicleData = { repairs, maintenance, fuelLogs };
             const vehicleDataJson = JSON.stringify(vehicleData, null, 2);
-            // --- END NEW LOGIC ---
 
             const response = await answerFromHistory({
-                history: conversation, // Pass previous messages
+                history: conversation,
                 question: currentInput,
                 vehicleDataJson: vehicleDataJson,
             });
+            
+             if (response.answer.includes("Désolé, la limite de requêtes gratuites")) {
+                setError(response.answer);
+            }
 
             const modelMessage: ChatMessage = { role: 'model', content: [{ text: response.answer }] };
             setConversation(prev => [...prev, modelMessage]);
 
         } catch (err) {
-            console.error(err);
+            console.error("Error in chatbot handleSubmit", err);
             const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
             setError(`Désolé, une erreur est survenue lors de la communication avec le copilote IA. Détails : ${errorMessage}`);
-            // Restore previous state without the user message that failed
             setConversation(conversation);
              if (inputRef.current) {
                 inputRef.current.value = currentInput;
@@ -216,7 +253,7 @@ export function FloatingChatbot() {
                     >
                         <Textarea
                             ref={inputRef}
-                            placeholder="Posez une question sur votre véhicule..."
+                            placeholder={isListening ? "Écoute en cours..." : "Posez une question sur votre véhicule..."}
                             className="flex-1 text-sm min-h-0 h-10 resize-none"
                             rows={1}
                             onKeyDown={(e) => {
@@ -227,6 +264,10 @@ export function FloatingChatbot() {
                             }}
                             disabled={!selectedVehicleId || isGenerating}
                         />
+                        <Button type="button" size="icon" onClick={handleMicClick} disabled={!browserSupportsSpeechRecognition || isGenerating} variant={isListening ? "destructive" : "secondary"}>
+                            {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                            <span className="sr-only">{isListening ? 'Arrêter l\'écoute' : 'Démarrer l\'écoute'}</span>
+                        </Button>
                         <Button type="submit" size="icon" disabled={isGenerating}>
                             <Send className="h-4 w-4" />
                         </Button>
