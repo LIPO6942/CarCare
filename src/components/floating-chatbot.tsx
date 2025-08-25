@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from './ui/sheet';
 import { Bot, User, Send, Loader2, AlertTriangle, Car, Mic, MicOff } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { getVehicles, getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle } from '@/lib/data';
@@ -22,19 +22,21 @@ type ChatMessage = {
     content: { text: string }[];
 };
 
-function ChatbotBody() {
+
+function ChatbotContent() {
     const { user } = useAuth();
     const { toast } = useToast();
     const [vehicles, setVehicles] = useState<Vehicle[]>([]);
     const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
     const [isLoadingVehicles, setIsLoadingVehicles] = useState(true);
-    const [inputValue, setInputValue] = useState('');
-
+    
     const [conversation, setConversation] = useState<ChatMessage[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const { transcript, startListening, stopListening, isListening, browserSupportsSpeechRecognition } = useSpeechRecognition();
+    const [inputValue, setInputValue] = useState('');
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     
     const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +60,13 @@ function ChatbotBody() {
             setInputValue(transcript);
         }
     }, [transcript]);
+
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+        }
+    }, [inputValue]);
 
 
     useEffect(() => {
@@ -205,11 +214,12 @@ function ChatbotBody() {
             <SheetFooter className="p-4 border-t">
                 <form onSubmit={handleNewMessage} className="w-full flex items-center gap-2">
                      <Textarea
+                        ref={textareaRef}
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         placeholder="Posez votre question..."
                         rows={1}
-                        className="flex-1 resize-none text-base"
+                        className="flex-1 resize-none text-base max-h-40"
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
@@ -251,13 +261,13 @@ export function FloatingChatbot() {
       </Button>
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetContent className="sm:max-w-lg p-0 flex flex-col h-full">
-            <SheetHeader className="p-4 border-b">
+           <SheetHeader className="p-4 border-b">
                 <SheetTitle>CarCare Copilot</SheetTitle>
                 <SheetDescription>
                      Posez des questions sur les données de votre véhicule sélectionné.
                 </SheetDescription>
             </SheetHeader>
-            <ChatbotBody />
+            <ChatbotContent />
         </SheetContent>
       </Sheet>
     </>
