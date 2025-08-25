@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useSpeechRecognition } from '@/hooks/use-speech-recognition';
 import { useToast } from '@/hooks/use-toast';
+import Image from 'next/image';
 
 type ChatMessage = {
     role: 'user' | 'model';
@@ -252,13 +253,13 @@ export function FloatingChatbot() {
 
   return (
     <>
-      <Button
-        className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-lg z-50 flex items-center justify-center"
+      <button
+        className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-lg z-50 flex items-center justify-center bg-primary hover:bg-primary/90 transition-all"
         onClick={() => setIsOpen(true)}
       >
-        <Bot size={32} />
+        <Image src="https://storage.googleapis.com/project-spark-341015.appspot.com/static/docs/images/chat-bot.png" width={40} height={40} alt="Chatbot" />
         <span className="sr-only">Ouvrir le chatbot</span>
-      </Button>
+      </button>
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetContent className="sm:max-w-lg p-0 flex flex-col h-full">
            <SheetHeader className="p-4 border-b">
@@ -273,3 +274,4 @@ export function FloatingChatbot() {
     </>
   );
 }
+    
