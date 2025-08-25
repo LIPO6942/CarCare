@@ -34,276 +34,250 @@ function ChatbotContent() {
     const [conversation, setConversation] = useState<ChatMessage[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const [isMounted, setIsMounted] = useState(false);
+
+    const { transcript, startListening, stopListening, isListening, browserSupportsSpeechRecognition } = useSpeechRecognition();
     
-    const {
-        isListening,
-        transcript,
-        startListening,
-        stopListening,
-        browserSupportsSpeechRecognition
-    } = useSpeechRecognition();
-
-    useEffect(() => {
-        setInputValue(transcript);
-    }, [transcript]);
-
-    const handleMicClick = () => {
-        if (!browserSupportsSpeechRecognition) {
-            toast({
-                title: "Fonctionnalité non supportée",
-                description: "Votre navigateur ne supporte pas la reconnaissance vocale.",
-                variant: 'destructive'
-            });
-            return;
-        }
-        if (isListening) {
-            stopListening();
-        } else {
-            startListening();
-        }
-    };
-
+    const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
     const fetchVehicles = useCallback(async () => {
         if (!user) return;
         setIsLoadingVehicles(true);
-        const userVehicles = await getVehicles(user.uid);
-        setVehicles(userVehicles);
-        if (userVehicles.length > 0 && !selectedVehicleId) {
-            setSelectedVehicleId(userVehicles[0].id);
+        const vehiclesData = await getVehicles(user.uid);
+        setVehicles(vehiclesData);
+        if (vehiclesData.length > 0) {
+            setSelectedVehicleId(vehiclesData[0].id);
         }
         setIsLoadingVehicles(false);
-    }, [user, selectedVehicleId]);
+    }, [user]);
     
     useEffect(() => {
-        if(isOpen) {
-            fetchVehicles();
-            setError(null);
+        setIsMounted(true);
+        fetchVehicles();
+    }, [fetchVehicles]);
+    
+     useEffect(() => {
+        if (transcript) {
+            setInputValue(transcript);
         }
-    }, [isOpen, fetchVehicles]);
+    }, [transcript]);
+
 
     useEffect(() => {
         // Auto scroll to bottom
-        if (scrollAreaRef.current) {
-            scrollAreaRef.current.scrollTo({
-                top: scrollAreaRef.current.scrollHeight,
-                behavior: 'smooth'
-            });
+        if (endOfMessagesRef.current) {
+            endOfMessagesRef.current.scrollIntoView({ behavior: 'smooth' });
         }
     }, [conversation]);
 
-    const handleSubmit = async (e: FormEvent) => {
+    const handleNewMessage = async (e: FormEvent) => {
         e.preventDefault();
         
-        if (isListening) stopListening();
+        if (!inputValue.trim() || isGenerating || !selectedVehicleId) return;
 
-        const currentInput = inputValue;
-        if (!currentInput?.trim() || isGenerating || !selectedVehicleId) return;
-
-        if (!user) {
-            setError("Impossible d'envoyer le message. Utilisateur non valide.");
-            return;
-        }
-        
-        const userMessage: ChatMessage = { role: 'user', content: [{ text: currentInput }] };
-        const newConversation: ChatMessage[] = [...conversation, userMessage];
-        
-        setConversation(newConversation);
-        setInputValue('');
-        setIsGenerating(true);
         setError(null);
+        const newQuestion = inputValue;
+        setInputValue('');
+
+        const userMessage: ChatMessage = {
+            role: 'user',
+            content: [{ text: newQuestion }],
+        };
+        setConversation(prev => [...prev, userMessage]);
+        setIsGenerating(true);
 
         try {
-            const [repairs, maintenance, fuelLogs] = await Promise.all([
-                getRepairsForVehicle(selectedVehicleId, user.uid),
-                getMaintenanceForVehicle(selectedVehicleId, user.uid),
-                getFuelLogsForVehicle(selectedVehicleId, user.uid),
-            ]);
+            const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+            if (!selectedVehicle || !user) {
+                throw new Error("Véhicule ou utilisateur non trouvé.");
+            }
 
-            const vehicleData = { repairs, maintenance, fuelLogs };
-            const vehicleDataJson = JSON.stringify(vehicleData, null, 2);
+            // Fetch all data for the selected vehicle
+            const [repairs, maintenance, fuelLogs] = await Promise.all([
+                getRepairsForVehicle(selectedVehicle.id, user.uid),
+                getMaintenanceForVehicle(selectedVehicle.id, user.uid),
+                getFuelLogsForVehicle(selectedVehicle.id, user.uid),
+            ]);
+            
+            const vehicleData = {
+                ...selectedVehicle,
+                repairs,
+                maintenance,
+                fuelLogs
+            };
 
             const response = await answerFromHistory({
                 history: conversation,
-                question: currentInput,
-                vehicleDataJson: vehicleDataJson,
+                question: newQuestion,
+                vehicleDataJson: JSON.stringify(vehicleData, null, 2),
             });
-            
-             if (response.answer.includes("Désolé, la limite de requêtes gratuites")) {
-                setError(response.answer);
-            }
 
-            const modelMessage: ChatMessage = { role: 'model', content: [{ text: response.answer }] };
+            const modelMessage: ChatMessage = {
+                role: 'model',
+                content: [{ text: response.answer }],
+            };
             setConversation(prev => [...prev, modelMessage]);
 
         } catch (err) {
-            console.error("Error in chatbot handleSubmit", err);
+            console.error(err);
             const errorMessage = err instanceof Error ? err.message : "Une erreur inconnue est survenue.";
-            setError(`Désolé, une erreur est survenue lors de la communication avec le copilote IA. Détails : ${errorMessage}`);
-            setConversation(conversation);
-            setInputValue(currentInput);
+            setError(errorMessage);
         } finally {
             setIsGenerating(false);
         }
     };
     
-    const handleVehicleChange = (vehicleId: string) => {
-        setSelectedVehicleId(vehicleId);
-        // Do not reset conversation here anymore
-        // setConversation([]);
-        setError(null);
+     if (!isMounted) {
+        return (
+            <div className="flex flex-col h-full p-4">
+                <div className="flex-1 space-y-4">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-16 w-3/4 self-end" />
+                    <Skeleton className="h-16 w-3/4" />
+                </div>
+                <div className="mt-4">
+                    <Skeleton className="h-12 w-full" />
+                </div>
+            </div>
+        );
     }
-    
+
     if (isLoadingVehicles) {
         return (
-            <div className="p-4 space-y-4">
-                <Skeleton className="h-10 w-full" />
-                <div className="flex-1 space-y-4">
-                    <Skeleton className="h-16 w-3/4" />
-                    <Skeleton className="h-16 w-3/4 ml-auto" />
-                </div>
+            <div className="flex flex-col h-full p-4 items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <p className="mt-2 text-muted-foreground">Chargement des véhicules...</p>
             </div>
         )
     }
     
     if (vehicles.length === 0) {
         return (
-                <div className="flex flex-col items-center justify-center h-full text-center p-4">
+             <div className="flex flex-col h-full items-center justify-center p-4 text-center">
                 <Car className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="font-semibold">Aucun véhicule trouvé.</p>
-                <p className="text-sm text-muted-foreground mb-4">Veuillez ajouter un véhicule sur le tableau de bord pour utiliser le copilote.</p>
+                <h3 className="font-semibold text-lg">Aucun véhicule trouvé</h3>
+                <p className="text-muted-foreground text-sm mb-4">Vous devez ajouter un véhicule avant de pouvoir utiliser le chatbot.</p>
                 <Button asChild>
-                    <Link href="/">Aller au tableau de bord</Link>
+                    <Link href="/">Ajouter un véhicule</Link>
                 </Button>
             </div>
         )
     }
 
     return (
-        <div className="flex-1 flex flex-col min-h-0">
-            <div className="p-4 border-b">
-                <Select onValueChange={handleVehicleChange} value={selectedVehicleId}>
-                    <SelectTrigger>
+        <>
+            <SheetHeader className="p-4 border-b">
+                <SheetTitle>CarCare Copilot</SheetTitle>
+                <SheetDescription>
+                     Posez des questions sur les données de votre véhicule sélectionné.
+                </SheetDescription>
+                 <Select onValueChange={setSelectedVehicleId} value={selectedVehicleId}>
+                    <SelectTrigger className="w-full mt-2">
                         <SelectValue placeholder="Sélectionnez un véhicule" />
                     </SelectTrigger>
                     <SelectContent>
-                        {vehicles.map(v => <SelectItem key={v.id} value={v.id}>{v.brand} {v.model}</SelectItem>)}
+                        {vehicles.map(v => <SelectItem key={v.id} value={v.id}>{v.brand} {v.model} ({v.licensePlate})</SelectItem>)}
                     </SelectContent>
                 </Select>
-            </div>
-            <ScrollArea className="flex-1" ref={scrollAreaRef as any}>
+            </SheetHeader>
+            <ScrollArea className="flex-1">
                 <div className="p-4 space-y-4">
                     {conversation.length === 0 && (
-                            <div className="flex items-start gap-4 p-4 rounded-lg bg-primary/5 text-primary-foreground">
-                            <div className="p-2 bg-primary/20 rounded-full">
-                                <Bot className="h-6 w-6 text-primary" />
-                            </div>
-                            <div className="text-sm text-primary/90">
-                                <p className="font-semibold mb-2">Bonjour ! Je suis votre copilote de données.</p>
-                                <p>Posez-moi une question sur votre véhicule :</p>
-                                <ul className="list-disc pl-5 mt-1">
-                                    <li>"Combien ai-je dépensé en carburant ce mois-ci ?"</li>
-                                    <li>"Quel est mon kilométrage actuel ?"</li>
-                                    <li>"Quand a eu lieu ma dernière vidange ?"</li>
-                                </ul>
-                            </div>
+                        <div className="flex flex-col items-center justify-center text-center p-8 text-muted-foreground">
+                            <Bot className="w-12 h-12 mb-4"/>
+                            <p>Posez-moi une question comme :<br/>"Combien ai-je dépensé en réparations ?"</p>
                         </div>
                     )}
                     {conversation.map((msg, index) => (
-                        <div key={index} className={cn("flex items-start gap-3", msg.role === 'user' && "justify-end")}>
-                            {msg.role === 'model' && <Bot className="h-6 w-6 text-primary flex-shrink-0" />}
+                        <div key={index} className={cn(
+                            "flex items-start gap-3",
+                            msg.role === 'user' ? 'justify-end' : 'justify-start'
+                        )}>
+                            {msg.role === 'model' && <div className="bg-primary/10 text-primary rounded-full p-2"><Bot size={20} /></div>}
+                            
                             <div className={cn(
-                                "p-3 rounded-lg max-w-[80%] text-sm",
-                                msg.role === 'model' ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground"
+                                "p-3 rounded-lg max-w-sm whitespace-pre-wrap",
+                                msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
                             )}>
-                                {msg.content[0]?.text}
+                                {msg.content[0].text}
                             </div>
-                            {msg.role === 'user' && <User className="h-6 w-6 text-muted-foreground flex-shrink-0" />}
+
+                            {msg.role === 'user' && <div className="bg-muted rounded-full p-2"><User size={20} /></div>}
                         </div>
                     ))}
-                        {isGenerating && (
-                        <div className="flex items-start gap-3">
-                            <Bot className="h-6 w-6 text-primary flex-shrink-0" />
-                            <div className="p-3 rounded-lg bg-muted text-muted-foreground">
-                                <Loader2 className="h-5 w-5 animate-spin" />
-                            </div>
-                        </div>
+                    {isGenerating && (
+                         <div className="flex items-start gap-3 justify-start">
+                             <div className="bg-primary/10 text-primary rounded-full p-2"><Bot size={20} /></div>
+                             <div className="p-3 rounded-lg bg-muted flex items-center">
+                                 <Loader2 className="h-5 w-5 animate-spin" />
+                             </div>
+                         </div>
                     )}
+                     <div ref={endOfMessagesRef} />
                 </div>
             </ScrollArea>
-                {error && (
-                <div className="p-4 border-t text-sm text-destructive bg-destructive/10 flex items-start gap-3">
+
+            {error && (
+                <div className="p-4 border-t text-sm text-destructive flex items-start gap-2">
                     <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
                     <p>{error}</p>
                 </div>
             )}
-            <SheetFooter className="p-4 border-t bg-background">
-                <form
-                    onSubmit={handleSubmit}
-                    className="w-full flex items-center gap-2"
-                >
-                    <Textarea
+
+            <SheetFooter className="p-4 border-t">
+                <form onSubmit={handleNewMessage} className="w-full flex items-center gap-2">
+                     <Textarea
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
-                        placeholder={isListening ? "Écoute en cours..." : "Posez une question sur votre véhicule..."}
-                        className="flex-1 text-sm min-h-0 h-10 resize-none"
+                        placeholder="Posez votre question..."
                         rows={1}
+                        className="flex-1 resize-none text-base"
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
-                                handleSubmit(e as any);
+                                handleNewMessage(e as any);
                             }
                         }}
-                        disabled={!selectedVehicleId || isGenerating}
                     />
-                    <Button 
-                        type="button" 
-                        size="icon" 
-                        onClick={handleMicClick} 
-                        disabled={!browserSupportsSpeechRecognition || isGenerating} 
-                        variant={isListening ? "destructive" : "secondary"}
-                        className={cn(isListening && "animate-pulse")}
-                    >
-                        {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                        <span className="sr-only">{isListening ? 'Arrêter l\'écoute' : 'Démarrer l\'écoute'}</span>
-                    </Button>
-                    <Button type="submit" size="icon" disabled={isGenerating}>
-                        <Send className="h-4 w-4" />
+                    {browserSupportsSpeechRecognition && (
+                         <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={isListening ? stopListening : startListening}
+                            className={cn(isListening && "animate-pulse border-primary text-primary")}
+                        >
+                            {isListening ? <MicOff /> : <Mic />}
+                        </Button>
+                    )}
+                    <Button type="submit" size="icon" disabled={isGenerating || !inputValue.trim()}>
+                        <Send />
                     </Button>
                 </form>
             </SheetFooter>
-        </div>
+        </>
     )
 }
 
 export function FloatingChatbot() {
-    const { user } = useAuth();
-    const [isOpen, setIsOpen] = useState(false);
-    
-    if (!user) return null;
+  const [isOpen, setIsOpen] = useState(false);
 
-    return (
-        <>
-            <Button
-                onClick={() => setIsOpen(true)}
-                className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50 p-0 overflow-hidden"
-                size="icon"
-            >
-                <img src="https://images.unsplash.com/photo-1542282088-fe8426682b8f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxNXx8Q2FyfGVufDB8fHx8MTc1NjA0NDcyMXww&ixlib=rb-4.1.0&q=80&w=1080" alt="Ouvrir le chatbot" className="h-full w-full object-cover" />
-                <span className="sr-only">Ouvrir le chatbot</span>
-            </Button>
-            <Sheet open={isOpen} onOpenChange={setIsOpen}>
-                <SheetContent className="p-0 flex flex-col w-full sm:max-w-md h-full" side="right">
-                    <SheetHeader className="p-4 border-b">
-                        <SheetTitle>Copilote IA</SheetTitle>
-                        <SheetDescription>Posez des questions sur vos données.</SheetDescription>
-                    </SheetHeader>
-                    {isOpen && <ChatbotContent />}
-                </SheetContent>
-            </Sheet>
-        </>
-    );
+  return (
+    <>
+      <Button
+        className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-lg z-50 flex items-center justify-center"
+        onClick={() => setIsOpen(true)}
+      >
+        <Bot size={32} />
+        <span className="sr-only">Ouvrir le chatbot</span>
+      </Button>
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
+        <SheetContent className="sm:max-w-lg p-0 flex flex-col h-full">
+            <ChatbotContent />
+        </SheetContent>
+      </Sheet>
+    </>
+  );
 }
 
     
