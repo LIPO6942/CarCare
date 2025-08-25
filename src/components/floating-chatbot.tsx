@@ -258,7 +258,12 @@ export function FloatingChatbot() {
         className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-lg z-50 flex items-center justify-center bg-primary hover:bg-primary/90 transition-all"
         onClick={() => setIsOpen(true)}
       >
-        <img src="https://placehold.co/40x40.png" alt="Chatbot" className="rounded-full" />
+        <img 
+            src="https://placehold.co/40x40.png" 
+            alt="Chatbot" 
+            className="rounded-full"
+            data-ai-hint="robot chat"
+        />
         <span className="sr-only">Ouvrir le chatbot</span>
       </button>
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
