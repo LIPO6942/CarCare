@@ -23,10 +23,9 @@ type ChatMessage = {
     content: { text: string }[];
 };
 
-export function FloatingChatbot() {
+function ChatbotContent() {
     const { user } = useAuth();
     const { toast } = useToast();
-    const [isOpen, setIsOpen] = useState(false);
     const [vehicles, setVehicles] = useState<Vehicle[]>([]);
     const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
     const [isLoadingVehicles, setIsLoadingVehicles] = useState(true);
@@ -78,16 +77,9 @@ export function FloatingChatbot() {
     }, [user, selectedVehicleId]);
     
     useEffect(() => {
-        if (isOpen) {
-            fetchVehicles();
-            setError(null);
-        } else {
-             // When the sheet closes, stop listening if it's active
-            if (isListening) {
-                stopListening();
-            }
-        }
-    }, [isOpen, fetchVehicles, isListening, stopListening]);
+        fetchVehicles();
+        setError(null);
+    }, [fetchVehicles]);
 
     useEffect(() => {
         // Auto scroll to bottom
@@ -160,122 +152,125 @@ export function FloatingChatbot() {
         setError(null);
     }
     
-    const ChatbotContent = () => {
-        if (isLoadingVehicles) {
-            return (
-                <div className="p-4 space-y-4">
-                    <Skeleton className="h-10 w-full" />
-                    <div className="flex-1 space-y-4">
-                        <Skeleton className="h-16 w-3/4" />
-                        <Skeleton className="h-16 w-3/4 ml-auto" />
-                    </div>
-                </div>
-            )
-        }
-        
-        if (vehicles.length === 0) {
-            return (
-                 <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                    <Car className="h-12 w-12 text-muted-foreground mb-4" />
-                    <p className="font-semibold">Aucun véhicule trouvé.</p>
-                    <p className="text-sm text-muted-foreground mb-4">Veuillez ajouter un véhicule sur le tableau de bord pour utiliser le copilote.</p>
-                    <Button asChild onClick={() => setIsOpen(false)}>
-                        <Link href="/">Aller au tableau de bord</Link>
-                    </Button>
-                </div>
-            )
-        }
-
+    if (isLoadingVehicles) {
         return (
-            <>
-                <div className="p-4 border-b">
-                    <Select onValueChange={handleVehicleChange} value={selectedVehicleId}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Sélectionnez un véhicule" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {vehicles.map(v => <SelectItem key={v.id} value={v.id}>{v.brand} {v.model}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+            <div className="p-4 space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <div className="flex-1 space-y-4">
+                    <Skeleton className="h-16 w-3/4" />
+                    <Skeleton className="h-16 w-3/4 ml-auto" />
                 </div>
-                <ScrollArea className="flex-1" ref={scrollAreaRef as any}>
-                    <div className="p-4 space-y-4">
-                        {conversation.length === 0 && (
-                             <div className="flex items-start gap-4 p-4 rounded-lg bg-primary/5 text-primary-foreground">
-                                <div className="p-2 bg-primary/20 rounded-full">
-                                    <Bot className="h-6 w-6 text-primary" />
-                                </div>
-                                <div className="text-sm text-primary/90">
-                                    <p className="font-semibold mb-2">Bonjour ! Je suis votre copilote de données.</p>
-                                    <p>Posez-moi une question sur votre véhicule :</p>
-                                    <ul className="list-disc pl-5 mt-1">
-                                        <li>"Combien ai-je dépensé en carburant ce mois-ci ?"</li>
-                                        <li>"Quel est mon kilométrage actuel ?"</li>
-                                        <li>"Quand a eu lieu ma dernière vidange ?"</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        )}
-                        {conversation.map((msg, index) => (
-                            <div key={index} className={cn("flex items-start gap-3", msg.role === 'user' && "justify-end")}>
-                                {msg.role === 'model' && <Bot className="h-6 w-6 text-primary flex-shrink-0" />}
-                                <div className={cn(
-                                    "p-3 rounded-lg max-w-[80%] text-sm",
-                                    msg.role === 'model' ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground"
-                                )}>
-                                    {msg.content[0]?.text}
-                                </div>
-                                {msg.role === 'user' && <User className="h-6 w-6 text-muted-foreground flex-shrink-0" />}
-                            </div>
-                        ))}
-                         {isGenerating && (
-                            <div className="flex items-start gap-3">
-                               <Bot className="h-6 w-6 text-primary flex-shrink-0" />
-                               <div className="p-3 rounded-lg bg-muted text-muted-foreground">
-                                   <Loader2 className="h-5 w-5 animate-spin" />
-                               </div>
-                            </div>
-                        )}
-                    </div>
-                </ScrollArea>
-                 {error && (
-                    <div className="p-4 border-t text-sm text-destructive bg-destructive/10 flex items-start gap-3">
-                        <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                        <p>{error}</p>
-                    </div>
-                )}
-                <SheetFooter className="p-4 border-t bg-background">
-                    <form
-                        onSubmit={handleSubmit}
-                        className="w-full flex items-center gap-2"
-                    >
-                        <Textarea
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            placeholder={isListening ? "Écoute en cours..." : "Posez une question sur votre véhicule..."}
-                            className="flex-1 text-sm min-h-0 h-10 resize-none"
-                            rows={1}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleSubmit(e as any);
-                                }
-                            }}
-                            disabled={!selectedVehicleId || isGenerating}
-                        />
-                        <Button type="button" size="icon" onClick={handleMicClick} disabled={!browserSupportsSpeechRecognition || isGenerating} variant={isListening ? "destructive" : "secondary"}>
-                            {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                            <span className="sr-only">{isListening ? 'Arrêter l\'écoute' : 'Démarrer l\'écoute'}</span>
-                        </Button>
-                        <Button type="submit" size="icon" disabled={isGenerating}>
-                            <Send className="h-4 w-4" />
-                        </Button>
-                    </form>
-                </SheetFooter>
-            </>
+            </div>
+        )
+    }
+    
+    if (vehicles.length === 0) {
+        return (
+                <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                <Car className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="font-semibold">Aucun véhicule trouvé.</p>
+                <p className="text-sm text-muted-foreground mb-4">Veuillez ajouter un véhicule sur le tableau de bord pour utiliser le copilote.</p>
+                <Button asChild>
+                    <Link href="/">Aller au tableau de bord</Link>
+                </Button>
+            </div>
         )
     }
 
+    return (
+        <div className="flex-1 flex flex-col min-h-0">
+            <div className="p-4 border-b">
+                <Select onValueChange={handleVehicleChange} value={selectedVehicleId}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Sélectionnez un véhicule" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {vehicles.map(v => <SelectItem key={v.id} value={v.id}>{v.brand} {v.model}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+            </div>
+            <ScrollArea className="flex-1" ref={scrollAreaRef as any}>
+                <div className="p-4 space-y-4">
+                    {conversation.length === 0 && (
+                            <div className="flex items-start gap-4 p-4 rounded-lg bg-primary/5 text-primary-foreground">
+                            <div className="p-2 bg-primary/20 rounded-full">
+                                <Bot className="h-6 w-6 text-primary" />
+                            </div>
+                            <div className="text-sm text-primary/90">
+                                <p className="font-semibold mb-2">Bonjour ! Je suis votre copilote de données.</p>
+                                <p>Posez-moi une question sur votre véhicule :</p>
+                                <ul className="list-disc pl-5 mt-1">
+                                    <li>"Combien ai-je dépensé en carburant ce mois-ci ?"</li>
+                                    <li>"Quel est mon kilométrage actuel ?"</li>
+                                    <li>"Quand a eu lieu ma dernière vidange ?"</li>
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+                    {conversation.map((msg, index) => (
+                        <div key={index} className={cn("flex items-start gap-3", msg.role === 'user' && "justify-end")}>
+                            {msg.role === 'model' && <Bot className="h-6 w-6 text-primary flex-shrink-0" />}
+                            <div className={cn(
+                                "p-3 rounded-lg max-w-[80%] text-sm",
+                                msg.role === 'model' ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground"
+                            )}>
+                                {msg.content[0]?.text}
+                            </div>
+                            {msg.role === 'user' && <User className="h-6 w-6 text-muted-foreground flex-shrink-0" />}
+                        </div>
+                    ))}
+                        {isGenerating && (
+                        <div className="flex items-start gap-3">
+                            <Bot className="h-6 w-6 text-primary flex-shrink-0" />
+                            <div className="p-3 rounded-lg bg-muted text-muted-foreground">
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </ScrollArea>
+                {error && (
+                <div className="p-4 border-t text-sm text-destructive bg-destructive/10 flex items-start gap-3">
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <p>{error}</p>
+                </div>
+            )}
+            <SheetFooter className="p-4 border-t bg-background">
+                <form
+                    onSubmit={handleSubmit}
+                    className="w-full flex items-center gap-2"
+                >
+                    <Textarea
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        placeholder={isListening ? "Écoute en cours..." : "Posez une question sur votre véhicule..."}
+                        className="flex-1 text-sm min-h-0 h-10 resize-none"
+                        rows={1}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSubmit(e as any);
+                            }
+                        }}
+                        disabled={!selectedVehicleId || isGenerating}
+                    />
+                    <Button type="button" size="icon" onClick={handleMicClick} disabled={!browserSupportsSpeechRecognition || isGenerating} variant={isListening ? "destructive" : "secondary"}>
+                        {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                        <span className="sr-only">{isListening ? 'Arrêter l\'écoute' : 'Démarrer l\'écoute'}</span>
+                    </Button>
+                    <Button type="submit" size="icon" disabled={isGenerating}>
+                        <Send className="h-4 w-4" />
+                    </Button>
+                </form>
+            </SheetFooter>
+        </div>
+    )
+}
+
+export function FloatingChatbot() {
+    const { user } = useAuth();
+    const [isOpen, setIsOpen] = useState(false);
+    
     if (!user) return null;
 
     return (
@@ -294,13 +289,9 @@ export function FloatingChatbot() {
                         <SheetTitle>Copilote IA</SheetTitle>
                         <SheetDescription>Posez des questions sur vos données.</SheetDescription>
                     </SheetHeader>
-                    <div className="flex-1 flex flex-col min-h-0">
-                        <ChatbotContent />
-                    </div>
+                    {isOpen && <ChatbotContent />}
                 </SheetContent>
             </Sheet>
         </>
     );
 }
-
-    
