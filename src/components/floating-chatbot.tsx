@@ -157,7 +157,7 @@ function ChatbotContent({ conversation, setConversation }: { conversation: ChatM
     }
 
     return (
-        <div className="flex flex-col h-full">
+        <>
              <div className="p-4 border-b">
                  <Select onValueChange={setSelectedVehicleId} value={selectedVehicleId}>
                     <SelectTrigger className="w-full">
@@ -168,7 +168,7 @@ function ChatbotContent({ conversation, setConversation }: { conversation: ChatM
                     </SelectContent>
                 </Select>
             </div>
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 min-h-0">
                 <div className="p-4 space-y-4">
                     {conversation.length === 0 && (
                         <div className="flex flex-col items-center justify-center text-center p-8 text-muted-foreground">
@@ -244,7 +244,7 @@ function ChatbotContent({ conversation, setConversation }: { conversation: ChatM
                     </Button>
                 </form>
             </div>
-        </div>
+        </>
     )
 }
 
