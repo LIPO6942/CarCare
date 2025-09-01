@@ -163,6 +163,7 @@ export function DashboardClient() {
     secondNextDeadline,
     isDeadlineUrgent,
     isSecondDeadlineUrgent,
+    allEvents
   } = useMemo(() => {
     const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
     const totalFuelCost = fuelLogs.reduce((sum, f) => sum + f.totalCost, 0);
@@ -282,6 +283,7 @@ export function DashboardClient() {
         secondNextDeadline,
         isDeadlineUrgent: checkUrgency(nextDeadline),
         isSecondDeadlineUrgent: checkUrgency(secondNextDeadline),
+        allEvents
     }
   }, [vehicles, repairs, maintenance, fuelLogs]);
 
@@ -485,6 +487,7 @@ export function DashboardClient() {
 
       <CompleteDeadlineDialog
         deadline={deadlineToComplete}
+        allEvents={allEvents}
         open={!!deadlineToComplete}
         onOpenChange={(isOpen) => !isOpen && setDeadlineToComplete(null)}
         onComplete={() => {
@@ -498,13 +501,22 @@ export function DashboardClient() {
 }
 
 
-function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehicles }: { deadline: Deadline | null, open: boolean, onOpenChange: (open: boolean) => void, onComplete: () => void, vehicles: Vehicle[] }) {
+function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehicles, allEvents }: { deadline: Deadline | null, open: boolean, onOpenChange: (open: boolean) => void, onComplete: () => void, vehicles: Vehicle[], allEvents: any[] }) {
     const { user } = useAuth();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
 
-    const vehicle = useMemo(() => vehicles.find(v => v.id === deadline?.vehicleId), [vehicles, deadline]);
+    const { vehicle, latestMileage } = useMemo(() => {
+        if (!deadline) return { vehicle: null, latestMileage: 0 };
+        
+        const vehicle = vehicles.find(v => v.id === deadline.vehicleId);
+        const latestEvent = allEvents
+            .filter(e => e.vehicleId === deadline.vehicleId)
+            .sort((a,b) => b.eventDate.getTime() - a.eventDate.getTime())[0];
+
+        return { vehicle, latestMileage: latestEvent?.mileage || 0 };
+    }, [vehicles, deadline, allEvents]);
 
     const needsCost = useMemo(() => {
         if (!deadline) return false;
@@ -524,7 +536,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
         setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
         const cost = parseFloat(formData.get('cost') as string || '0');
-        const mileage = parseInt(formData.get('mileage') as string || '0', 10);
+        const mileageInput = formData.get('mileage') as string;
         const today = new Date().toISOString().split('T')[0];
 
         try {
@@ -538,7 +550,9 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
             };
 
             if (needsCost) newMaintenance.cost = cost;
+            
             if (needsMileage) {
+                 const mileage = parseInt(mileageInput || '0', 10);
                 if (!mileage || mileage <= 0) {
                     toast({ title: "Erreur", description: "Le kilométrage est requis pour une vidange.", variant: "destructive" });
                     setIsSubmitting(false);
@@ -546,7 +560,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                 }
                 newMaintenance.mileage = mileage;
             } else {
-                 newMaintenance.mileage = deadline.originalTask.mileage;
+                 newMaintenance.mileage = latestMileage || deadline.originalTask.mileage;
             }
 
              if (needsCost && cost === 0 && deadline.name !== 'Paiement Assurance') {
@@ -583,7 +597,6 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
             if (deadline.name === 'Vidange') {
                 nextMaintenanceData.nextDueMileage = (addedMaintenance.mileage || 0) + 10000;
             } else if (deadline.originalTask.nextDueDate) {
-                // IMPORTANT: Calculate from the previous due date, not from today
                 const previousDueDate = new Date(deadline.originalTask.nextDueDate);
                 
                 if (deadline.name === 'Visite technique' || deadline.name === 'Vignette') {
@@ -632,7 +645,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                         {needsMileage && (
                             <div className="space-y-2">
                                 <Label htmlFor="mileage">Kilométrage actuel</Label>
-                                <Input id="mileage" name="mileage" type="number" required placeholder="ex: 125000" defaultValue={deadline.originalTask.nextDueMileage ? deadline.originalTask.nextDueMileage - 10000 : undefined} />
+                                <Input id="mileage" name="mileage" type="number" required placeholder="ex: 125000" defaultValue={latestMileage || (deadline.originalTask.nextDueMileage ? deadline.originalTask.nextDueMileage - 10000 : undefined)} />
                             </div>
                         )}
                         {needsCost && (
@@ -643,7 +656,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                         )}
                         {!needsCost && !needsMileage && (
                             <p className="text-sm text-muted-foreground">
-                                Un nouvel enregistrement sera créé à la date d'aujourd'hui pour confirmer cette action.
+                                Un nouvel enregistrement sera créé à la date d'aujourd'hui pour confirmer cette action. Le dernier kilométrage connu ({latestMileage.toLocaleString('fr-FR')} km) sera utilisé.
                             </p>
                         )}
                     </div>
@@ -669,3 +682,6 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
     
 
 
+
+
+    
