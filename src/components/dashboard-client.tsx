@@ -525,13 +525,14 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
         const formData = new FormData(event.currentTarget);
         const cost = parseFloat(formData.get('cost') as string || '0');
         const mileage = parseInt(formData.get('mileage') as string || '0', 10);
+        const today = new Date().toISOString().split('T')[0];
 
         try {
-            const today = new Date();
+            
             const newMaintenance: Omit<Maintenance, 'id' | 'userId'> = {
                 vehicleId: vehicle.id,
                 task: deadline.name,
-                date: today.toISOString().split('T')[0],
+                date: today,
                 cost: 0,
                 mileage: 0,
             };
@@ -565,7 +566,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                 }
             }
             
-            // Create the new maintenance record
+            // Create the new maintenance record for today's action
             const addedMaintenance = await addMaintenance(newMaintenance, user.uid);
 
             // Now, update the OLD maintenance task to remove its deadline fields
@@ -576,23 +577,25 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
                 } as any); // Use 'any' to allow 'undefined' for deletion
             }
             
-            // Finally, create the *next* deadline based on the one just entered
+            // Finally, create the *next* deadline by updating the record we just added
             const nextMaintenanceData: Partial<Maintenance> = {};
             
             if (deadline.name === 'Vidange') {
                 nextMaintenanceData.nextDueMileage = (addedMaintenance.mileage || 0) + 10000;
             } else if (deadline.originalTask.nextDueDate) {
-                const nextDueDate = new Date(today);
+                // IMPORTANT: Calculate from the previous due date, not from today
+                const previousDueDate = new Date(deadline.originalTask.nextDueDate);
+                
                 if (deadline.name === 'Visite technique' || deadline.name === 'Vignette') {
-                    nextDueDate.setFullYear(today.getFullYear() + 1);
+                    previousDueDate.setFullYear(previousDueDate.getFullYear() + 1);
                 } else if (deadline.name === 'Paiement Assurance') {
                      const oldDueDate = new Date(deadline.originalTask.nextDueDate);
                      const oldDate = new Date(deadline.originalTask.date);
                      const monthDiff = (oldDueDate.getFullYear() - oldDate.getFullYear()) * 12 + (oldDueDate.getMonth() - oldDate.getMonth());
                      const isAnnual = monthDiff > 8; 
-                     nextDueDate.setMonth(today.getMonth() + (isAnnual ? 12 : 6));
+                     previousDueDate.setMonth(previousDueDate.getMonth() + (isAnnual ? 12 : 6));
                 }
-                nextMaintenanceData.nextDueDate = nextDueDate.toISOString().split('T')[0];
+                nextMaintenanceData.nextDueDate = previousDueDate.toISOString().split('T')[0];
             }
 
             if(Object.keys(nextMaintenanceData).length > 0) {
@@ -664,4 +667,5 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
 
 
     
+
 
