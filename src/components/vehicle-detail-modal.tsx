@@ -32,7 +32,7 @@ const safeFormatCurrency = (numInput: any): string => {
     }
 }
 
-const generateVehicleHistoryPDF = (vehicle: Vehicle, repairs: Repair[], maintenance: Maintenance[], fuelLogs: FuelLog[]) => {
+const generateVehicleHistoryPDF = (vehicle: Vehicle, repairs: Repair[], maintenance: Maintenance[]) => {
   const doc = new jsPDF();
 
   // Header
@@ -93,25 +93,6 @@ const generateVehicleHistoryPDF = (vehicle: Vehicle, repairs: Repair[], maintena
         m.task,
         `${m.mileage.toLocaleString('fr-FR')} km`,
         safeFormatCurrency(m.cost)
-      ]),
-      theme: 'striped',
-      headStyles: { fillColor: [31, 41, 55] },
-    });
-    finalY = (doc as any).lastAutoTable.finalY + 15;
-  }
-  
-  // Fuel Logs
-  if (fuelLogs.length > 0) {
-    doc.setFontSize(16);
-    doc.text("Carburant", 14, finalY);
-     (doc as any).autoTable({
-      startY: finalY + 3,
-      head: [['Date', 'Kilométrage', 'Quantité', 'Coût Total']],
-      body: fuelLogs.map(f => [
-        format(new Date(f.date), 'dd/MM/yyyy', { locale: fr }),
-        `${f.mileage.toLocaleString('fr-FR')} km`,
-        `${f.quantity.toFixed(2)} L`,
-        safeFormatCurrency(f.totalCost)
       ]),
       theme: 'striped',
       headStyles: { fillColor: [31, 41, 55] },
@@ -179,7 +160,7 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
     // Use a timeout to allow the UI to update to show the loading state
     setTimeout(() => {
         try {
-            generateVehicleHistoryPDF(vehicle, repairs, maintenance, fuelLogs);
+            generateVehicleHistoryPDF(vehicle, repairs, maintenance);
         } catch (error) {
             console.error("PDF Generation Error:", error);
         } finally {
@@ -230,5 +211,3 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
     </Dialog>
   );
 }
-
-    
