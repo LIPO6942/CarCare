@@ -28,19 +28,28 @@ const generateVehicleImageFlow = ai.defineFlow(
     outputSchema: z.string(),
   },
   async ({brand, model}) => {
-    const {media} = await ai.generate({
-      model: 'googleai/gemini-2.0-flash-preview-image-generation',
-      prompt: `Generate a photorealistic image of a ${brand} ${model} car, side view, in a clean, studio-like environment with a neutral background.`,
-      config: {
-        responseModalities: ['TEXT', 'IMAGE'],
-      },
-    });
+    try {
+      const {media} = await ai.generate({
+        model: 'googleai/gemini-2.0-flash-preview-image-generation',
+        prompt: `Generate a photorealistic image of a ${brand} ${model} car, side view, in a clean, studio-like environment with a neutral background.`,
+        config: {
+          responseModalities: ['TEXT', 'IMAGE'],
+        },
+      });
 
-    if (!media?.url) {
-      // Fallback to a placeholder if image generation fails
+      if (!media?.url) {
+        // Fallback to a placeholder if image generation fails
+        throw new Error("Image generation returned no media URL.");
+      }
+      return media.url;
+    } catch (error: any) {
+      console.error("AI Error in generateVehicleImageFlow:", error);
+      const errorMessage = error.message || String(error);
+       if (errorMessage.includes('429') || errorMessage.toLowerCase().includes('quota')) {
+          throw new Error("La limite de requêtes gratuites pour la génération d'images a été atteinte.");
+      }
+      // Fallback to a placeholder on any error
       return 'https://placehold.co/600x400.png';
     }
-
-    return media.url;
   }
 );
