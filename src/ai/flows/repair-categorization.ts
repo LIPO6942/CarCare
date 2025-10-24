@@ -10,7 +10,6 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { googleAI } from '@genkit-ai/googleai';
 
 const CategorizeRepairInputSchema = z.object({
   repairDetails: z
@@ -36,7 +35,7 @@ const categorizeRepairPrompt = ai.definePrompt({
   name: 'categorizeRepairPrompt',
   input: {schema: CategorizeRepairInputSchema},
   output: {schema: CategorizeRepairOutputSchema},
-  model: googleAI.model('gemini-1.5-flash-latest'),
+  model: 'openai/groq-llama-3.1-70b',
   prompt: `You are an expert automotive technician. Please categorize the following car repair details into one of the following categories: Moteur, Filtres, Bougies, Courroie de distribution, Freins, Électrique, Suspension, Carrosserie, Intérieur, Échappement, Transmission, Pneus, Batterie, Climatisation, Autre. Only respond with the category. 
 
 Repair Details: {{{repairDetails}}}`,

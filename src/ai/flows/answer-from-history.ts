@@ -5,9 +5,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'genkit';
-import type { Part } from '@genkit-ai/googleai';
 
 // Define the schema for chat history messages
 const HistorySchema = z.array(z.object({
@@ -51,7 +49,7 @@ Your role is to answer questions about a user's vehicle based *only* on the data
 - ALL CURRENCY VALUES MUST BE IN TND (Tunisian Dinar).
 - Today's date is ${new Date().toLocaleDateString('fr-FR')}.`;
 
-    const messages: Part[] = [
+    const messages = [
         ...history,
         {
           role: 'user',
@@ -60,13 +58,39 @@ Your role is to answer questions about a user's vehicle based *only* on the data
     ];
     
     try {
-        const llmResponse = await ai.generate({
-          model: googleAI.model('gemini-1.5-flash-latest'),
-          system: systemPrompt,
-          messages: messages,
-        });
-
-        const answer = llmResponse.text;
+        // Use a minimal adapter: when model contains 'openai/groq', route via fetch
+        let answer: string | undefined;
+        try {
+          const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.GROQ_API_KEY ?? ''}`,
+            },
+            body: JSON.stringify({
+              model: 'llama-3.1-70b-versatile',
+              messages: [
+                { role: 'system', content: systemPrompt },
+                ...messages.map((m: any) => ({
+                  role: m.role === 'model' ? 'assistant' : m.role,
+                  content: m.content?.map((c: any) => c.text).filter(Boolean).join('\n') ?? '',
+                })),
+              ],
+              temperature: 0.2,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            answer = data.choices?.[0]?.message?.content;
+          } else {
+            const errText = await res.text();
+            throw new Error(`Groq API error ${res.status}: ${errText}`);
+          }
+        } catch (e) {
+          console.error('Groq call failed, falling back to Genkit generate if configured:', e);
+          const llmResponse = await ai.generate({ model: 'openai/groq-llama-3.1-70b', system: systemPrompt, messages });
+          answer = llmResponse.text;
+        }
         
         return {
           answer: answer ?? "Je n'ai pas pu générer de réponse. Veuillez réessayer.",
