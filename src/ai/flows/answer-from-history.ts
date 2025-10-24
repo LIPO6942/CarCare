@@ -58,38 +58,44 @@ Your role is to answer questions about a user's vehicle based *only* on the data
     ];
     
     try {
-        // Use a minimal adapter: when model contains 'openai/groq', route via fetch
+        // Call Groq Chat Completions with graceful model fallback
         let answer: string | undefined;
-        try {
-          const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${process.env.GROQ_API_KEY ?? ''}`,
-            },
-            body: JSON.stringify({
-              model: 'llama-3.1-70b-versatile',
-              messages: [
-                { role: 'system', content: systemPrompt },
-                ...messages.map((m: any) => ({
-                  role: m.role === 'model' ? 'assistant' : m.role,
-                  content: m.content?.map((c: any) => c.text).filter(Boolean).join('\n') ?? '',
-                })),
-              ],
-              temperature: 0.2,
-            }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            answer = data.choices?.[0]?.message?.content;
-          } else {
-            const errText = await res.text();
-            throw new Error(`Groq API error ${res.status}: ${errText}`);
+        const apiKey = process.env.GROQ_API_KEY ?? '';
+        const tryModels = ['llama-3.1-70b-versatile', 'llama-3.1-8b-instant'];
+        for (const model of tryModels) {
+          try {
+            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+              },
+              body: JSON.stringify({
+                model,
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  ...messages.map((m: any) => ({
+                    role: m.role === 'model' ? 'assistant' : m.role,
+                    content: m.content?.map((c: any) => c.text).filter(Boolean).join('\n') ?? '',
+                  })),
+                ],
+                temperature: 0.2,
+              }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              answer = data.choices?.[0]?.message?.content;
+              break;
+            } else {
+              const errText = await res.text();
+              console.error(`Groq API error ${res.status} for model ${model}:`, errText);
+              // try next model if available
+            }
+          } catch (err) {
+            console.error(`Groq request failed for model ${model}:`, err);
+            // try next model if available
           }
-        } catch (e) {
-          console.error('Groq call failed, falling back to Genkit generate if configured:', e);
-          const llmResponse = await ai.generate({ model: 'openai/groq-llama-3.1-70b', system: systemPrompt, messages });
-          answer = llmResponse.text;
         }
         
         return {

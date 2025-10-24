@@ -49,28 +49,34 @@ const suggestMaintenanceTasksFlow = ai.defineFlow(
     ].join(' ');
     const user = `Véhicule: ${brand} ${model}\nDescription du problème: ${issueDescription}`;
     try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'llama-3.1-70b-versatile',
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
-          ],
-          temperature: 0.2,
-        }),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Groq API error ${res.status}: ${errText}`);
+      const tryModels = ['llama-3.1-70b-versatile', 'llama-3.1-8b-instant'];
+      let content = '';
+      for (const model of tryModels) {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: system },
+              { role: 'user', content: user },
+            ],
+            temperature: 0.2,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          content = data.choices?.[0]?.message?.content ?? '';
+          break;
+        } else {
+          const errText = await res.text();
+          console.error(`Groq API error ${res.status} for model ${model}:`, errText);
+        }
       }
-      const data = await res.json();
-      const content: string = data.choices?.[0]?.message?.content ?? '';
       const suggestedTasks = content
         .split(/\r?\n/)
         .map(line => line.trim())
