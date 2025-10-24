@@ -47,7 +47,12 @@ const categorizeRepairFlow = ai.defineFlow(
     const system = 'Vous êtes un technicien automobile expert. Répondez uniquement par l\'une des catégories: Moteur, Filtres, Bougies, Courroie de distribution, Freins, Électrique, Suspension, Carrosserie, Intérieur, Échappement, Transmission, Pneus, Batterie, Climatisation, Autre.';
     const user = `Repair Details: ${repairDetails}`;
     try {
-      const tryModels = ['llama-3.1-70b-versatile', 'llama-3.1-8b-instant'];
+      const tryModels = [
+        'llama-3.1-8b-instant',
+        'llama3-8b-8192',
+        'llama3-70b-8192',
+        'mixtral-8x7b-32768',
+      ];
       let content = '';
       for (const model of tryModels) {
         const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {

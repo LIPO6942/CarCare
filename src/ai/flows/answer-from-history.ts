@@ -61,7 +61,12 @@ Your role is to answer questions about a user's vehicle based *only* on the data
         // Call Groq Chat Completions with graceful model fallback
         let answer: string | undefined;
         const apiKey = process.env.GROQ_API_KEY ?? '';
-        const tryModels = ['llama-3.1-70b-versatile', 'llama-3.1-8b-instant'];
+        const tryModels = [
+          'llama-3.1-8b-instant',
+          'llama3-8b-8192',
+          'llama3-70b-8192',
+          'mixtral-8x7b-32768',
+        ];
         for (const model of tryModels) {
           try {
             const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
