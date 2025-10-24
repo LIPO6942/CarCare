@@ -8,8 +8,8 @@
  * - CategorizeRepairOutput - The output type for the categorizeRepair function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
 
 const CategorizeRepairInputSchema = z.object({
   repairDetails: z
@@ -31,15 +31,7 @@ export async function categorizeRepair(input: CategorizeRepairInput): Promise<Ca
   return categorizeRepairFlow(input);
 }
 
-const categorizeRepairPrompt = ai.definePrompt({
-  name: 'categorizeRepairPrompt',
-  input: {schema: CategorizeRepairInputSchema},
-  output: {schema: CategorizeRepairOutputSchema},
-  model: 'openai/groq-llama-3.1-70b',
-  prompt: `You are an expert automotive technician. Please categorize the following car repair details into one of the following categories: Moteur, Filtres, Bougies, Courroie de distribution, Freins, Électrique, Suspension, Carrosserie, Intérieur, Échappement, Transmission, Pneus, Batterie, Climatisation, Autre. Only respond with the category. 
-
-Repair Details: {{{repairDetails}}}`,
-});
+// We call Groq's OpenAI-compatible API directly in the flow
 
 const categorizeRepairFlow = ai.defineFlow(
   {
@@ -47,17 +39,44 @@ const categorizeRepairFlow = ai.defineFlow(
     inputSchema: CategorizeRepairInputSchema,
     outputSchema: CategorizeRepairOutputSchema,
   },
-  async input => {
+  async ({ repairDetails }) => {
+    const apiKey = process.env.GROQ_API_KEY ?? '';
+    if (!apiKey) {
+      throw new Error("Clé API GROQ manquante. Définissez GROQ_API_KEY dans l'environnement.");
+    }
+    const system = 'Vous êtes un technicien automobile expert. Répondez uniquement par l\'une des catégories: Moteur, Filtres, Bougies, Courroie de distribution, Freins, Électrique, Suspension, Carrosserie, Intérieur, Échappement, Transmission, Pneus, Batterie, Climatisation, Autre.';
+    const user = `Repair Details: ${repairDetails}`;
     try {
-      const {output} = await categorizeRepairPrompt(input);
-      return output!;
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-70b-versatile',
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          temperature: 0,
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Groq API error ${res.status}: ${errText}`);
+      }
+      const data = await res.json();
+      const content: string = data.choices?.[0]?.message?.content ?? '';
+      const category = content.trim().split(/\r?\n/)[0];
+      return { category };
     } catch (error: any) {
-        console.error("AI Error in categorizeRepairFlow:", error);
-        const errorMessage = error.message || String(error);
-         if (errorMessage.includes('429') || errorMessage.toLowerCase().includes('quota')) {
-            throw new Error("La limite de requêtes gratuites pour l'assistant IA a été atteinte pour aujourd'hui.");
-        }
-        throw new Error("Une erreur est survenue lors de la communication avec l'assistant IA.");
+      console.error("AI Error in categorizeRepairFlow:", error);
+      const errorMessage = error.message || String(error);
+      if (errorMessage.includes('429') || errorMessage.toLowerCase().includes('quota')) {
+        throw new Error("La limite de requêtes gratuites pour l'assistant IA a été atteinte pour aujourd'hui.");
+      }
+      throw new Error("Une erreur est survenue lors de la communication avec l'assistant IA.");
     }
   }
 );
