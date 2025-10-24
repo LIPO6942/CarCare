@@ -4,6 +4,7 @@
  * Returns a placeholder image with the vehicle's brand and model text overlay.
  */
 
+import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const GenerateVehicleImageInputSchema = z.object({
