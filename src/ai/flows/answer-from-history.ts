@@ -1,5 +1,4 @@
 'use server';
-export const runtime = 'nodejs';
 
 /**
  * @fileOverview A simple Genkit flow to answer questions based on provided vehicle data.

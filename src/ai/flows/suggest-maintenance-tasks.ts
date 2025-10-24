@@ -1,5 +1,4 @@
 'use server';
-export const runtime = 'nodejs';
 // This file is machine-generated - edit at your own risk!
 
 /**

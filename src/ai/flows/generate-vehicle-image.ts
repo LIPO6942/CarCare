@@ -1,5 +1,4 @@
 'use server';
-export const runtime = 'nodejs';
 /**
  * @fileOverview Vehicle image generation replacement using a free, keyless service.
  * Returns a placeholder image with the vehicle's brand and model text overlay.

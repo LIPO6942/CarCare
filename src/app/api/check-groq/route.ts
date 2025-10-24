@@ -1,5 +1,4 @@
 'use server';
-export const runtime = 'nodejs';
 
 export async function GET() {
   const hasKey = Boolean(process.env.GROQ_API_KEY);

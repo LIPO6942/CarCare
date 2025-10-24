@@ -1,5 +1,4 @@
 'use server';
-export const runtime = 'nodejs';
 
 /**
  * @fileOverview This file contains the Genkit flow for categorizing car repairs.
