@@ -49,11 +49,46 @@ Your role is to answer questions about a user's vehicle based *only* on the data
 - ALL CURRENCY VALUES MUST BE IN TND (Tunisian Dinar).
 - Today's date is ${new Date().toLocaleDateString('fr-FR')}.`;
 
+    // Limit history to reduce token usage
+    const limitedHistory = Array.isArray(history) ? history.slice(-12) : [];
+
+    // Trim vehicle data if too large
+    let safeVehicleJson = vehicleDataJson;
+    try {
+      if (vehicleDataJson && vehicleDataJson.length > 150_000) {
+        const data = JSON.parse(vehicleDataJson);
+        const trimArray = (arr: any[] | undefined, max: number) => {
+          if (!Array.isArray(arr)) return [];
+          // Sort by date if present, otherwise return last N
+          const sorted = [...arr].sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+          return sorted.slice(0, max);
+        };
+        const trimmed = {
+          id: data?.id,
+          brand: data?.brand,
+          model: data?.model,
+          year: data?.year,
+          licensePlate: data?.licensePlate,
+          fuelType: data?.fuelType,
+          repairsCount: Array.isArray(data?.repairs) ? data.repairs.length : 0,
+          maintenanceCount: Array.isArray(data?.maintenance) ? data.maintenance.length : 0,
+          fuelLogsCount: Array.isArray(data?.fuelLogs) ? data.fuelLogs.length : 0,
+          repairs: trimArray(data?.repairs, 50),
+          maintenance: trimArray(data?.maintenance, 50),
+          fuelLogs: trimArray(data?.fuelLogs, 50),
+        };
+        safeVehicleJson = JSON.stringify(trimmed);
+      }
+    } catch {
+      // If parsing fails, fall back to the original string
+      safeVehicleJson = vehicleDataJson;
+    }
+
     const messages = [
-        ...history,
+        ...limitedHistory,
         {
           role: 'user',
-          content: [{ text: `Here is all the data for the vehicle. Use it to answer my question:\n\n${vehicleDataJson}\n\nQuestion: ${question}` }],
+          content: [{ text: `Here is the vehicle data. Use only this to answer.\n\n${safeVehicleJson}\n\nQuestion: ${question}` }],
         },
     ];
     
