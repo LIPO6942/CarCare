@@ -71,6 +71,14 @@ export async function addVehicle(vehicleData: Omit<Vehicle, 'id' | 'userId'>, us
     };
 }
 
+export async function updateVehicle(id: string, data: Partial<Omit<Vehicle, 'id' | 'userId'>>): Promise<void> {
+  const vehicleRef = doc(db, 'vehicles', id);
+  const cleanData = Object.fromEntries(
+    Object.entries(data).filter(([_, v]) => v !== undefined && v !== null)
+  );
+  await updateDoc(vehicleRef, cleanData);
+}
+
 
 export async function deleteVehicleById(id: string): Promise<void> {
     const batch = writeBatch(db);

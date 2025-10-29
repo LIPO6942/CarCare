@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Vehicle, Repair, Maintenance, FuelLog } from '@/lib/types';
-import { getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle } from '@/lib/data';
+import { getRepairsForVehicle, getMaintenanceForVehicle, getFuelLogsForVehicle, updateVehicle } from '@/lib/data';
 import { VehicleTabs } from '@/components/vehicle-tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/auth-context';
 import ErrorBoundary from './error-boundary';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Download, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -30,6 +32,44 @@ const safeFormatCurrency = (numInput: any): string => {
     } catch {
         return (0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
     }
+
+  // Initialize edit form when opening edit dialog
+  useEffect(() => {
+    if (isEditOpen && vehicle) {
+      setEditData({
+        brand: vehicle.brand || '',
+        model: vehicle.model || '',
+        year: vehicle.year || '',
+        licensePlate: vehicle.licensePlate || '',
+        fuelType: vehicle.fuelType || 'Essence',
+        fiscalPower: vehicle.fiscalPower ?? '',
+        vin: vehicle.vin || '',
+      });
+    }
+  }, [isEditOpen, vehicle]);
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vehicle) return;
+    setIsSaving(true);
+    try {
+      await updateVehicle(vehicle.id, {
+        brand: editData.brand,
+        model: editData.model,
+        year: Number(editData.year),
+        licensePlate: editData.licensePlate,
+        fuelType: editData.fuelType,
+        fiscalPower: editData.fiscalPower === '' ? undefined : Number(editData.fiscalPower),
+        vin: editData.vin ? editData.vin.toUpperCase() : undefined,
+      });
+      setIsEditOpen(false);
+      onDataChange();
+    } catch (err) {
+      console.error('Failed updating vehicle', err);
+    } finally {
+      setIsSaving(false);
+    }
+  }
 }
 
 const generateVehicleHistoryPDF = (vehicle: Vehicle, repairs: Repair[], maintenance: Maintenance[]) => {
@@ -54,6 +94,7 @@ const generateVehicleHistoryPDF = (vehicle: Vehicle, repairs: Repair[], maintena
       ['Plaque', vehicle.licensePlate],
       ['Carburant', vehicle.fuelType],
       ['Puissance Fiscale', `${vehicle.fiscalPower || 'N/A'} CV`],
+      ['VIN', (vehicle.vin ? vehicle.vin.toUpperCase() : 'N/A')],
     ],
     theme: 'grid',
     styles: { fontSize: 10 },
@@ -122,6 +163,9 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editData, setEditData] = useState<{brand: string; model: string; year: number | string; licensePlate: string; fuelType: Vehicle['fuelType']; fiscalPower?: number | string; vin?: string}>({brand: '', model: '', year: '', licensePlate: '', fuelType: 'Essence', fiscalPower: '', vin: ''});
   
   const fetchVehicleSubCollections = useCallback(async () => {
     if (user && vehicle) {
@@ -180,12 +224,15 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
         <DialogHeader className="p-4 border-b flex flex-row justify-between items-center">
           <div>
             <DialogTitle className="text-xl sm:text-2xl">{`${vehicle.brand || 'Marque'} ${vehicle.model || 'Modèle'}`}</DialogTitle>
-            <DialogDescription>{`${vehicle.year || 'N/A'} - ${vehicle.licensePlate || 'N/A'}`}</DialogDescription>
+            <DialogDescription>{`${vehicle.year || 'N/A'} - ${vehicle.licensePlate || 'N/A'}${vehicle.vin ? ' - ' + vehicle.vin.toUpperCase() : ''}`}</DialogDescription>
           </div>
-          <Button variant="outline" onClick={handleExportPdf} disabled={isLoading || isGeneratingPdf}>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsEditOpen(true)} disabled={isLoading || isGeneratingPdf}>Modifier</Button>
+            <Button variant="outline" onClick={handleExportPdf} disabled={isLoading || isGeneratingPdf}>
             {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
             {isGeneratingPdf ? 'Génération...' : 'Exporter en PDF'}
-          </Button>
+            </Button>
+          </div>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
@@ -208,6 +255,62 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
           </ErrorBoundary>
         </div>
       </DialogContent>
+      {/* Edit Vehicle Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Modifier le véhicule</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label htmlFor="edit-brand">Marque</label>
+                <Input id="edit-brand" value={editData.brand} onChange={(e) => setEditData(d => ({...d, brand: e.target.value}))} required />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="edit-model">Modèle</label>
+                <Input id="edit-model" value={editData.model} onChange={(e) => setEditData(d => ({...d, model: e.target.value}))} required />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label htmlFor="edit-year">Année</label>
+                <Input id="edit-year" type="number" value={editData.year} onChange={(e) => setEditData(d => ({...d, year: e.target.value}))} required />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="edit-fiscal">Puissance Fiscale (CV)</label>
+                <Input id="edit-fiscal" type="number" value={editData.fiscalPower as any} onChange={(e) => setEditData(d => ({...d, fiscalPower: e.target.value}))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="edit-vin">Numéro VIN</label>
+              <Input id="edit-vin" value={editData.vin} onChange={(e) => setEditData(d => ({...d, vin: e.target.value}))} placeholder="VF1ABCDEFGH123456" />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="edit-plate">Plaque d'immatriculation</label>
+              <Input id="edit-plate" value={editData.licensePlate} onChange={(e) => setEditData(d => ({...d, licensePlate: e.target.value}))} required />
+            </div>
+            <div className="space-y-2">
+              <label>Type de carburant</label>
+              <Select value={editData.fuelType} onValueChange={(v) => setEditData(d => ({...d, fuelType: v as Vehicle['fuelType']}))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionnez un type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Essence">Essence</SelectItem>
+                  <SelectItem value="Diesel">Diesel</SelectItem>
+                  <SelectItem value="Électrique">Électrique</SelectItem>
+                  <SelectItem value="Hybride">Hybride</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => setIsEditOpen(false)} disabled={isSaving}>Annuler</Button>
+              <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

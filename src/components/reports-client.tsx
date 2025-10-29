@@ -4,6 +4,8 @@
 import { useMemo, useEffect, useState } from 'react';
 import type { Repair, FuelLog, Maintenance, Vehicle } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { DollarSign, Fuel, Wrench, Route, Milestone } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
@@ -11,6 +13,7 @@ import { getAllUserRepairs, getAllUserFuelLogs, getAllUserMaintenance, getVehicl
 import { Skeleton } from './ui/skeleton';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+// removed global settings VIN; we use per-vehicle VIN
 
 const safeFormatDate = (dateInput: any, formatString: string = 'd MMM yyyy') => {
   try {
@@ -31,6 +34,7 @@ export function ReportsClient() {
   const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -50,6 +54,12 @@ export function ReportsClient() {
     }
     fetchData();
   }, [user]);
+  
+  useEffect(() => {
+    if (vehicles.length > 0 && !selectedVehicleId) {
+      setSelectedVehicleId(vehicles[0].id);
+    }
+  }, [vehicles, selectedVehicleId]);
 
   const { totalCost, totalFuelCost, totalRepairCost, costData, maxMileage } = useMemo(() => {
     const totalRepairCost = repairs.reduce((acc, r) => acc + r.cost, 0);
@@ -224,6 +234,62 @@ export function ReportsClient() {
             </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Catalogue de pièces compatibles par VIN</CardTitle>
+          <CardDescription>Affiche les pièces compatibles selon le VIN du véhicule sélectionné.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {vehicles.length === 0 ? (
+            <div className="p-4 border rounded-md">
+              <p className="text-sm">Ajoutez d'abord un véhicule pour consulter le catalogue de pièces.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="max-w-sm">
+                <Label htmlFor="catalog-vehicle">Véhicule</Label>
+                <Select value={selectedVehicleId ?? undefined} onValueChange={setSelectedVehicleId}>
+                  <SelectTrigger id="catalog-vehicle">
+                    <SelectValue placeholder="Sélectionnez un véhicule" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vehicles.map(v => (
+                      <SelectItem key={v.id} value={v.id}>{`${v.brand} ${v.model} (${v.licensePlate})`}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(() => {
+                const v = vehicles.find(x => x.id === selectedVehicleId);
+                const vin = v?.vin?.toUpperCase() || '';
+                if (!v) {
+                  return (
+                    <div className="p-4 border rounded-md">
+                      <p className="text-sm">Sélectionnez un véhicule pour afficher les pièces compatibles.</p>
+                    </div>
+                  );
+                }
+                if (!vin || vin.length !== 17) {
+                  return (
+                    <div className="p-4 border rounded-md">
+                      <p className="text-sm">Aucun VIN valide pour ce véhicule. Ajoutez le VIN (17 caractères) dans le formulaire du véhicule.</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">VIN: <span className="font-mono font-semibold">{vin}</span></p>
+                    <div className="p-4 border rounded-md">
+                      <p className="text-sm">Aucune source de catalogue n'est encore connectée. Intégrez une API (ex: TecDoc) pour récupérer la liste des pièces compatibles par VIN.</p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
     </div>
   );

@@ -7,6 +7,7 @@ export type Vehicle = {
   licensePlate: string;
   fuelType: 'Essence' | 'Diesel' | 'Électrique' | 'Hybride';
   fiscalPower?: number;
+  vin?: string;
 };
 
 export type Repair = {

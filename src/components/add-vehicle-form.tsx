@@ -27,6 +27,16 @@ const VehicleSchema = z.object({
   licensePlate: z.string().min(1, 'La plaque d\'immatriculation est requise.'),
   fuelType: z.enum(['Essence', 'Diesel', 'Électrique', 'Hybride']),
   fiscalPower: z.coerce.number().min(1, 'Puissance invalide.').max(50, 'Puissance invalide.'),
+  vin: z
+    .string()
+    .trim()
+    .optional()
+    .refine((val) => !val || val.length === 17, {
+      message: 'Le VIN doit contenir 17 caractères',
+    })
+    .refine((val) => !val || /^[A-HJ-NPR-Z0-9]{17}$/i.test(val), {
+      message: 'VIN invalide (17 caractères, sans I, O, Q)'
+    }),
 });
 
 
@@ -62,7 +72,7 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: (vehicle: Vehic
     }
 
     try {
-        const newVehicle = await addVehicle(validatedFields.data, user.uid);
+        const newVehicle = await addVehicle(validatedFields.data as Omit<Vehicle, 'id' | 'userId'>, user.uid);
         
         try {
             const imageUrl = await generateVehicleImage({ 
@@ -122,6 +132,10 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: (vehicle: Vehic
                 <label htmlFor="fiscalPower">Puissance Fiscale (CV)</label>
                 <Input id="fiscalPower" name="fiscalPower" type="number" placeholder="ex: 6" required />
             </div>
+        </div>
+        <div className="space-y-2">
+            <label htmlFor="vin">Numéro VIN (optionnel)</label>
+            <Input id="vin" name="vin" placeholder="VF1ABCDEFGH123456" />
         </div>
         <div className="space-y-2">
             <label htmlFor="licensePlate">Plaque d'immatriculation</label>

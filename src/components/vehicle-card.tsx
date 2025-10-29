@@ -188,6 +188,12 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
               <Fuel className="h-4 w-4" />
               <span>{vehicle.fuelType || 'N/A'}</span>
             </div>
+            {vehicle.vin && (
+              <div className="flex items-center gap-2">
+                  <GitCommitHorizontal className="h-4 w-4" />
+                  <span className="font-mono">{vehicle.vin.toUpperCase()}</span>
+              </div>
+            )}
              {fuelConsumption != null && (
               <div className="flex items-center gap-2">
                   <Droplets className="h-4 w-4" />

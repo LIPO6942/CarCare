@@ -1,4 +1,3 @@
-
 export interface VignetteCost {
     range: string;
     cost: number;
