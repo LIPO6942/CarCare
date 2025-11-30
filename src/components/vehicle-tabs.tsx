@@ -941,7 +941,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                                     {Object.entries(months).map(([month, data]) => (
                                         <AccordionItem value={month} key={month}>
                                             <AccordionTrigger className="text-md font-medium border-l-2 pl-4">
-                                                {month} : {(data as any).totalDistance > 0 ? `${(data as any).totalDistance} km / ${safeFormatCurrency((data as any).totalCost)}` : `${safeFormatCurrency((data as any).totalCost)}`}
+                                                <span className="font-bold">{month}</span> : {(data as any).totalDistance > 0 ? `${(data as any).totalDistance}Km/${Math.round((data as any).totalCost)}TND` : `${Math.round((data as any).totalCost)}TND`}
                                             </AccordionTrigger>
                                             <AccordionContent className="pl-4">
                                                 <Table>
