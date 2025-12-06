@@ -437,15 +437,19 @@ export function DashboardClient() {
             <h2 className="text-2xl font-bold tracking-tight">Mes Véhicules</h2>
             {vehicles.length > 0 ? (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {vehicles.map((vehicle) => (
-                  <VehicleCard
-                    key={vehicle.id}
-                    vehicle={vehicle}
-                    onShowDetails={() => setVehicleForDetailView(vehicle)}
-                    onDeleted={() => fetchData(true)}
-                    fuelConsumption={fuelConsumptions.get(vehicle.id)}
-                  />
-                ))}
+                {vehicles.map((vehicle) => {
+                  const stats = fuelStats.get(vehicle.id);
+                  return (
+                    <VehicleCard
+                      key={vehicle.id}
+                      vehicle={vehicle}
+                      onShowDetails={() => setVehicleForDetailView(vehicle)}
+                      onDeleted={() => fetchData(true)}
+                      fuelConsumption={stats?.consumption}
+                      fuelCost={stats?.cost}
+                    />
+                  );
+                })}
               </div>
             ) : (
               <Card className="flex flex-col items-center justify-center py-20 text-center">
