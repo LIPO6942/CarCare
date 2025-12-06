@@ -28,7 +28,7 @@ import { Loader2 } from 'lucide-react';
 import { getVehicleImage, saveVehicleImage } from '@/lib/local-db';
 import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 
-export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, fuelCost }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; fuelCost?: number | null }) {
+export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null }) {
   const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -191,11 +191,17 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
             {fuelConsumption != null && (
               <div className="flex items-center gap-2">
                 <Droplets className="h-4 w-4" />
-                <span>{fuelConsumption.toFixed(1)} L/100km</span>
+                <span className="text-muted-foreground">Moyenne: {fuelConsumption.toFixed(1)} L/100km</span>
+              </div>
+            )}
+            {latestConsumption != null && (
+              <div className="flex items-center gap-2">
+                <Droplets className="h-3 w-3 text-muted-foreground" />
+                <span className="text-sm">Dernier: {latestConsumption.toFixed(1)} L/100km</span>
               </div>
             )}
             {fuelCost != null && (
-              <div className="flex items-center gap-2 text-primary font-medium">
+              <div className="flex items-center gap-2 text-primary font-medium mt-1">
                 <span className="font-bold text-lg ml-[1.5rem]">{fuelCost.toFixed(1)} Dt / 100 Km</span>
               </div>
             )}

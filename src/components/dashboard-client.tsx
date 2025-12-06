@@ -288,7 +288,7 @@ export function DashboardClient() {
   }, [vehicles, repairs, maintenance, fuelLogs]);
 
   const fuelStats = useMemo(() => {
-    const stats = new Map<string, { consumption: number; cost: number } | null>();
+    const stats = new Map<string, { consumption: number; latestConsumption: number; cost: number } | null>();
 
     vehicles.forEach(vehicle => {
       const vehicleFuelLogs = fuelLogs
@@ -306,20 +306,6 @@ export function DashboardClient() {
       const totalDistance = lastLog.mileage - firstLog.mileage;
 
       let totalFuel = 0;
-      // Sum fuel quantities from log 0 to N-1 (since the initial state is unknown, we assume log 0 establishes the baseline,
-      // and subsequent fills replenish fuel used for the distance traveled).
-      // Standard for "real world" logs: sum(quantity) usually represents fuel PUT IN.
-      // If I drive 100km then put 10L, I used 10L for that 100km.
-      // So Sum(All Quantities except maybe the very first one if it was just "initial fill"?)
-      // Actually, standard log apps often treat "Distance between Fill A and Fill B" and "Qty B" as the pair.
-      // So Total Fuel = Sum(Log[1]...Log[Last]).Qty ?
-      // Previous logic was 0 to N-1. Let's look at previous logic:
-      // Loop i=0 to length-1. Sum += vehicleFuelLogs[i].quantity.
-      // This sums all EXCEPT the last one.
-      // Wait, if I fill at 100km (10L), then at 200km (10L). Distance = 100.
-      // If I sum Log[0].quantity (10L), then 10L/100km = 10L/100km. Correct.
-      // If I sum Log[1].quantity (10L), it's also 10.
-      // Let's stick to the previous "lifetime" logic which was 0...N-1.
       for (let i = 0; i < vehicleFuelLogs.length - 1; i++) {
         totalFuel += vehicleFuelLogs[i].quantity;
       }
@@ -329,19 +315,19 @@ export function DashboardClient() {
         averageConsumption = (totalFuel / totalDistance) * 100;
       }
 
-      // 2. Latest Interval Cost (Total Cost / Distance) * 100
-      // Based on the LAST log only.
+      // 2. Latest Interval Stats
       const previousLog = vehicleFuelLogs[vehicleFuelLogs.length - 2];
       const lastIntervalDistance = lastLog.mileage - previousLog.mileage;
       let latestCost = 0;
+      let latestConsumption = 0;
 
       if (lastIntervalDistance > 0) {
-        // lastLog.totalCost is the money spent to refill after driving lastIntervalDistance.
         latestCost = (lastLog.totalCost / lastIntervalDistance) * 100;
+        latestConsumption = (lastLog.quantity / lastIntervalDistance) * 100;
       }
 
-      if (averageConsumption > 0 || latestCost > 0) {
-        stats.set(vehicle.id, { consumption: averageConsumption, cost: latestCost });
+      if (averageConsumption > 0 || latestCost > 0 || latestConsumption > 0) {
+        stats.set(vehicle.id, { consumption: averageConsumption, latestConsumption, cost: latestCost });
       } else {
         stats.set(vehicle.id, null);
       }
@@ -476,6 +462,7 @@ export function DashboardClient() {
                       onShowDetails={() => setVehicleForDetailView(vehicle)}
                       onDeleted={() => fetchData(true)}
                       fuelConsumption={stats?.consumption}
+                      latestConsumption={stats?.latestConsumption}
                       fuelCost={stats?.cost}
                     />
                   );
