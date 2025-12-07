@@ -19,18 +19,18 @@ import type { Vehicle, Repair, Maintenance, FuelLog, AiDiagnostic, FcmToken } fr
 import { deleteLocalDocumentsForVehicle, deleteVehicleImage } from './local-db';
 
 function docToType<T>(document: any): T {
-    const data = document.data();
-    // Convert Firestore Timestamps to ISO strings for any 'date' or 'due' fields.
-    // This makes them JSON-serializable and usable by `new Date()`.
-    for (const key in data) {
-        if (data[key] instanceof Timestamp) {
-            data[key] = data[key].toDate().toISOString();
-        }
+  const data = document.data();
+  // Convert Firestore Timestamps to ISO strings for any 'date' or 'due' fields.
+  // This makes them JSON-serializable and usable by `new Date()`.
+  for (const key in data) {
+    if (data[key] instanceof Timestamp) {
+      data[key] = data[key].toDate().toISOString();
     }
-    return {
-        id: document.id,
-        ...data,
-    } as T;
+  }
+  return {
+    id: document.id,
+    ...data,
+  } as T;
 }
 
 export async function getVehicles(userId: string): Promise<Vehicle[]> {
@@ -63,66 +63,66 @@ export async function getVehicleById(id: string): Promise<Vehicle | undefined> {
 }
 
 export async function addVehicle(vehicleData: Omit<Vehicle, 'id' | 'userId'>, userId: string): Promise<Vehicle> {
-    const docRef = await addDoc(collection(db, 'vehicles'), { ...vehicleData, userId });
-    return {
-        id: docRef.id,
-        userId,
-        ...vehicleData,
-    };
+  const docRef = await addDoc(collection(db, 'vehicles'), { ...vehicleData, userId });
+  return {
+    id: docRef.id,
+    userId,
+    ...vehicleData,
+  };
 }
 
 
 export async function deleteVehicleById(id: string): Promise<void> {
-    const batch = writeBatch(db);
-    const vehicleRef = doc(db, 'vehicles', id);
-    
-    // Delete associated local documents from IndexedDB
-    await deleteLocalDocumentsForVehicle(id);
-    await deleteVehicleImage(id);
+  const batch = writeBatch(db);
+  const vehicleRef = doc(db, 'vehicles', id);
+
+  // Delete associated local documents from IndexedDB
+  await deleteLocalDocumentsForVehicle(id);
+  await deleteVehicleImage(id);
 
 
-    // Then, batch delete all Firestore documents
-    const collectionsToDelete = ['repairs', 'maintenance', 'fuelLogs', 'aiDiagnostics'];
-    for (const collectionName of collectionsToDelete) {
-        const colRef = collection(db, collectionName);
-        const q = query(colRef, where('vehicleId', '==', id));
-        const snapshot = await getDocs(q);
-        snapshot.docs.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-    }
+  // Then, batch delete all Firestore documents
+  const collectionsToDelete = ['repairs', 'maintenance', 'fuelLogs', 'aiDiagnostics'];
+  for (const collectionName of collectionsToDelete) {
+    const colRef = collection(db, collectionName);
+    const q = query(colRef, where('vehicleId', '==', id));
+    const snapshot = await getDocs(q);
+    snapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+  }
 
-    batch.delete(vehicleRef);
-    await batch.commit();
+  batch.delete(vehicleRef);
+  await batch.commit();
 }
 
 async function getSubCollectionForVehicle<T>(vehicleId: string, userId: string, collectionName: string, dateField: string = 'date', sortOrder: 'asc' | 'desc' = 'desc'): Promise<T[]> {
-    try {
-        const colRef = collection(db, collectionName);
-        const q = query(colRef, where('vehicleId', '==', vehicleId), where('userId', '==', userId));
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(d => docToType<T>(d));
+  try {
+    const colRef = collection(db, collectionName);
+    const q = query(colRef, where('vehicleId', '==', vehicleId), where('userId', '==', userId));
+    const snapshot = await getDocs(q);
+    const data = snapshot.docs.map(d => docToType<T>(d));
 
-        data.sort((a: any, b: any) => {
-            try {
-                const dateA = a[dateField] ? new Date(a[dateField]).getTime() : 0;
-                const dateB = b[dateField] ? new Date(b[dateField]).getTime() : 0;
-    
-                const validA = isNaN(dateA) ? 0 : dateA;
-                const validB = isNaN(dateB) ? 0 : dateB;
-    
-                return sortOrder === 'desc' ? validB - validA : validA - validB;
-            } catch (e) {
-                console.error(`Error sorting ${collectionName}. Invalid date found.`, {a, b});
-                return 0; // Don't crash on invalid date during sort
-            }
-        });
-        return data;
+    data.sort((a: any, b: any) => {
+      try {
+        const dateA = a[dateField] ? new Date(a[dateField]).getTime() : 0;
+        const dateB = b[dateField] ? new Date(b[dateField]).getTime() : 0;
 
-    } catch (error) {
-        console.error(`Firebase error fetching ${collectionName} for ${vehicleId}. Returning empty array.`, error);
-        return [];
-    }
+        const validA = isNaN(dateA) ? 0 : dateA;
+        const validB = isNaN(dateB) ? 0 : dateB;
+
+        return sortOrder === 'desc' ? validB - validA : validA - validB;
+      } catch (e) {
+        console.error(`Error sorting ${collectionName}. Invalid date found.`, { a, b });
+        return 0; // Don't crash on invalid date during sort
+      }
+    });
+    return data;
+
+  } catch (error) {
+    console.error(`Firebase error fetching ${collectionName} for ${vehicleId}. Returning empty array.`, error);
+    return [];
+  }
 }
 
 
@@ -131,52 +131,52 @@ export async function getRepairsForVehicle(vehicleId: string, userId: string): P
 }
 
 export async function getMaintenanceForVehicle(vehicleId: string, userId: string): Promise<Maintenance[]> {
-    return getSubCollectionForVehicle<Maintenance>(vehicleId, userId, 'maintenance');
+  return getSubCollectionForVehicle<Maintenance>(vehicleId, userId, 'maintenance');
 }
 
 export async function getFuelLogsForVehicle(vehicleId: string, userId: string): Promise<FuelLog[]> {
-    return getSubCollectionForVehicle<FuelLog>(vehicleId, userId, 'fuelLogs');
+  return getSubCollectionForVehicle<FuelLog>(vehicleId, userId, 'fuelLogs');
 }
 
 
 async function getAllFromUserCollection<T>(userId: string, collectionName: string): Promise<T[]> {
-    try {
-        const colRef = collection(db, collectionName);
-        const q = query(colRef, where('userId', '==', userId));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(d => docToType<T>(d));
-    } catch (error) {
-        console.error(`Firebase error fetching all ${collectionName} for user. Returning empty array.`, error);
-        return [];
-    }
+  try {
+    const colRef = collection(db, collectionName);
+    const q = query(colRef, where('userId', '==', userId));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => docToType<T>(d));
+  } catch (error) {
+    console.error(`Firebase error fetching all ${collectionName} for user. Returning empty array.`, error);
+    return [];
+  }
 }
 
 export async function getAllUserRepairs(userId: string): Promise<Repair[]> {
-    return getAllFromUserCollection<Repair>(userId, 'repairs');
+  return getAllFromUserCollection<Repair>(userId, 'repairs');
 }
 
 export async function getAllUserFuelLogs(userId: string): Promise<FuelLog[]> {
-    return getAllFromUserCollection<FuelLog>(userId, 'fuelLogs');
+  return getAllFromUserCollection<FuelLog>(userId, 'fuelLogs');
 }
 
 export async function getAllUserMaintenance(userId: string): Promise<Maintenance[]> {
-    return getAllFromUserCollection<Maintenance>(userId, 'maintenance');
+  return getAllFromUserCollection<Maintenance>(userId, 'maintenance');
 }
 
 // --- Add Functions ---
 export async function addRepair(repairData: Omit<Repair, 'id' | 'userId'>, userId: string): Promise<Repair> {
-    const docRef = await addDoc(collection(db, 'repairs'), { ...repairData, userId });
-    return { id: docRef.id, userId, ...repairData };
+  const docRef = await addDoc(collection(db, 'repairs'), { ...repairData, userId });
+  return { id: docRef.id, userId, ...repairData };
 }
 
 export async function addMaintenance(maintenanceData: Omit<Maintenance, 'id' | 'userId'>, userId: string): Promise<Maintenance> {
-    const docRef = await addDoc(collection(db, 'maintenance'), { ...maintenanceData, userId });
-    return { id: docRef.id, userId, ...maintenanceData };
+  const docRef = await addDoc(collection(db, 'maintenance'), { ...maintenanceData, userId });
+  return { id: docRef.id, userId, ...maintenanceData };
 }
 
 export async function addFuelLog(fuelLogData: Omit<FuelLog, 'id' | 'userId'>, userId: string): Promise<FuelLog> {
-    const docRef = await addDoc(collection(db, 'fuelLogs'), { ...fuelLogData, userId });
-    return { id: docRef.id, userId, ...fuelLogData };
+  const docRef = await addDoc(collection(db, 'fuelLogs'), { ...fuelLogData, userId });
+  return { id: docRef.id, userId, ...fuelLogData };
 }
 
 // --- Update Functions ---
@@ -184,16 +184,16 @@ export async function updateRepair(id: string, data: Partial<Omit<Repair, 'id' |
   await updateDoc(doc(db, 'repairs', id), data);
 }
 
-export async function updateMaintenance(id:string, data: Partial<Omit<Maintenance, 'id'|'userId'|'vehicleId'>>): Promise<void> {
-    const docRef = doc(db, 'maintenance', id);
-    // Firestore's updateDoc throws an error if a field is set to `undefined`.
-    // We must clean the data object to remove any undefined or null values.
-    const cleanData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined && v !== null));
-    await updateDoc(docRef, cleanData);
+export async function updateMaintenance(id: string, data: Partial<Omit<Maintenance, 'id' | 'userId' | 'vehicleId'>>): Promise<void> {
+  const docRef = doc(db, 'maintenance', id);
+  // Firestore's updateDoc throws an error if a field is set to `undefined`.
+  // We must clean the data object to remove any undefined or null values.
+  const cleanData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined && v !== null));
+  await updateDoc(docRef, cleanData);
 }
 
 export async function updateFuelLog(id: string, data: Partial<Omit<FuelLog, 'id' | 'userId' | 'vehicleId'>>): Promise<void> {
-    await updateDoc(doc(db, 'fuelLogs', id), data);
+  await updateDoc(doc(db, 'fuelLogs', id), data);
 }
 
 
@@ -212,32 +212,32 @@ export async function deleteFuelLog(id: string): Promise<void> {
 
 // --- AI Diagnostics History ---
 export async function addAiDiagnostic(diagnosticData: Omit<AiDiagnostic, 'id'>): Promise<AiDiagnostic> {
-    const docRef = await addDoc(collection(db, 'aiDiagnostics'), diagnosticData);
-    return { id: docRef.id, ...diagnosticData };
+  const docRef = await addDoc(collection(db, 'aiDiagnostics'), diagnosticData);
+  return { id: docRef.id, ...diagnosticData };
 }
 
 export async function getAiDiagnosticsForVehicle(vehicleId: string, userId: string): Promise<AiDiagnostic[]> {
-    return getSubCollectionForVehicle<AiDiagnostic>(vehicleId, userId, 'aiDiagnostics', 'createdAt');
+  return getSubCollectionForVehicle<AiDiagnostic>(vehicleId, userId, 'aiDiagnostics', 'createdAt');
 }
 
 export async function deleteAiDiagnostic(id: string): Promise<void> {
-    await deleteDoc(doc(db, 'aiDiagnostics', id));
+  await deleteDoc(doc(db, 'aiDiagnostics', id));
 }
 
 // --- FCM Tokens ---
-export async function saveFcmToken(tokenData: Omit<FcmToken, 'id' | 'createdAt'>): Promise<{isNew: boolean}> {
-    const tokensRef = collection(db, 'fcmTokens');
-    // Check if the token already exists for this user to avoid duplicates
-    const q = query(tokensRef, where('userId', '==', tokenData.userId), where('token', '==', tokenData.token));
-    const querySnapshot = await getDocs(q);
+export async function saveFcmToken(tokenData: Omit<FcmToken, 'id' | 'createdAt'>): Promise<{ isNew: boolean }> {
+  const tokensRef = collection(db, 'fcmTokens');
+  // Check if the token already exists for this user to avoid duplicates
+  const q = query(tokensRef, where('userId', '==', tokenData.userId), where('token', '==', tokenData.token));
+  const querySnapshot = await getDocs(q);
 
-    if (querySnapshot.empty) {
-        // If token doesn't exist, add it.
-        await addDoc(tokensRef, { ...tokenData, createdAt: serverTimestamp() });
-        return { isNew: true };
-    }
-    // If token exists, do nothing but report it's not new.
-    return { isNew: false };
+  if (querySnapshot.empty) {
+    // If token doesn't exist, add it.
+    await addDoc(tokensRef, { ...tokenData, createdAt: serverTimestamp() });
+    return { isNew: true };
+  }
+  // If token exists, do nothing but report it's not new.
+  return { isNew: false };
 }
 
 
@@ -245,7 +245,7 @@ export async function saveFcmToken(tokenData: Omit<FcmToken, 'id' | 'createdAt'>
 export async function createSampleDataForUser(userId: string): Promise<void> {
   const brand = 'Peugeot';
   const model = '308';
-  
+
   const vehicleData = {
     brand,
     model,
@@ -261,13 +261,13 @@ export async function createSampleDataForUser(userId: string): Promise<void> {
   oneMonthAgo.setMonth(now.getMonth() - 1);
   const oneWeekAgo = new Date(now);
   oneWeekAgo.setDate(now.getDate() - 7);
-  
+
   const nextTechInspection = new Date(now);
   nextTechInspection.setFullYear(now.getFullYear() + 1);
-  
+
   const nextInsurance = new Date(now);
   nextInsurance.setMonth(now.getMonth() + 6);
-  
+
   const nextOilChange = new Date(now);
   nextOilChange.setMonth(now.getMonth() + 3);
 
@@ -288,7 +288,7 @@ export async function createSampleDataForUser(userId: string): Promise<void> {
     cost: 600,
     nextDueDate: nextInsurance.toISOString().split('T')[0],
   }, userId);
-  
+
   await addMaintenance({
     vehicleId: vehicle.id,
     date: oneMonthAgo.toISOString().split('T')[0],
@@ -306,13 +306,14 @@ export async function createSampleDataForUser(userId: string): Promise<void> {
     category: 'Freins',
     cost: 150,
   }, userId);
-  
+
   await addFuelLog({
-      vehicleId: vehicle.id,
-      date: oneWeekAgo.toISOString().split('T')[0],
-      mileage: 15600,
-      quantity: 45,
-      pricePerLiter: 2.50,
-      totalCost: 112.50,
+    vehicleId: vehicle.id,
+    date: oneWeekAgo.toISOString().split('T')[0],
+    mileage: 15600,
+    quantity: 45,
+    pricePerLiter: 2.50,
+    totalCost: 112.50,
+    gaugeLevelBefore: 0.125,
   }, userId);
 }

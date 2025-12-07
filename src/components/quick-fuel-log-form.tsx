@@ -38,7 +38,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
     const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
     const settings = getSettings();
     if (selectedVehicle?.fuelType === 'Diesel') {
-        return settings.priceDiesel;
+      return settings.priceDiesel;
     }
     return settings.priceEssence;
   }, [selectedVehicleId, vehicles]);
@@ -54,7 +54,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
 
     const timeAgo = formatDistanceToNow(new Date(lastLog.date), { addSuffix: true, locale: fr });
     const cost = lastLog.totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
-    
+
     return `Dernier plein : ${timeAgo} (${cost})`;
   }, [selectedVehicleId, fuelLogs]);
 
@@ -91,11 +91,11 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
 
     const formData = new FormData(event.currentTarget);
     const data = {
-        vehicleId: selectedVehicleId,
-        totalCost: formData.get('totalCost'),
-        mileage: formData.get('mileage'),
+      vehicleId: selectedVehicleId,
+      totalCost: formData.get('totalCost'),
+      mileage: formData.get('mileage'),
     };
-    
+
     const validatedFields = QuickFuelLogSchema.safeParse(data);
 
     if (!validatedFields.success) {
@@ -107,12 +107,12 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
       setIsSubmitting(false);
       return;
     }
-    
+
     const { totalCost, mileage, vehicleId } = validatedFields.data;
 
     const pricePerLiter = defaultPricePerLiter;
     const quantity = totalCost / pricePerLiter;
-    
+
     try {
       await addFuelLog({
         vehicleId,
@@ -145,9 +145,9 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
       setIsSubmitting(false);
     }
   };
-  
+
   if (vehicles.length === 0) {
-      return null;
+    return null;
   }
 
   return (
@@ -161,26 +161,26 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
           <div className="flex-1 w-full">
             <label htmlFor="quick-vehicle-select" className="text-sm font-medium mb-2 block">Véhicule</label>
             <Select onValueChange={setSelectedVehicleId} value={selectedVehicleId} required>
-                <SelectTrigger id="quick-vehicle-select">
-                    <SelectValue placeholder="Sélectionnez un véhicule" />
-                </SelectTrigger>
-                <SelectContent>
+              <SelectTrigger id="quick-vehicle-select">
+                <SelectValue placeholder="Sélectionnez un véhicule" />
+              </SelectTrigger>
+              <SelectContent>
                 {vehicles.map(vehicle => (
-                    <SelectItem key={vehicle.id} value={vehicle.id}>
+                  <SelectItem key={vehicle.id} value={vehicle.id}>
                     {vehicle.brand} {vehicle.model} ({vehicle.licensePlate})
-                    </SelectItem>
+                  </SelectItem>
                 ))}
-                </SelectContent>
+              </SelectContent>
             </Select>
           </div>
           <div className="flex-1 w-full">
             <label htmlFor="quick-mileage" className="text-sm font-medium mb-2 block">Kilométrage</label>
-            <Input 
-              id="quick-mileage" 
-              name="mileage" 
-              type="number" 
-              placeholder="ex: 95000" 
-              required 
+            <Input
+              id="quick-mileage"
+              name="mileage"
+              type="number"
+              placeholder="ex: 95000"
+              required
               value={currentMileage}
               onChange={(e) => setCurrentMileage(e.target.value)}
             />

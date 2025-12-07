@@ -7,6 +7,7 @@ export type Vehicle = {
   licensePlate: string;
   fuelType: 'Essence' | 'Diesel' | 'Électrique' | 'Hybride';
   fiscalPower?: number;
+  estimatedTankCapacity?: number | null;
 };
 
 export type Repair = {
@@ -21,7 +22,7 @@ export type Repair = {
 };
 
 export type Maintenance = {
-  id:string;
+  id: string;
   userId: string;
   vehicleId: string;
   date: string;
@@ -41,6 +42,7 @@ export type FuelLog = {
   quantity: number;
   pricePerLiter: number;
   totalCost: number;
+  gaugeLevelBefore: number;
 };
 
 export type Document = {
