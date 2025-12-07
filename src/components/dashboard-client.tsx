@@ -300,6 +300,27 @@ export function DashboardClient() {
         return;
       }
 
+      // Step A: Estimate Tank Capacity
+      const capacityEstimates: number[] = [];
+      vehicleFuelLogs.forEach(log => {
+        if (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore < 1) {
+          const estimate = log.quantity / (1 - log.gaugeLevelBefore);
+          if (estimate > 0 && estimate < 200) { // Sanity check: tank < 200L
+            capacityEstimates.push(estimate);
+          }
+        }
+      });
+
+      let estimatedCapacity = 0;
+      if (capacityEstimates.length > 0) {
+        // Use median for robustness
+        capacityEstimates.sort((a, b) => a - b);
+        const mid = Math.floor(capacityEstimates.length / 2);
+        estimatedCapacity = capacityEstimates.length % 2 === 0
+          ? (capacityEstimates[mid - 1] + capacityEstimates[mid]) / 2
+          : capacityEstimates[mid];
+      }
+
       // 1. Lifetime Average Consumption (L/100km)
       const firstLog = vehicleFuelLogs[0];
       const lastLog = vehicleFuelLogs[vehicleFuelLogs.length - 1];
@@ -315,20 +336,22 @@ export function DashboardClient() {
         averageConsumption = (totalFuel / totalDistance) * 100;
       }
 
-      // 2. Latest Interval Stats
+      // 2. Latest Interval Stats (Gauge-Based if capacity known)
       const previousLog = vehicleFuelLogs[vehicleFuelLogs.length - 2];
       const lastIntervalDistance = lastLog.mileage - previousLog.mileage;
       let latestCost = 0;
       let latestConsumption = 0;
 
       if (lastIntervalDistance > 0) {
-        // Correct Formula: 
-        // Consumption = (Previous Log Quantity / Distance) * 100
-        // We assume the quantity added in the *previous* fill was consumed to cover the distance to the *current* fill.
-        latestConsumption = (previousLog.quantity / lastIntervalDistance) * 100;
+        if (estimatedCapacity > 0 && previousLog.gaugeLevelBefore !== undefined && lastLog.gaugeLevelBefore !== undefined) {
+          // Step B: Use Delta V formula
+          const deltaV = previousLog.quantity + (estimatedCapacity * previousLog.gaugeLevelBefore) - (estimatedCapacity * lastLog.gaugeLevelBefore);
+          latestConsumption = (deltaV / lastIntervalDistance) * 100;
+        } else {
+          // Fallback to old method if gauge data missing
+          latestConsumption = (previousLog.quantity / lastIntervalDistance) * 100;
+        }
 
-        // Cost = Consumption * Current Price
-        // We calculate the cost of that consumption at the current price.
         latestCost = (latestConsumption * lastLog.pricePerLiter);
       }
 

@@ -8,6 +8,8 @@ import type { Vehicle, FuelLog } from '@/lib/types';
 import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Fuel, Loader2 } from 'lucide-react';
@@ -19,6 +21,7 @@ const QuickFuelLogSchema = z.object({
   vehicleId: z.string().min(1, 'Veuillez sélectionner un véhicule.'),
   totalCost: z.coerce.number().gt(0, 'Le coût doit être supérieur à 0.'),
   mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
+  gaugeLevelBefore: z.coerce.number().min(0).max(1, 'Niveau de jauge invalide.'),
 });
 
 interface QuickFuelLogFormProps {
@@ -33,6 +36,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>(vehicles[0]?.id);
   const [currentMileage, setCurrentMileage] = useState<string>('');
+  const [gaugeLevelBefore, setGaugeLevelBefore] = useState<string>('0.125');
 
   const defaultPricePerLiter = useMemo(() => {
     const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
@@ -94,6 +98,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
       vehicleId: selectedVehicleId,
       totalCost: formData.get('totalCost'),
       mileage: formData.get('mileage'),
+      gaugeLevelBefore: gaugeLevelBefore,
     };
 
     const validatedFields = QuickFuelLogSchema.safeParse(data);
@@ -108,7 +113,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
       return;
     }
 
-    const { totalCost, mileage, vehicleId } = validatedFields.data;
+    const { totalCost, mileage, vehicleId, gaugeLevelBefore: gaugeLevel } = validatedFields.data;
 
     const pricePerLiter = defaultPricePerLiter;
     const quantity = totalCost / pricePerLiter;
@@ -121,6 +126,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
         quantity,
         pricePerLiter,
         totalCost,
+        gaugeLevelBefore: gaugeLevel,
       }, user.uid);
 
       toast({
@@ -129,10 +135,9 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
       });
       onFuelLogAdded();
       (event.target as HTMLFormElement).reset();
-      // Keep the vehicle selected
       setSelectedVehicleId(vehicleId);
-      // Reset current mileage
       setCurrentMileage('');
+      setGaugeLevelBefore('0.125');
 
     } catch (error) {
       console.error("Error adding fuel log:", error);
@@ -157,47 +162,74 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
         <CardDescription>{lastFuelLogInfo}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-end gap-4">
-          <div className="flex-1 w-full">
-            <label htmlFor="quick-vehicle-select" className="text-sm font-medium mb-2 block">Véhicule</label>
-            <Select onValueChange={setSelectedVehicleId} value={selectedVehicleId} required>
-              <SelectTrigger id="quick-vehicle-select">
-                <SelectValue placeholder="Sélectionnez un véhicule" />
-              </SelectTrigger>
-              <SelectContent>
-                {vehicles.map(vehicle => (
-                  <SelectItem key={vehicle.id} value={vehicle.id}>
-                    {vehicle.brand} {vehicle.model} ({vehicle.licensePlate})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="w-full">
+              <label htmlFor="quick-vehicle-select" className="text-sm font-medium mb-2 block">Véhicule</label>
+              <Select onValueChange={setSelectedVehicleId} value={selectedVehicleId} required>
+                <SelectTrigger id="quick-vehicle-select">
+                  <SelectValue placeholder="Sélectionnez un véhicule" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vehicles.map(vehicle => (
+                    <SelectItem key={vehicle.id} value={vehicle.id}>
+                      {vehicle.brand} {vehicle.model} ({vehicle.licensePlate})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full">
+              <label htmlFor="quick-mileage" className="text-sm font-medium mb-2 block">Kilométrage</label>
+              <Input
+                id="quick-mileage"
+                name="mileage"
+                type="number"
+                placeholder="ex: 95000"
+                required
+                value={currentMileage}
+                onChange={(e) => setCurrentMileage(e.target.value)}
+              />
+              {distanceAndCostInfo && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {distanceAndCostInfo.distance} km parcouru / {distanceAndCostInfo.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
+                </p>
+              )}
+            </div>
           </div>
-          <div className="flex-1 w-full">
-            <label htmlFor="quick-mileage" className="text-sm font-medium mb-2 block">Kilométrage</label>
-            <Input
-              id="quick-mileage"
-              name="mileage"
-              type="number"
-              placeholder="ex: 95000"
-              required
-              value={currentMileage}
-              onChange={(e) => setCurrentMileage(e.target.value)}
-            />
-            {distanceAndCostInfo && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {distanceAndCostInfo.distance} km parcouru / {distanceAndCostInfo.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
-              </p>
-            )}
+
+          <div className="w-full">
+            <label className="text-sm font-medium mb-2 block">Niveau de Jauge (Avant le plein)</label>
+            <RadioGroup value={gaugeLevelBefore} onValueChange={setGaugeLevelBefore} className="flex gap-4 flex-wrap">
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="0.00" id="gauge-empty" />
+                <Label htmlFor="gauge-empty" className="cursor-pointer">Vide</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="0.125" id="gauge-eighth" />
+                <Label htmlFor="gauge-eighth" className="cursor-pointer">1/8</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="0.25" id="gauge-quarter" />
+                <Label htmlFor="gauge-quarter" className="cursor-pointer">1/4</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="0.50" id="gauge-half" />
+                <Label htmlFor="gauge-half" className="cursor-pointer">1/2</Label>
+              </div>
+            </RadioGroup>
           </div>
-          <div className="flex-1 w-full">
-            <label htmlFor="quick-cost" className="text-sm font-medium mb-2 block">Coût Total (TND)</label>
-            <Input id="quick-cost" name="totalCost" type="number" step="0.001" placeholder="ex: 120" required />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+            <div className="w-full">
+              <label htmlFor="quick-cost" className="text-sm font-medium mb-2 block">Coût Total (TND)</label>
+              <Input id="quick-cost" name="totalCost" type="number" step="0.001" placeholder="ex: 120" required />
+            </div>
+            <Button type="submit" disabled={isSubmitting} className="w-full">
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Fuel className="mr-2" />}
+              {isSubmitting ? 'Ajout...' : 'Ajouter'}
+            </Button>
           </div>
-          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Fuel className="mr-2" />}
-            {isSubmitting ? 'Ajout...' : 'Ajouter'}
-          </Button>
         </form>
       </CardContent>
     </Card>
