@@ -8,8 +8,7 @@ import type { Vehicle, FuelLog } from '@/lib/types';
 import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Fuel, Loader2 } from 'lucide-react';
@@ -36,7 +35,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>(vehicles[0]?.id);
   const [currentMileage, setCurrentMileage] = useState<string>('');
-  const [gaugeLevelBefore, setGaugeLevelBefore] = useState<string>('0.125');
+  const [gaugeLevelBefore, setGaugeLevelBefore] = useState<number>(12.5);
 
   const defaultPricePerLiter = useMemo(() => {
     const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
@@ -98,7 +97,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
       vehicleId: selectedVehicleId,
       totalCost: formData.get('totalCost'),
       mileage: formData.get('mileage'),
-      gaugeLevelBefore: gaugeLevelBefore,
+      gaugeLevelBefore: gaugeLevelBefore / 100, // Convert percentage to fraction
     };
 
     const validatedFields = QuickFuelLogSchema.safeParse(data);
@@ -137,7 +136,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
       (event.target as HTMLFormElement).reset();
       setSelectedVehicleId(vehicleId);
       setCurrentMileage('');
-      setGaugeLevelBefore('0.125');
+      setGaugeLevelBefore(12.5);
 
     } catch (error) {
       console.error("Error adding fuel log:", error);
@@ -199,25 +198,22 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
           </div>
 
           <div className="w-full">
-            <label className="text-sm font-medium mb-2 block">Niveau de Jauge (Avant le plein)</label>
-            <RadioGroup value={gaugeLevelBefore} onValueChange={setGaugeLevelBefore} className="flex gap-4 flex-wrap">
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="0.00" id="gauge-empty" />
-                <Label htmlFor="gauge-empty" className="cursor-pointer">Vide</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="0.125" id="gauge-eighth" />
-                <Label htmlFor="gauge-eighth" className="cursor-pointer">1/8</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="0.25" id="gauge-quarter" />
-                <Label htmlFor="gauge-quarter" className="cursor-pointer">1/4</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="0.50" id="gauge-half" />
-                <Label htmlFor="gauge-half" className="cursor-pointer">1/2</Label>
-              </div>
-            </RadioGroup>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-sm font-medium">Niveau de Jauge (Avant le plein)</label>
+              <span className="text-sm font-bold text-primary">{gaugeLevelBefore.toFixed(0)}%</span>
+            </div>
+            <Slider
+              value={[gaugeLevelBefore]}
+              onValueChange={(value) => setGaugeLevelBefore(value[0])}
+              min={0}
+              max={75}
+              step={1}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+              <span>Vide (0%)</span>
+              <span>3/4 (75%)</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
