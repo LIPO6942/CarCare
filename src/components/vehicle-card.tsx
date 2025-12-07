@@ -194,15 +194,20 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
                 <span className="text-muted-foreground">Moyenne: {fuelConsumption.toFixed(1)} L/100km</span>
               </div>
             )}
-            {latestConsumption != null && (
-              <div className="flex items-center gap-2">
-                <Droplets className="h-3 w-3 text-muted-foreground" />
-                <span className="text-sm">Dernier: {latestConsumption.toFixed(1)} L/100km</span>
-              </div>
-            )}
-            {fuelCost != null && (
-              <div className="flex items-center gap-2 text-primary font-medium mt-1">
-                <span className="font-bold text-lg ml-[1.5rem]">{fuelCost.toFixed(1)} Dt / 100 Km</span>
+
+            {(latestConsumption != null || fuelCost != null) && (
+              <div className="mt-2 p-2 bg-primary/10 rounded-md border border-primary/20 space-y-1">
+                {latestConsumption != null && (
+                  <div className="flex items-center gap-2 text-primary">
+                    <Droplets className="h-4 w-4" />
+                    <span className="font-medium text-sm">Dernier: {latestConsumption.toFixed(2)} L/100km</span>
+                  </div>
+                )}
+                {fuelCost != null && (
+                  <div className="flex items-center gap-2 text-primary">
+                    <span className="font-bold text-lg ml-[1.5rem]">Prix: {fuelCost.toFixed(1)} Dt / 100 Km</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
