@@ -322,8 +322,14 @@ export function DashboardClient() {
       let latestConsumption = 0;
 
       if (lastIntervalDistance > 0) {
-        latestCost = (lastLog.totalCost / lastIntervalDistance) * 100;
-        latestConsumption = (lastLog.quantity / lastIntervalDistance) * 100;
+        // Correct Formula: 
+        // Consumption = (Previous Log Quantity / Distance) * 100
+        // We assume the quantity added in the *previous* fill was consumed to cover the distance to the *current* fill.
+        latestConsumption = (previousLog.quantity / lastIntervalDistance) * 100;
+
+        // Cost = Consumption * Current Price
+        // We calculate the cost of that consumption at the current price.
+        latestCost = (latestConsumption * lastLog.pricePerLiter);
       }
 
       if (averageConsumption > 0 || latestCost > 0 || latestConsumption > 0) {
