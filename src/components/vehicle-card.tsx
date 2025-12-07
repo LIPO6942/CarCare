@@ -28,7 +28,7 @@ import { Loader2 } from 'lucide-react';
 import { getVehicleImage, saveVehicleImage } from '@/lib/local-db';
 import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 
-export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null }) {
+export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null }) {
   const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -197,6 +197,12 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
 
             {(latestConsumption != null || fuelCost != null) && (
               <div className="mt-2 p-2 bg-primary/10 rounded-md border border-primary/20 space-y-1">
+                {lastLogQuantity != null && lastLogTotalCost != null && (
+                  <div className="flex items-center gap-2 text-primary">
+                    <Droplets className="h-4 w-4" />
+                    <span className="font-medium text-sm">Ajout: {lastLogQuantity.toFixed(2)} L / {lastLogTotalCost.toFixed(1)} Dt</span>
+                  </div>
+                )}
                 {latestConsumption != null && (
                   <div className="flex items-center gap-2 text-primary">
                     <Droplets className="h-4 w-4" />

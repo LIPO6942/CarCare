@@ -288,7 +288,7 @@ export function DashboardClient() {
   }, [vehicles, repairs, maintenance, fuelLogs]);
 
   const fuelStats = useMemo(() => {
-    const stats = new Map<string, { consumption: number; latestConsumption: number; cost: number } | null>();
+    const stats = new Map<string, { consumption: number; latestConsumption: number; cost: number; lastLogQuantity: number; lastLogTotalCost: number } | null>();
 
     vehicles.forEach(vehicle => {
       const vehicleFuelLogs = fuelLogs
@@ -333,7 +333,13 @@ export function DashboardClient() {
       }
 
       if (averageConsumption > 0 || latestCost > 0 || latestConsumption > 0) {
-        stats.set(vehicle.id, { consumption: averageConsumption, latestConsumption, cost: latestCost });
+        stats.set(vehicle.id, {
+          consumption: averageConsumption,
+          latestConsumption,
+          cost: latestCost,
+          lastLogQuantity: lastLog.quantity,
+          lastLogTotalCost: lastLog.totalCost
+        });
       } else {
         stats.set(vehicle.id, null);
       }
@@ -470,6 +476,8 @@ export function DashboardClient() {
                       fuelConsumption={stats?.consumption}
                       latestConsumption={stats?.latestConsumption}
                       fuelCost={stats?.cost}
+                      lastLogQuantity={stats?.lastLogQuantity}
+                      lastLogTotalCost={stats?.lastLogTotalCost}
                     />
                   );
                 })}
