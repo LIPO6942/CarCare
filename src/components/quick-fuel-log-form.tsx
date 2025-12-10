@@ -32,6 +32,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>(vehicles[0]?.id);
+  const [currentMileage, setCurrentMileage] = useState<string>('');
 
   const defaultPricePerLiter = useMemo(() => {
     const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
@@ -56,6 +57,27 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
     
     return `Dernier plein : ${timeAgo} (${cost})`;
   }, [selectedVehicleId, fuelLogs]);
+
+  const distanceAndCostInfo = useMemo(() => {
+    if (!selectedVehicleId || !currentMileage) return null;
+
+    const lastLog = fuelLogs
+      .filter(log => log.vehicleId === selectedVehicleId)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
+    if (!lastLog || !lastLog.mileage) return null;
+
+    const currentMileageNum = parseInt(currentMileage, 10);
+    if (isNaN(currentMileageNum) || currentMileageNum <= lastLog.mileage) return null;
+
+    const distanceTraveled = currentMileageNum - lastLog.mileage;
+    const lastCost = lastLog.totalCost;
+
+    return {
+      distance: distanceTraveled,
+      cost: lastCost
+    };
+  }, [selectedVehicleId, currentMileage, fuelLogs]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -109,6 +131,8 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
       (event.target as HTMLFormElement).reset();
       // Keep the vehicle selected
       setSelectedVehicleId(vehicleId);
+      // Reset current mileage
+      setCurrentMileage('');
 
     } catch (error) {
       console.error("Error adding fuel log:", error);
@@ -151,7 +175,20 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
           </div>
           <div className="flex-1 w-full">
             <label htmlFor="quick-mileage" className="text-sm font-medium mb-2 block">Kilométrage</label>
-            <Input id="quick-mileage" name="mileage" type="number" placeholder="ex: 95000" required />
+            <Input 
+              id="quick-mileage" 
+              name="mileage" 
+              type="number" 
+              placeholder="ex: 95000" 
+              required 
+              value={currentMileage}
+              onChange={(e) => setCurrentMileage(e.target.value)}
+            />
+            {distanceAndCostInfo && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {distanceAndCostInfo.distance} km parcouru / {distanceAndCostInfo.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
+              </p>
+            )}
           </div>
           <div className="flex-1 w-full">
             <label htmlFor="quick-cost" className="text-sm font-medium mb-2 block">Coût Total (TND)</label>

@@ -27,77 +27,77 @@ import { Loader2 } from 'lucide-react';
 import { getSettings } from '@/lib/settings';
 
 type Deadline = {
-    type: 'date' | 'mileage';
-    name: string;
-    vehicleId: string;
-    sortValue: number;
-    originalTask: Maintenance;
+  type: 'date' | 'mileage';
+  name: string;
+  vehicleId: string;
+  sortValue: number;
+  originalTask: Maintenance;
 } & ({ type: 'date'; date: Date } | { type: 'mileage'; kmRemaining: number });
 
 
 function StatCard({ title, value, icon: Icon, description, onClick, disabled, isLoading, isUrgent, onComplete }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, onClick?: () => void, disabled?: boolean, isLoading?: boolean, isUrgent?: boolean, onComplete?: () => void }) {
   const isClickable = !!onClick && !disabled;
-  
+
   if (isLoading) {
     return <Skeleton className="h-32" />;
   }
 
   let IconToRender = Icon;
   let cardClasses = "h-full flex flex-col";
-  
+
   if (isUrgent) {
     IconToRender = AlertTriangle;
     cardClasses = cn(cardClasses, "bg-destructive/10 border-destructive text-destructive");
   }
-  
+
   const cardContent = (
-      <Card className={cardClasses}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">{title}</CardTitle>
-          <IconToRender className={cn("h-4 w-4 text-muted-foreground", isUrgent && "text-destructive")} />
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col justify-center">
-          <div className="text-2xl font-bold">{value}</div>
-          {description && <p className="text-sm text-current/90 pt-1">{description}</p>}
-        </CardContent>
-        {onComplete && !disabled && (
-             <CardFooter className="p-2 border-t -mx-0 -mb-0 mt-auto bg-background/20 dark:bg-card/30">
-                <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="w-full text-muted-foreground"
-                    onClick={(e) => { e.stopPropagation(); onComplete(); }}
-                >
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Échéance réglée
-                </Button>
-            </CardFooter>
-        )}
-      </Card>
+    <Card className={cardClasses}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <IconToRender className={cn("h-4 w-4 text-muted-foreground", isUrgent && "text-destructive")} />
+      </CardHeader>
+      <CardContent className="flex-1 flex flex-col justify-center">
+        <div className="text-2xl font-bold">{value}</div>
+        {description && <p className="text-sm text-current/90 pt-1">{description}</p>}
+      </CardContent>
+      {onComplete && !disabled && (
+        <CardFooter className="p-2 border-t -mx-0 -mb-0 mt-auto bg-background/20 dark:bg-card/30">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-muted-foreground"
+            onClick={(e) => { e.stopPropagation(); onComplete(); }}
+          >
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            Échéance réglée
+          </Button>
+        </CardFooter>
+      )}
+    </Card>
   );
 
   if (isClickable) {
     return (
-        <div 
-            onClick={() => !disabled && onClick ? onClick() : undefined} 
-            className={cn("text-left w-full h-full", isClickable && "cursor-pointer transition-all hover:shadow-md hover:-translate-y-1", disabled && "opacity-50 cursor-not-allowed")}
-            role="button"
-            tabIndex={disabled ? -1 : 0}
-            onKeyDown={(e) => {
-                if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
-                    e.preventDefault();
-                    onClick?.();
-                }
-            }}
-        >
-            {cardContent}
-        </div>
+      <div
+        onClick={() => !disabled && onClick ? onClick() : undefined}
+        className={cn("text-left w-full h-full", isClickable && "cursor-pointer transition-all hover:shadow-md hover:-translate-y-1", disabled && "opacity-50 cursor-not-allowed")}
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        onKeyDown={(e) => {
+          if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            onClick?.();
+          }
+        }}
+      >
+        {cardContent}
+      </div>
     )
   }
 
   return (
     <div className={cn("text-left w-full h-full", disabled && "opacity-50")}>
-       {cardContent}
+      {cardContent}
     </div>
   );
 }
@@ -113,7 +113,7 @@ export function DashboardClient() {
 
   const [vehicleForDetailView, setVehicleForDetailView] = useState<Vehicle | null>(null);
   const [vehicleForInitialMaintenance, setVehicleForInitialMaintenance] = useState<Vehicle | null>(null);
-  
+
   const [deadlineToComplete, setDeadlineToComplete] = useState<Deadline | null>(null);
 
   const fetchData = useCallback(async (showLoadingIndicators = true) => {
@@ -122,7 +122,7 @@ export function DashboardClient() {
       setIsVehiclesLoading(true);
       setIsStatsLoading(true);
     }
-    
+
     // Phase 1: Fetch vehicles for a quick initial render
     const vehiclesData = await getVehicles(user.uid);
     setVehicles(vehiclesData);
@@ -142,7 +142,7 @@ export function DashboardClient() {
 
   useEffect(() => {
     if (user) {
-        fetchData();
+      fetchData();
     }
   }, [user, fetchData]);
 
@@ -155,11 +155,11 @@ export function DashboardClient() {
     setVehicleForInitialMaintenance(null);
     fetchData(); // Full refetch to update stats
   }
-  
-  const { 
-    totalRepairCost, 
-    totalFuelCost, 
-    nextDeadline, 
+
+  const {
+    totalRepairCost,
+    totalFuelCost,
+    nextDeadline,
     secondNextDeadline,
     isDeadlineUrgent,
     isSecondDeadlineUrgent,
@@ -167,24 +167,24 @@ export function DashboardClient() {
   } = useMemo(() => {
     const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
     const totalFuelCost = fuelLogs.reduce((sum, f) => sum + f.totalCost, 0);
-    
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const allEvents = [
-        ...repairs.map(item => ({...item, eventDate: new Date(item.date)})),
-        ...maintenance.map(item => ({...item, eventDate: new Date(item.date)})),
-        ...fuelLogs.map(item => ({...item, eventDate: new Date(item.date)}))
+      ...repairs.map(item => ({ ...item, eventDate: new Date(item.date) })),
+      ...maintenance.map(item => ({ ...item, eventDate: new Date(item.date) })),
+      ...fuelLogs.map(item => ({ ...item, eventDate: new Date(item.date) }))
     ].filter(e => e.mileage > 0 && e.date && !isNaN(new Date(e.date).getTime()));
-    
+
     // Group maintenance tasks by type and vehicle to find the most recent one.
     const latestTasksMap = new Map<string, Maintenance>();
     maintenance.forEach(task => {
-        const key = `${task.vehicleId}-${task.task}`;
-        const existingTask = latestTasksMap.get(key);
-        if (!existingTask || new Date(task.date) > new Date(existingTask.date)) {
-            latestTasksMap.set(key, task);
-        }
+      const key = `${task.vehicleId}-${task.task}`;
+      const existingTask = latestTasksMap.get(key);
+      if (!existingTask || new Date(task.date) > new Date(existingTask.date)) {
+        latestTasksMap.set(key, task);
+      }
     });
 
     const latestTasks = Array.from(latestTasksMap.values());
@@ -204,35 +204,35 @@ export function DashboardClient() {
     const mileageBasedDeadlines: Deadline[] = vehicles.map(vehicle => {
       const latestVehicleEvent = allEvents
         .filter(e => e.vehicleId === vehicle.id)
-        .sort((a,b) => b.eventDate.getTime() - a.eventDate.getTime())[0];
-        
+        .sort((a, b) => b.eventDate.getTime() - a.eventDate.getTime())[0];
+
       if (!latestVehicleEvent) return null;
 
       const lastOilChange = latestTasks
-        .find(m => m.vehicleId === vehicle.id && m.task === 'Vidange' && m.nextDueMileage && m.nextDueMileage > 0); 
-        
+        .find(m => m.vehicleId === vehicle.id && m.task === 'Vidange' && m.nextDueMileage && m.nextDueMileage > 0);
+
       if (!lastOilChange) return null;
-      
+
       const kmRemaining = lastOilChange.nextDueMileage! - latestVehicleEvent.mileage;
-      
+
       let estimatedDate = new Date();
       if (kmRemaining > 0) {
-          const vehicleEvents = allEvents.filter(e => e.vehicleId === vehicle.id).sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
-          estimatedDate.setDate(estimatedDate.getDate() + 999);
-          if(vehicleEvents.length > 1) {
-            const firstEvent = vehicleEvents[0];
-            const lastEvent = vehicleEvents[vehicleEvents.length - 1];
-            const totalMiles = lastEvent.mileage - firstEvent.mileage;
-            const totalDays = (lastEvent.eventDate.getTime() - firstEvent.eventDate.getTime()) / (1000 * 60 * 60 * 24);
-            if(totalMiles > 0 && totalDays > 0){
-               const avgDailyMileage = totalMiles / totalDays;
-               const daysToNextChange = Math.ceil(kmRemaining / avgDailyMileage);
-               estimatedDate = new Date(lastEvent.eventDate);
-               estimatedDate.setDate(estimatedDate.getDate() + daysToNextChange);
-            }
+        const vehicleEvents = allEvents.filter(e => e.vehicleId === vehicle.id).sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
+        estimatedDate.setDate(estimatedDate.getDate() + 999);
+        if (vehicleEvents.length > 1) {
+          const firstEvent = vehicleEvents[0];
+          const lastEvent = vehicleEvents[vehicleEvents.length - 1];
+          const totalMiles = lastEvent.mileage - firstEvent.mileage;
+          const totalDays = (lastEvent.eventDate.getTime() - firstEvent.eventDate.getTime()) / (1000 * 60 * 60 * 24);
+          if (totalMiles > 0 && totalDays > 0) {
+            const avgDailyMileage = totalMiles / totalDays;
+            const daysToNextChange = Math.ceil(kmRemaining / avgDailyMileage);
+            estimatedDate = new Date(lastEvent.eventDate);
+            estimatedDate.setDate(estimatedDate.getDate() + daysToNextChange);
           }
+        }
       } else {
-          estimatedDate.setFullYear(estimatedDate.getFullYear() - 10);
+        estimatedDate.setFullYear(estimatedDate.getFullYear() - 10);
       }
 
 
@@ -240,7 +240,7 @@ export function DashboardClient() {
         type: 'mileage' as const,
         name: `${lastOilChange.task}`,
         kmRemaining,
-        date: estimatedDate, 
+        date: estimatedDate,
         vehicleId: vehicle.id,
         sortValue: estimatedDate.getTime(),
         originalTask: lastOilChange,
@@ -249,123 +249,144 @@ export function DashboardClient() {
 
 
     const upcomingDeadlines: Deadline[] = [
-        ...dateBasedDeadlines,
-        ...mileageBasedDeadlines
+      ...dateBasedDeadlines,
+      ...mileageBasedDeadlines
     ]
-    .filter(deadline => {
+      .filter(deadline => {
         if (deadline.type === 'date') {
-            return deadline.date >= today;
+          return deadline.date >= today;
         }
         return true;
-    })
-    .sort((a, b) => a.sortValue - b.sortValue);
-    
+      })
+      .sort((a, b) => a.sortValue - b.sortValue);
+
     const nextDeadline = upcomingDeadlines[0] || null;
     const secondNextDeadline = upcomingDeadlines[1] || null;
-    
+
     const checkUrgency = (deadline: Deadline | null) => {
-        if (!deadline) return false;
-        if (deadline.type === 'date') {
-          const twentyDaysFromNow = new Date();
-          twentyDaysFromNow.setDate(today.getDate() + 20);
-          return deadline.date <= twentyDaysFromNow;
-        }
-        if (deadline.type === 'mileage') {
-          return deadline.kmRemaining <= 2000;
-        }
-        return false;
+      if (!deadline) return false;
+      if (deadline.type === 'date') {
+        const twentyDaysFromNow = new Date();
+        twentyDaysFromNow.setDate(today.getDate() + 20);
+        return deadline.date <= twentyDaysFromNow;
+      }
+      if (deadline.type === 'mileage') {
+        return deadline.kmRemaining <= 2000;
+      }
+      return false;
     };
-    
+
     return {
-        totalRepairCost,
-        totalFuelCost,
-        nextDeadline,
-        secondNextDeadline,
-        isDeadlineUrgent: checkUrgency(nextDeadline),
-        isSecondDeadlineUrgent: checkUrgency(secondNextDeadline),
-        allEvents
+      totalRepairCost,
+      totalFuelCost,
+      nextDeadline,
+      secondNextDeadline,
+      isDeadlineUrgent: checkUrgency(nextDeadline),
+      isSecondDeadlineUrgent: checkUrgency(secondNextDeadline),
+      allEvents
     }
   }, [vehicles, repairs, maintenance, fuelLogs]);
 
-  const fuelConsumptions = useMemo(() => {
-    const consumptions = new Map<string, number | null>();
+  const fuelStats = useMemo(() => {
+    const stats = new Map<string, { consumption: number; latestConsumption: number; cost: number } | null>();
 
     vehicles.forEach(vehicle => {
-        const vehicleFuelLogs = fuelLogs
-            .filter(log => log.vehicleId === vehicle.id && log.mileage > 0)
-            .sort((a, b) => a.mileage - b.mileage);
+      const vehicleFuelLogs = fuelLogs
+        .filter(log => log.vehicleId === vehicle.id && log.mileage > 0)
+        .sort((a, b) => a.mileage - b.mileage);
 
-        if (vehicleFuelLogs.length < 2) {
-            consumptions.set(vehicle.id, null);
-            return;
-        }
+      if (vehicleFuelLogs.length < 2) {
+        stats.set(vehicle.id, null);
+        return;
+      }
 
-        const firstLog = vehicleFuelLogs[0];
-        const lastLog = vehicleFuelLogs[vehicleFuelLogs.length - 1];
+      // 1. Lifetime Average Consumption (L/100km)
+      const firstLog = vehicleFuelLogs[0];
+      const lastLog = vehicleFuelLogs[vehicleFuelLogs.length - 1];
+      const totalDistance = lastLog.mileage - firstLog.mileage;
 
-        const totalDistance = lastLog.mileage - firstLog.mileage;
+      let totalFuel = 0;
+      for (let i = 0; i < vehicleFuelLogs.length - 1; i++) {
+        totalFuel += vehicleFuelLogs[i].quantity;
+      }
 
-        let totalFuel = 0;
-        for (let i = 0; i < vehicleFuelLogs.length - 1; i++) {
-            totalFuel += vehicleFuelLogs[i].quantity;
-        }
+      let averageConsumption = 0;
+      if (totalDistance > 0 && totalFuel > 0) {
+        averageConsumption = (totalFuel / totalDistance) * 100;
+      }
 
-        if (totalDistance > 0 && totalFuel > 0) {
-            const consumption = (totalFuel / totalDistance) * 100; // L/100km
-            consumptions.set(vehicle.id, consumption);
-        } else {
-            consumptions.set(vehicle.id, null);
-        }
+      // 2. Latest Interval Stats
+      const previousLog = vehicleFuelLogs[vehicleFuelLogs.length - 2];
+      const lastIntervalDistance = lastLog.mileage - previousLog.mileage;
+      let latestCost = 0;
+      let latestConsumption = 0;
+
+      if (lastIntervalDistance > 0) {
+        // Correct Formula: 
+        // Consumption = (Previous Log Quantity / Distance) * 100
+        // We assume the quantity added in the *previous* fill was consumed to cover the distance to the *current* fill.
+        latestConsumption = (previousLog.quantity / lastIntervalDistance) * 100;
+
+        // Cost = Consumption * Current Price
+        // We calculate the cost of that consumption at the current price.
+        latestCost = (latestConsumption * lastLog.pricePerLiter);
+      }
+
+      if (averageConsumption > 0 || latestCost > 0 || latestConsumption > 0) {
+        stats.set(vehicle.id, { consumption: averageConsumption, latestConsumption, cost: latestCost });
+      } else {
+        stats.set(vehicle.id, null);
+      }
     });
 
-    return consumptions;
+    return stats;
   }, [vehicles, fuelLogs]);
 
   const costCardDescription = useMemo(() => {
     if (vehicles.length === 1) {
-        return `Pour ${vehicles[0].licensePlate}`;
+      return `Pour ${vehicles[0].licensePlate}`;
     }
     if (vehicles.length > 1) {
-        return "Total sur tous les véhicules";
+      return "Total sur tous les véhicules";
     }
     return "Aucun véhicule";
   }, [vehicles]);
 
   if (isVehiclesLoading) {
     return (
-        <AppLayout>
-            <DashboardHeader title="Tableau de Bord" description="Chargement de vos données..." showLogo={true} />
-            <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
-                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                    <Skeleton className="h-32" />
-                    <Skeleton className="h-32" />
-                    <Skeleton className="h-32" />
-                    <Skeleton className="h-32" />
-                </div>
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    <Skeleton className="h-96" />
-                    <Skeleton className="h-96" />
-                </div>
-            </main>
-        </AppLayout>
+      <AppLayout>
+        <DashboardHeader title="Tableau de Bord" description="Chargement de vos données..." showLogo={true} />
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <Skeleton className="h-96" />
+            <Skeleton className="h-96" />
+          </div>
+        </main>
+      </AppLayout>
     )
   }
 
   const getVehicleForStat = (vehicleId?: string): Vehicle | undefined => {
-      if (!vehicleId) return undefined;
-      return vehicles.find(v => v.id === vehicleId);
+    if (!vehicleId) return undefined;
+    return vehicles.find(v => v.id === vehicleId);
   }
-  
+
   const getNextDeadlineValue = (deadline: Deadline | null) => {
     if (!deadline) return "Aucune";
     if (deadline.type === 'date') return format(deadline.date, 'd MMM yyyy', { locale: fr });
     return `~ ${deadline.kmRemaining.toLocaleString('fr-FR')} km`;
   }
-  
+
   const getNextDeadlineDescription = (deadline: Deadline | null) => {
-     if (!deadline) return "Aucune échéance à venir";
-     const vehicle = getVehicleForStat(deadline.vehicleId);
-     return `${deadline.name} (${vehicle?.licensePlate || 'N/A'})`;
+    if (!deadline) return "Aucune échéance à venir";
+    const vehicle = getVehicleForStat(deadline.vehicleId);
+    return `${deadline.name} (${vehicle?.licensePlate || 'N/A'})`;
   }
 
 
@@ -385,99 +406,104 @@ export function DashboardClient() {
           </AddVehicleSheet>
         </DashboardHeader>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
-            {vehicles.length > 0 && (
-                <QuickFuelLogForm 
-                    vehicles={vehicles} 
-                    fuelLogs={fuelLogs}
-                    onFuelLogAdded={() => fetchData(false)} 
-                />
+          {vehicles.length > 0 && (
+            <QuickFuelLogForm
+              vehicles={vehicles}
+              fuelLogs={fuelLogs}
+              onFuelLogAdded={() => fetchData(false)}
+            />
+          )}
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title={nextDeadline ? (isDeadlineUrgent ? "Échéance Proche !" : "Prochaine Échéance") : "Prochaine Échéance"}
+              value={getNextDeadlineValue(nextDeadline)}
+              icon={Bell}
+              description={getNextDeadlineDescription(nextDeadline)}
+              onClick={() => setVehicleForDetailView(getVehicleForStat(nextDeadline?.vehicleId) || null)}
+              onComplete={() => setDeadlineToComplete(nextDeadline)}
+              disabled={!nextDeadline}
+              isLoading={isStatsLoading}
+              isUrgent={isDeadlineUrgent}
+            />
+            <StatCard
+              title={secondNextDeadline ? (isSecondDeadlineUrgent ? "Échéance Suivante" : "Échéance Suivante") : "Échéance Suivante"}
+              value={getNextDeadlineValue(secondNextDeadline)}
+              icon={Bell}
+              description={getNextDeadlineDescription(secondNextDeadline)}
+              onClick={() => setVehicleForDetailView(getVehicleForStat(secondNextDeadline?.vehicleId) || null)}
+              onComplete={() => setDeadlineToComplete(secondNextDeadline)}
+              disabled={!secondNextDeadline}
+              isLoading={isStatsLoading}
+              isUrgent={isSecondDeadlineUrgent}
+            />
+            <StatCard
+              title="Coût des Réparations"
+              value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
+              icon={Wrench}
+              description={costCardDescription}
+              disabled
+              isLoading={isStatsLoading}
+            />
+            <StatCard
+              title="Dépenses Carburant"
+              value={`${totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
+              icon={Fuel}
+              description={costCardDescription}
+              disabled
+              isLoading={isStatsLoading}
+            />
+          </div>
+
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold tracking-tight">Mes Véhicules</h2>
+            {vehicles.length > 0 ? (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {vehicles.map((vehicle) => {
+                  const stats = fuelStats.get(vehicle.id);
+                  return (
+                    <VehicleCard
+                      key={vehicle.id}
+                      vehicle={vehicle}
+                      onShowDetails={() => setVehicleForDetailView(vehicle)}
+                      onDeleted={() => fetchData(true)}
+                      fuelConsumption={stats?.consumption}
+                      latestConsumption={stats?.latestConsumption}
+                      fuelCost={stats?.cost}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <Card className="flex flex-col items-center justify-center py-20 text-center">
+                <CardHeader>
+                  <CardTitle className="text-2xl">Aucun véhicule trouvé</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground mb-6">
+                    Commencez par ajouter votre premier véhicule pour suivre son entretien.
+                  </p>
+                  <AddVehicleSheet onVehicleAdded={handleVehicleAdded}>
+                    <Button>
+                      <PlusCircle className="mr-2" />
+                      Ajouter un véhicule
+                    </Button>
+                  </AddVehicleSheet>
+                </CardContent>
+              </Card>
             )}
-
-           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-              <StatCard
-                title={nextDeadline ? (isDeadlineUrgent ? "Échéance Proche !" : "Prochaine Échéance") : "Prochaine Échéance"}
-                value={getNextDeadlineValue(nextDeadline)}
-                icon={Bell}
-                description={getNextDeadlineDescription(nextDeadline)}
-                onClick={() => setVehicleForDetailView(getVehicleForStat(nextDeadline?.vehicleId) || null)}
-                onComplete={() => setDeadlineToComplete(nextDeadline)}
-                disabled={!nextDeadline}
-                isLoading={isStatsLoading}
-                isUrgent={isDeadlineUrgent}
-              />
-              <StatCard
-                title={secondNextDeadline ? (isSecondDeadlineUrgent ? "Échéance Suivante" : "Échéance Suivante") : "Échéance Suivante"}
-                value={getNextDeadlineValue(secondNextDeadline)}
-                icon={Bell}
-                description={getNextDeadlineDescription(secondNextDeadline)}
-                onClick={() => setVehicleForDetailView(getVehicleForStat(secondNextDeadline?.vehicleId) || null)}
-                onComplete={() => setDeadlineToComplete(secondNextDeadline)}
-                disabled={!secondNextDeadline}
-                isLoading={isStatsLoading}
-                isUrgent={isSecondDeadlineUrgent}
-              />
-              <StatCard
-                title="Coût des Réparations"
-                value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
-                icon={Wrench}
-                description={costCardDescription}
-                disabled
-                isLoading={isStatsLoading}
-              />
-              <StatCard
-                title="Dépenses Carburant"
-                value={`${totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
-                icon={Fuel}
-                description={costCardDescription}
-                disabled
-                isLoading={isStatsLoading}
-              />
-            </div>
-
-            <div className="space-y-4">
-                <h2 className="text-2xl font-bold tracking-tight">Mes Véhicules</h2>
-                {vehicles.length > 0 ? (
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {vehicles.map((vehicle) => (
-                      <VehicleCard 
-                        key={vehicle.id} 
-                        vehicle={vehicle} 
-                        onShowDetails={() => setVehicleForDetailView(vehicle)}
-                        onDeleted={() => fetchData(true)}
-                        fuelConsumption={fuelConsumptions.get(vehicle.id)}
-                       />
-                    ))}
-                </div>
-                ) : (
-                <Card className="flex flex-col items-center justify-center py-20 text-center">
-                    <CardHeader>
-                    <CardTitle className="text-2xl">Aucun véhicule trouvé</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                    <p className="text-muted-foreground mb-6">
-                        Commencez par ajouter votre premier véhicule pour suivre son entretien.
-                    </p>
-                    <AddVehicleSheet onVehicleAdded={handleVehicleAdded}>
-                        <Button>
-                        <PlusCircle className="mr-2" />
-                        Ajouter un véhicule
-                        </Button>
-                    </AddVehicleSheet>
-                    </CardContent>
-                </Card>
-                )}
-            </div>
+          </div>
 
         </main>
       </AppLayout>
 
-      <VehicleDetailModal 
+      <VehicleDetailModal
         vehicle={vehicleForDetailView}
         open={!!vehicleForDetailView}
         onOpenChange={(isOpen) => !isOpen && setVehicleForDetailView(null)}
         onDataChange={() => fetchData(false)}
       />
-      
+
       <AddInitialMaintenanceForm
         vehicle={vehicleForInitialMaintenance}
         open={!!vehicleForInitialMaintenance}
@@ -491,8 +517,8 @@ export function DashboardClient() {
         open={!!deadlineToComplete}
         onOpenChange={(isOpen) => !isOpen && setDeadlineToComplete(null)}
         onComplete={() => {
-            setDeadlineToComplete(null);
-            fetchData();
+          setDeadlineToComplete(null);
+          fetchData();
         }}
         vehicles={vehicles}
       />
@@ -502,186 +528,185 @@ export function DashboardClient() {
 
 
 function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehicles, allEvents }: { deadline: Deadline | null, open: boolean, onOpenChange: (open: boolean) => void, onComplete: () => void, vehicles: Vehicle[], allEvents: any[] }) {
-    const { user } = useAuth();
-    const { toast } = useToast();
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const formRef = useRef<HTMLFormElement>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
-    const { vehicle, latestMileage } = useMemo(() => {
-        if (!deadline) return { vehicle: null, latestMileage: 0 };
-        
-        const vehicle = vehicles.find(v => v.id === deadline.vehicleId);
-        const latestEvent = allEvents
-            .filter(e => e.vehicleId === deadline.vehicleId)
-            .sort((a,b) => b.eventDate.getTime() - a.eventDate.getTime())[0];
+  const { vehicle, latestMileage } = useMemo(() => {
+    if (!deadline) return { vehicle: null, latestMileage: 0 };
 
-        return { vehicle, latestMileage: latestEvent?.mileage || 0 };
-    }, [vehicles, deadline, allEvents]);
+    const vehicle = vehicles.find(v => v.id === deadline.vehicleId);
+    const latestEvent = allEvents
+      .filter(e => e.vehicleId === deadline.vehicleId)
+      .sort((a, b) => b.eventDate.getTime() - a.eventDate.getTime())[0];
 
-    const needsCost = useMemo(() => {
-        if (!deadline) return false;
-        return ['Visite technique', 'Vidange', 'Paiement Assurance', 'Vignette'].includes(deadline.name);
-    }, [deadline]);
+    return { vehicle, latestMileage: latestEvent?.mileage || 0 };
+  }, [vehicles, deadline, allEvents]);
 
-    const needsMileage = useMemo(() => {
-        if (!deadline) return false;
-        return deadline.name === 'Vidange';
-    }, [deadline]);
-    
-    
-    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        if (!user || !deadline || !vehicle) return;
-        
-        setIsSubmitting(true);
-        const formData = new FormData(event.currentTarget);
-        const cost = parseFloat(formData.get('cost') as string || '0');
-        const mileageInput = formData.get('mileage') as string;
-        const today = new Date().toISOString().split('T')[0];
+  const needsCost = useMemo(() => {
+    if (!deadline) return false;
+    return ['Visite technique', 'Vidange', 'Paiement Assurance', 'Vignette'].includes(deadline.name);
+  }, [deadline]);
 
-        try {
-            
-            const newMaintenance: Omit<Maintenance, 'id' | 'userId'> = {
-                vehicleId: vehicle.id,
-                task: deadline.name,
-                date: today,
-                cost: 0,
-                mileage: 0,
-            };
+  const needsMileage = useMemo(() => {
+    if (!deadline) return false;
+    return deadline.name === 'Vidange';
+  }, [deadline]);
 
-            if (needsCost) newMaintenance.cost = cost;
-            
-            if (needsMileage) {
-                 const mileage = parseInt(mileageInput || '0', 10);
-                if (!mileage || mileage <= 0) {
-                    toast({ title: "Erreur", description: "Le kilométrage est requis pour une vidange.", variant: "destructive" });
-                    setIsSubmitting(false);
-                    return;
-                }
-                newMaintenance.mileage = mileage;
-            } else {
-                 newMaintenance.mileage = latestMileage || deadline.originalTask.mileage;
-            }
 
-             if (needsCost && cost === 0 && deadline.name !== 'Paiement Assurance') {
-                const settings = getSettings();
-                if (deadline.name === 'Vignette' && vehicle.fiscalPower) {
-                    const vignetteSettings = vehicle.fuelType === 'Diesel' ? settings.vignetteDiesel : settings.vignetteEssence;
-                    const powerRange = vignetteSettings.find(v => {
-                       if (v.range.includes('-')) {
-                           const [min, max] = v.range.split('-').map(Number);
-                           return vehicle.fiscalPower! >= min && vehicle.fiscalPower! <= max;
-                       }
-                       return Number(v.range) === vehicle.fiscalPower!;
-                    });
-                    if (powerRange) newMaintenance.cost = powerRange.cost;
-                } else if (deadline.name === 'Visite technique') {
-                    newMaintenance.cost = settings.costVisiteTechnique;
-                }
-            }
-            
-            // Create the new maintenance record for today's action
-            const addedMaintenance = await addMaintenance(newMaintenance, user.uid);
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user || !deadline || !vehicle) return;
 
-            // Now, update the OLD maintenance task to remove its deadline fields
-            if (deadline.originalTask.id) {
-                await updateMaintenance(deadline.originalTask.id, {
-                    nextDueDate: undefined,
-                    nextDueMileage: undefined,
-                } as any); // Use 'any' to allow 'undefined' for deletion
-            }
-            
-            // Finally, create the *next* deadline by updating the record we just added
-            const nextMaintenanceData: Partial<Maintenance> = {};
-            
-            if (deadline.name === 'Vidange') {
-                nextMaintenanceData.nextDueMileage = (addedMaintenance.mileage || 0) + 10000;
-            } else if (deadline.originalTask.nextDueDate) {
-                const previousDueDate = new Date(deadline.originalTask.nextDueDate);
-                
-                if (deadline.name === 'Visite technique' || deadline.name === 'Vignette') {
-                    previousDueDate.setFullYear(previousDueDate.getFullYear() + 1);
-                } else if (deadline.name === 'Paiement Assurance') {
-                     const oldDueDate = new Date(deadline.originalTask.nextDueDate);
-                     const oldDate = new Date(deadline.originalTask.date);
-                     const monthDiff = (oldDueDate.getFullYear() - oldDate.getFullYear()) * 12 + (oldDueDate.getMonth() - oldDate.getMonth());
-                     const isAnnual = monthDiff > 8; 
-                     previousDueDate.setMonth(previousDueDate.getMonth() + (isAnnual ? 12 : 6));
-                }
-                nextMaintenanceData.nextDueDate = previousDueDate.toISOString().split('T')[0];
-            }
+    setIsSubmitting(true);
+    const formData = new FormData(event.currentTarget);
+    const cost = parseFloat(formData.get('cost') as string || '0');
+    const mileageInput = formData.get('mileage') as string;
+    const today = new Date().toISOString().split('T')[0];
 
-            if(Object.keys(nextMaintenanceData).length > 0) {
-                await updateMaintenance(addedMaintenance.id, nextMaintenanceData);
-            }
+    try {
 
-            
-            toast({ title: 'Succès', description: `${deadline.name} a été enregistré.` });
-            onComplete();
+      const newMaintenance: Omit<Maintenance, 'id' | 'userId'> = {
+        vehicleId: vehicle.id,
+        task: deadline.name,
+        date: today,
+        cost: 0,
+        mileage: 0,
+      };
 
-        } catch (error) {
-            console.error("Error completing deadline:", error);
-            toast({ title: "Erreur", description: "Impossible d'enregistrer l'entretien.", variant: "destructive" });
-        } finally {
-            setIsSubmitting(false);
+      if (needsCost) newMaintenance.cost = cost;
+
+      if (needsMileage) {
+        const mileage = parseInt(mileageInput || '0', 10);
+        if (!mileage || mileage <= 0) {
+          toast({ title: "Erreur", description: "Le kilométrage est requis pour une vidange.", variant: "destructive" });
+          setIsSubmitting(false);
+          return;
         }
-    };
-    
-    if (!deadline || !vehicle) return null;
+        newMaintenance.mileage = mileage;
+      } else {
+        newMaintenance.mileage = latestMileage || deadline.originalTask.mileage;
+      }
 
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Confirmer l'entretien</DialogTitle>
-                    <DialogDescription>
-                        Avez-vous bien effectué l'entretien suivant pour {vehicle.brand} {vehicle.model} ?
-                        <br/>
-                        <span className="font-semibold text-foreground">{deadline.name}</span>
-                    </DialogDescription>
-                </DialogHeader>
-                <form ref={formRef} onSubmit={handleSubmit}>
-                    <div className="space-y-4 py-4">
-                        {needsMileage && (
-                            <div className="space-y-2">
-                                <Label htmlFor="mileage">Kilométrage actuel</Label>
-                                <Input id="mileage" name="mileage" type="number" required placeholder="ex: 125000" defaultValue={latestMileage || (deadline.originalTask.nextDueMileage ? deadline.originalTask.nextDueMileage - 10000 : undefined)} />
-                            </div>
-                        )}
-                        {needsCost && (
-                            <div className="space-y-2">
-                                <Label htmlFor="cost">Coût de l'entretien (TND)</Label>
-                                <Input id="cost" name="cost" type="number" step="0.01" placeholder={deadline.name === 'Paiement Assurance' ? "Coût de l'assurance" : "0"} />
-                            </div>
-                        )}
-                        {!needsCost && !needsMileage && (
-                            <p className="text-sm text-muted-foreground">
-                                Un nouvel enregistrement sera créé à la date d'aujourd'hui pour confirmer cette action. Le dernier kilométrage connu ({latestMileage.toLocaleString('fr-FR')} km) sera utilisé.
-                            </p>
-                        )}
-                    </div>
-                    <DialogFooter>
-                        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
-                        <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                            Confirmer
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-    )
+      if (needsCost && cost === 0 && deadline.name !== 'Paiement Assurance') {
+        const settings = getSettings();
+        if (deadline.name === 'Vignette' && vehicle.fiscalPower) {
+          const vignetteSettings = vehicle.fuelType === 'Diesel' ? settings.vignetteDiesel : settings.vignetteEssence;
+          const powerRange = vignetteSettings.find(v => {
+            if (v.range.includes('-')) {
+              const [min, max] = v.range.split('-').map(Number);
+              return vehicle.fiscalPower! >= min && vehicle.fiscalPower! <= max;
+            }
+            return Number(v.range) === vehicle.fiscalPower!;
+          });
+          if (powerRange) newMaintenance.cost = powerRange.cost;
+        } else if (deadline.name === 'Visite technique') {
+          newMaintenance.cost = settings.costVisiteTechnique;
+        }
+      }
+
+      // Create the new maintenance record for today's action
+      const addedMaintenance = await addMaintenance(newMaintenance, user.uid);
+
+      // Now, update the OLD maintenance task to remove its deadline fields
+      if (deadline.originalTask.id) {
+        await updateMaintenance(deadline.originalTask.id, {
+          nextDueDate: undefined,
+          nextDueMileage: undefined,
+        } as any); // Use 'any' to allow 'undefined' for deletion
+      }
+
+      // Finally, create the *next* deadline by updating the record we just added
+      const nextMaintenanceData: Partial<Maintenance> = {};
+
+      if (deadline.name === 'Vidange') {
+        nextMaintenanceData.nextDueMileage = (addedMaintenance.mileage || 0) + 10000;
+      } else if (deadline.originalTask.nextDueDate) {
+        const previousDueDate = new Date(deadline.originalTask.nextDueDate);
+
+        if (deadline.name === 'Visite technique' || deadline.name === 'Vignette') {
+          previousDueDate.setFullYear(previousDueDate.getFullYear() + 1);
+        } else if (deadline.name === 'Paiement Assurance') {
+          const oldDueDate = new Date(deadline.originalTask.nextDueDate);
+          const oldDate = new Date(deadline.originalTask.date);
+          const monthDiff = (oldDueDate.getFullYear() - oldDate.getFullYear()) * 12 + (oldDueDate.getMonth() - oldDate.getMonth());
+          const isAnnual = monthDiff > 8;
+          previousDueDate.setMonth(previousDueDate.getMonth() + (isAnnual ? 12 : 6));
+        }
+        nextMaintenanceData.nextDueDate = previousDueDate.toISOString().split('T')[0];
+      }
+
+      if (Object.keys(nextMaintenanceData).length > 0) {
+        await updateMaintenance(addedMaintenance.id, nextMaintenanceData);
+      }
+
+
+      toast({ title: 'Succès', description: `${deadline.name} a été enregistré.` });
+      onComplete();
+
+    } catch (error) {
+      console.error("Error completing deadline:", error);
+      toast({ title: "Erreur", description: "Impossible d'enregistrer l'entretien.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!deadline || !vehicle) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Confirmer l'entretien</DialogTitle>
+          <DialogDescription>
+            Avez-vous bien effectué l'entretien suivant pour {vehicle.brand} {vehicle.model} ?
+            <br />
+            <span className="font-semibold text-foreground">{deadline.name}</span>
+          </DialogDescription>
+        </DialogHeader>
+        <form ref={formRef} onSubmit={handleSubmit}>
+          <div className="space-y-4 py-4">
+            {needsMileage && (
+              <div className="space-y-2">
+                <Label htmlFor="mileage">Kilométrage actuel</Label>
+                <Input id="mileage" name="mileage" type="number" required placeholder="ex: 125000" defaultValue={latestMileage || (deadline.originalTask.nextDueMileage ? deadline.originalTask.nextDueMileage - 10000 : undefined)} />
+              </div>
+            )}
+            {needsCost && (
+              <div className="space-y-2">
+                <Label htmlFor="cost">Coût de l'entretien (TND)</Label>
+                <Input id="cost" name="cost" type="number" step="0.01" placeholder={deadline.name === 'Paiement Assurance' ? "Coût de l'assurance" : "0"} />
+              </div>
+            )}
+            {!needsCost && !needsMileage && (
+              <p className="text-sm text-muted-foreground">
+                Un nouvel enregistrement sera créé à la date d'aujourd'hui pour confirmer cette action. Le dernier kilométrage connu ({latestMileage.toLocaleString('fr-FR')} km) sera utilisé.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+              Confirmer
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
 }
-    
-
-    
 
 
 
 
-    
 
 
 
 
-    
+
+
+
+

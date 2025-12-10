@@ -827,6 +827,7 @@ interface GroupedFuelLogs {
       logs: FuelLog[];
       totalCost: number;
       totalQuantity: number;
+      totalDistance: number;
     }
   }
 }
@@ -850,7 +851,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
           data[year] = {};
         }
         if (!data[year][monthName]) {
-          data[year][monthName] = { logs: [], totalCost: 0, totalQuantity: 0 };
+          data[year][monthName] = { logs: [], totalCost: 0, totalQuantity: 0, totalDistance: 0 };
         }
         data[year][monthName].logs.push(log);
         data[year][monthName].totalCost += log.totalCost;
@@ -859,6 +860,23 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
         console.error("Invalid date for fuel log", log);
       }
     });
+
+    // Calculate total distance for each month
+    for (const year in data) {
+      for (const month in data[year]) {
+        const monthData = data[year][month];
+        const sortedLogs = [...monthData.logs].sort((a, b) => a.mileage - b.mileage);
+        
+        let totalDistance = 0;
+        for (let i = 1; i < sortedLogs.length; i++) {
+          const distance = sortedLogs[i].mileage - sortedLogs[i-1].mileage;
+          if (distance > 0) {
+            totalDistance += distance;
+          }
+        }
+        monthData.totalDistance = totalDistance;
+      }
+    }
 
     // Sort logs within each month
     for (const year in data) {
@@ -922,7 +940,9 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                                 <Accordion type="multiple" className="w-full">
                                     {Object.entries(months).map(([month, data]) => (
                                         <AccordionItem value={month} key={month}>
-                                            <AccordionTrigger className="text-md font-medium border-l-2 pl-4">{month}</AccordionTrigger>
+                                            <AccordionTrigger className="text-md font-medium border-l-2 pl-4">
+                                                <span className="font-bold">{month}</span> : {(data as any).totalDistance > 0 ? `${(data as any).totalDistance}Km/${Math.round((data as any).totalCost)}TND` : `${Math.round((data as any).totalCost)}TND`}
+                                            </AccordionTrigger>
                                             <AccordionContent className="pl-4">
                                                 <Table>
                                                     <TableHeader>
