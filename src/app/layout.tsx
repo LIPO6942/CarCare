@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   icons: {
     apple: '/apple-touch-icon.png',
     icon: '/favicon.ico',
+  },
+  themeColor: '#ffffff',
+  other: {
+    'apple-mobile-web-app-status-bar-style': 'default',
+    'apple-mobile-web-app-capable': 'yes',
   }
 };
 
