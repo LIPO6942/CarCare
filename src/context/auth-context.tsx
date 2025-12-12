@@ -75,11 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return (
       <div className="flex min-h-screen w-full flex-col items-center justify-center bg-white">
         <div className="flex flex-col items-center animate-pulse">
-          {/* <Logo className="h-24 w-24 mb-4 bg-primary/20" iconClassName="h-12 w-12" /> */}
-          <div className="mb-4 h-32 w-32 relative">
-            <img src="/splash-logo.jpg" alt="Car Care Logo" className="h-full w-full object-contain" />
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight text-primary">Car Care</h1>
+          <Logo className="h-24 w-24 mb-4 bg-primary/10" iconClassName="h-12 w-12 text-primary" />
+          <h1 className="text-3xl font-bold tracking-tight text-primary">CarCare Pro</h1>
         </div>
       </div>
     )
