@@ -78,8 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             <Image
                 src="/android-chrome-512x512.png"
                 alt="Logo CarCare Pro"
-                width={128}
-                height={128}
+                width={192}
+                height={192}
                 priority
             />
             <h1 className="text-3xl font-bold tracking-tight text-primary mt-4">CarCare Pro</h1>
