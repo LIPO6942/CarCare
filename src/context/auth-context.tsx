@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle } from 'lucide-react';
 import { useLocalNotifications } from '@/hooks/use-local-notifications';
 
-import { Logo } from '@/components/logo';
+import Image from 'next/image';
 
 interface AuthContextType {
   user: User | null;
@@ -75,8 +75,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return (
       <div className="flex min-h-screen w-full flex-col items-center justify-center bg-white">
         <div className="flex flex-col items-center animate-pulse">
-          <Logo className="h-24 w-24 mb-4 bg-primary/10" iconClassName="h-12 w-12 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight text-primary">CarCare Pro</h1>
+            <Image
+                src="/android-chrome-512x512.png"
+                alt="Logo CarCare Pro"
+                width={128}
+                height={128}
+                priority
+            />
+            <h1 className="text-3xl font-bold tracking-tight text-primary mt-4">CarCare Pro</h1>
         </div>
       </div>
     )
