@@ -6,7 +6,6 @@ import { auth } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle } from 'lucide-react';
 import { useLocalNotifications } from '@/hooks/use-local-notifications';
-
 import Image from 'next/image';
 
 interface AuthContextType {
@@ -78,8 +77,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             <Image
                 src="/android-chrome-512x512.png"
                 alt="Logo CarCare Pro"
-                width={192}
-                height={192}
+                width={256}
+                height={256}
                 priority
             />
             <h1 className="text-3xl font-bold tracking-tight text-primary mt-4">CarCare Pro</h1>
