@@ -209,6 +209,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
               max={75}
               step={1}
               className="w-full"
+              rangeClassName={gaugeLevelBefore < 13 ? "bg-red-600" : undefined}
             />
             <div className="flex justify-between text-xs text-muted-foreground mt-1">
               <span>Vide (0%)</span>
