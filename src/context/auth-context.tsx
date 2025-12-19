@@ -73,12 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (isLoading) {
     return (
       <div className="flex min-h-screen w-full flex-col items-center justify-center bg-white">
-        <div className="flex flex-col items-center animate-pulse">
+        <div className="flex flex-col items-center">
             <Image
                 src="/android-chrome-512x512.png"
                 alt="Logo CarCare Pro"
-                width={256}
-                height={256}
+                width={192}
+                height={192}
                 priority
             />
             <h1 className="text-3xl font-bold tracking-tight text-primary mt-4">CarCare Pro</h1>
