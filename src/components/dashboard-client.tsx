@@ -490,6 +490,7 @@ export function DashboardClient() {
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {vehicles.map((vehicle) => {
                   const stats = fuelStats.get(vehicle.id);
+                  const vehicleFuelLogs = fuelLogs.filter(log => log.vehicleId === vehicle.id);
                   return (
                     <VehicleCard
                       key={vehicle.id}
@@ -501,6 +502,7 @@ export function DashboardClient() {
                       fuelCost={stats?.cost}
                       lastLogQuantity={stats?.lastLogQuantity}
                       lastLogTotalCost={stats?.lastLogTotalCost}
+                      fuelLogs={vehicleFuelLogs}
                     />
                   );
                 })}

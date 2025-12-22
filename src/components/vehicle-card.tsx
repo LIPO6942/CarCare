@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2, Droplets, RefreshCw } from 'lucide-react';
-import type { Vehicle } from '@/lib/types';
+import type { Vehicle, FuelLog } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,12 +27,14 @@ import { useAuth } from '@/context/auth-context';
 import { Loader2 } from 'lucide-react';
 import { getVehicleImage, saveVehicleImage } from '@/lib/local-db';
 import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
+import { FuelConsumptionHistoryModal } from '@/components/fuel-consumption-history-modal';
 
-export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null }) {
+export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost, fuelLogs = [] }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null; fuelLogs?: FuelLog[] }) {
   const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [showConsumptionModal, setShowConsumptionModal] = useState(false);
   const { toast } = useToast();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
@@ -196,7 +198,23 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
             )}
 
             {(latestConsumption != null || fuelCost != null) && (
-              <div className="mt-2 p-2 bg-primary/10 rounded-md border border-primary/20 space-y-1">
+              <div
+                className="mt-2 p-2 bg-primary/10 rounded-md border border-primary/20 space-y-1 cursor-pointer transition-all hover:bg-primary/20 hover:shadow-md"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowConsumptionModal(true);
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowConsumptionModal(true);
+                  }
+                }}
+                aria-label="Voir l'historique de consommation"
+              >
                 {lastLogQuantity != null && lastLogTotalCost != null && (
                   <div className="flex items-center gap-2 text-primary">
                     <Droplets className="h-4 w-4" />
@@ -245,6 +263,13 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <FuelConsumptionHistoryModal
+        vehicle={vehicle}
+        fuelLogs={fuelLogs}
+        open={showConsumptionModal}
+        onOpenChange={setShowConsumptionModal}
+      />
     </>
   );
 }
