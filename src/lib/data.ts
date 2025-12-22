@@ -18,6 +18,7 @@ import {
 import type { Vehicle, Repair, Maintenance, FuelLog, AiDiagnostic, FcmToken, Place, RoutePattern } from './types';
 import { deleteLocalDocumentsForVehicle, deleteVehicleImage } from './local-db';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function docToType<T>(document: any): T {
   const data = document.data();
   // Convert Firestore Timestamps to ISO strings for any 'date' or 'due' fields.
@@ -103,6 +104,7 @@ async function getSubCollectionForVehicle<T>(vehicleId: string, userId: string, 
     const snapshot = await getDocs(q);
     const data = snapshot.docs.map(d => docToType<T>(d));
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data.sort((a: any, b: any) => {
       try {
         const dateA = a[dateField] ? new Date(a[dateField]).getTime() : 0;
@@ -348,7 +350,7 @@ export async function deletePlace(id: string): Promise<void> {
 
 export async function analyzeRoutes(userId: string, vehicleId: string): Promise<RoutePattern[]> {
   const fuelLogs = await getFuelLogsForVehicle(vehicleId, userId);
-  // const places = await getPlaces(userId); // Will be used in future improvements
+  const places = await getPlaces(userId);
 
   // Sort logs by mileage ascending
   fuelLogs.sort((a, b) => a.mileage - b.mileage);
@@ -366,18 +368,93 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
 
     if (distance <= 0) continue;
 
-    // Calculate consumption for this interval (L/100km)
+    // Consumption L/100km
     const consumption = (currentLog.quantity / distance) * 100;
 
-    let patternType: RoutePattern['detectedPattern'] = 'unknown';
+    // Time interval analysis
+    const currDate = new Date(currentLog.date);
+    const prevDate = new Date(previousLog.date);
+    const timeDiff = currDate.getTime() - prevDate.getTime();
+    const daysDiff = Math.max(1, Math.round(timeDiff / (1000 * 3600 * 24))); // Avoid 0 div
 
-    // Example heuristics
-    if (distance < 300 && consumption > 8) {
-      patternType = 'daily_commute';
-    } else if (distance > 500 && consumption < 6) {
-      patternType = 'occasional';
+    const prevDay = prevDate.getDay(); // 0 = Sun, 6 = Sat
+    const currDay = currDate.getDay();
+
+    // Check if interval is "Purely Weekend"
+    // e.g., Filled Friday(5) or Sat(6) AND Refilled Sun(0) or Mon(1)
+    // AND duration is small (<= 4 days)
+    const isFriOrSat = (prevDay === 5 || prevDay === 6);
+    const isSunOrMon = (currDay === 0 || currDay === 1);
+    const isShortTrip = daysDiff <= 4;
+    const isWeekendInterval = isFriOrSat && isSunOrMon && isShortTrip;
+
+    let patternType: RoutePattern['detectedPattern'] = 'unknown';
+    let matchedPlaceId: string | undefined;
+    let matchedPlaceName: string | undefined;
+
+    // 1. Try to match with known places
+    let bestMatch: { place: Place, score: number, type: RoutePattern['detectedPattern'] } | null = null;
+
+    for (const place of places) {
+      // Skip work places on weekend trips
+      if (isWeekendInterval && place.type === 'work') continue;
+
+      if (place.estimatedDistanceFromHome && place.estimatedDistanceFromHome > 0) {
+        const roundTrip = place.estimatedDistanceFromHome * 2;
+
+        // How many trips fit?
+        const loops = distance / roundTrip;
+        const roundLoops = Math.round(loops);
+
+        // Need at least 1 trip
+        if (roundLoops >= 1) {
+          const deviation = Math.abs(distance - (roundLoops * roundTrip));
+          const percentError = deviation / distance;
+
+          // We accept if error is < 20% OR deviation < 20km (for short trips)
+          if (percentError < 0.2 || deviation < 20) {
+
+            // Score = Compatibility (lower error is better)
+            // Bonus: If type matches context
+            let score = 1 - percentError; // Base score (0.8 to 1.0)
+
+            // Context Boosters
+            if (place.type === 'work') {
+              if (!isWeekendInterval) score += 0.2; // Work is likely during week
+              if (roundLoops >= 4) score += 0.1; // Frequency implies routine
+            }
+            if (place.type === 'leisure' && isWeekendInterval) score += 0.3; // Leisure likely on weekend
+
+            // Check if this is the best match so far
+            if (!bestMatch || score > (bestMatch ? bestMatch.score : 0)) {
+              let pType: RoutePattern['detectedPattern'] = 'occasional';
+              if (place.type === 'work') pType = 'daily_commute';
+              else if (place.type === 'leisure' || isWeekendInterval) pType = 'weekend_trip';
+
+              bestMatch = { place, score, type: pType };
+            }
+          }
+        }
+      }
+    }
+
+    if (bestMatch) {
+      patternType = bestMatch.type;
+      matchedPlaceId = bestMatch.place.id;
+      matchedPlaceName = bestMatch.place.name;
     } else {
-      patternType = 'unknown';
+      // Fallback Heuristics
+      if (isWeekendInterval) {
+        patternType = 'weekend_trip';
+      } else if (daysDiff > 0) {
+        const kmPerDay = distance / daysDiff;
+        // If driving > 30km/day regularly on weekdays, probably commute
+        if (kmPerDay > 20 && kmPerDay < 150) {
+          patternType = 'daily_commute';
+        } else if (distance > 400 && consumption < 6.5) {
+          patternType = 'occasional'; // Highway efficient
+        }
+      }
     }
 
     patterns.push({
@@ -389,9 +466,12 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
       consumption,
       cost: currentLog.totalCost,
       date: currentLog.date,
-      detectedPattern: patternType
+      detectedPattern: patternType,
+      matchedPlaceId,
+      matchedPlaceName
     });
   }
 
   return patterns;
 }
+

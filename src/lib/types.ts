@@ -106,4 +106,6 @@ export type RoutePattern = {
   cost: number; // Cout pour ce trajet
   date: string;
   detectedPattern?: 'daily_commute' | 'weekend_trip' | 'occasional' | 'unknown';
+  matchedPlaceId?: string;
+  matchedPlaceName?: string;
 };
