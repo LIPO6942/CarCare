@@ -15,7 +15,7 @@ import {
   updateDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import type { Vehicle, Repair, Maintenance, FuelLog, AiDiagnostic, FcmToken } from './types';
+import type { Vehicle, Repair, Maintenance, FuelLog, AiDiagnostic, FcmToken, Place, RoutePattern } from './types';
 import { deleteLocalDocumentsForVehicle, deleteVehicleImage } from './local-db';
 
 function docToType<T>(document: any): T {
@@ -316,4 +316,82 @@ export async function createSampleDataForUser(userId: string): Promise<void> {
     totalCost: 112.50,
     gaugeLevelBefore: 0.125,
   }, userId);
+}
+
+// --- Place Management ---
+export async function addPlace(placeData: Omit<Place, 'id' | 'createdAt'>): Promise<Place> {
+  const docRef = await addDoc(collection(db, 'places'), {
+    ...placeData,
+    createdAt: new Date().toISOString()
+  });
+  return {
+    id: docRef.id,
+    ...placeData,
+    createdAt: new Date().toISOString()
+  };
+}
+
+export async function getPlaces(userId: string): Promise<Place[]> {
+  return getAllFromUserCollection<Place>(userId, 'places');
+}
+
+export async function updatePlace(id: string, data: Partial<Omit<Place, 'id' | 'userId' | 'createdAt'>>): Promise<void> {
+  const cleanData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined && v !== null));
+  await updateDoc(doc(db, 'places', id), cleanData);
+}
+
+export async function deletePlace(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'places', id));
+}
+
+// --- Route Analysis ---
+
+export async function analyzeRoutes(userId: string, vehicleId: string): Promise<RoutePattern[]> {
+  const fuelLogs = await getFuelLogsForVehicle(vehicleId, userId);
+  // const places = await getPlaces(userId); // Will be used in future improvements
+
+  // Sort logs by mileage ascending
+  fuelLogs.sort((a, b) => a.mileage - b.mileage);
+
+  if (fuelLogs.length < 2) return [];
+
+  const patterns: RoutePattern[] = [];
+
+  // Analyze intervals between fuel logs
+  for (let i = 1; i < fuelLogs.length; i++) {
+    const currentLog = fuelLogs[i];
+    const previousLog = fuelLogs[i - 1];
+
+    const distance = currentLog.mileage - previousLog.mileage;
+
+    if (distance <= 0) continue;
+
+    // Calculate consumption for this interval (L/100km)
+    const consumption = (currentLog.quantity / distance) * 100;
+
+    let patternType: RoutePattern['detectedPattern'] = 'unknown';
+
+    // Example heuristics
+    if (distance < 300 && consumption > 8) {
+      patternType = 'daily_commute';
+    } else if (distance > 500 && consumption < 6) {
+      patternType = 'occasional';
+    } else {
+      patternType = 'unknown';
+    }
+
+    patterns.push({
+      id: `pattern-${currentLog.id}`,
+      userId,
+      vehicleId,
+      estimatedDistance: distance,
+      fuelLogId: currentLog.id,
+      consumption,
+      cost: currentLog.totalCost,
+      date: currentLog.date,
+      detectedPattern: patternType
+    });
+  }
+
+  return patterns;
 }

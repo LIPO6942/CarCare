@@ -81,3 +81,29 @@ export type FcmToken = {
   token: string;
   createdAt: any;
 }
+
+export type Place = {
+  id: string;
+  userId: string;
+  name: string; // Ex: "Domicile", "Travail", "Salle de sport"
+  type: 'home' | 'work' | 'leisure' | 'other';
+  address?: string;
+  estimatedDistanceFromHome?: number; // Distance en km depuis le domicile (si applicable)
+  icon?: string; // Emoji ou icone
+  color?: string; // Couleur pour la visualisation
+  createdAt: string;
+};
+
+export type RoutePattern = {
+  id: string;
+  userId: string;
+  vehicleId: string;
+  fromPlace?: string; // ID du lieu de depart
+  toPlace?: string; // ID du lieu d'arrivee
+  estimatedDistance: number; // Distance calculee en km
+  fuelLogId: string; // Reference au plein de carburant
+  consumption: number; // Consommation pour ce trajet (L/100km)
+  cost: number; // Cout pour ce trajet
+  date: string;
+  detectedPattern?: 'daily_commute' | 'weekend_trip' | 'occasional' | 'unknown';
+};
