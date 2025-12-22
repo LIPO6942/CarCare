@@ -32,7 +32,7 @@ import {
 
 const PlaceSchema = z.object({
     name: z.string().min(1, 'Le nom est requis'),
-    type: z.enum(['home', 'work', 'leisure', 'other']),
+    type: z.enum(['home', 'work', 'leisure', 'sport', 'parents', 'other']),
     address: z.string().optional(),
     estimatedDistanceFromHome: z.coerce.number().min(0).optional(),
     icon: z.string().optional(),
@@ -42,10 +42,10 @@ const PlaceSchema = z.object({
 type PlaceFormData = z.infer<typeof PlaceSchema>;
 
 const ICONS = [
-    { value: '🏠', label: 'Domicile', icon: HomeIcon },
     { value: '🏢', label: 'Travail', icon: Briefcase },
     { value: '🛒', label: 'Magasin', icon: ShoppingCart },
-    { value: '🏋️', label: 'Sport', icon: Dumbbell },
+    { value: '⚽', label: 'Sport', icon: Dumbbell },
+    { value: '🏠', label: 'Parents', icon: HomeIcon },
     { value: '🏥', label: 'Santé', icon: null }, // Fallback if no lucide icon
     { value: '🎓', label: 'École', icon: GraduationCap },
     { value: '🍽️', label: 'Resto', icon: Utensils },
@@ -199,10 +199,11 @@ export function PlacesManager() {
                                             <SelectValue placeholder="Sélectionner un type" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="home">Domicile</SelectItem>
-                                            <SelectItem value="work">Travail</SelectItem>
-                                            <SelectItem value="leisure">Loisir</SelectItem>
-                                            <SelectItem value="other">Autre</SelectItem>
+                                            <SelectItem value="work">🏢 Travail</SelectItem>
+                                            <SelectItem value="leisure">🌴 Loisirs</SelectItem>
+                                            <SelectItem value="sport">⚽ Sport</SelectItem>
+                                            <SelectItem value="parents">🏠 Maison Familiale</SelectItem>
+                                            <SelectItem value="other">📍 Autre</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>

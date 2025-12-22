@@ -348,9 +348,31 @@ export async function deletePlace(id: string): Promise<void> {
 
 // --- Route Analysis ---
 
+// --- Constants ---
+
+const TUNISIAN_HOLIDAYS_MM_DD = new Set([
+  // Fixed Holidays
+  '01-01', '03-20', '04-09', '05-01', '07-25', '08-13', '10-15', '12-17',
+  // Variable Holidays (Observed in 2025 & 2026) - Applied to all years as requested
+  '03-21', '03-22', '03-30', // Aid Fitr
+  '05-26', '05-27', // Aid Adha (2026)
+  '06-06', '06-07', // Aid Adha (2025)
+  '06-15', '06-26', '08-24', '09-04' // Mouled / New Year Hijri
+]);
+
+function isHoliday(date: Date): boolean {
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return TUNISIAN_HOLIDAYS_MM_DD.has(`${mm}-${dd}`);
+}
+
 export async function analyzeRoutes(userId: string, vehicleId: string): Promise<RoutePattern[]> {
   const fuelLogs = await getFuelLogsForVehicle(vehicleId, userId);
   const places = await getPlaces(userId);
+
+  // Find users work place for calculations
+  const workPlace = places.find(p => p.type === 'work');
+  const workRoundTrip = workPlace?.estimatedDistanceFromHome ? workPlace.estimatedDistanceFromHome * 2 : 0;
 
   // Sort logs by mileage ascending
   fuelLogs.sort((a, b) => a.mileage - b.mileage);
@@ -368,93 +390,70 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
 
     if (distance <= 0) continue;
 
-    // Consumption L/100km
     const consumption = (currentLog.quantity / distance) * 100;
-
-    // Time interval analysis
     const currDate = new Date(currentLog.date);
     const prevDate = new Date(previousLog.date);
-    const timeDiff = currDate.getTime() - prevDate.getTime();
-    const daysDiff = Math.max(1, Math.round(timeDiff / (1000 * 3600 * 24))); // Avoid 0 div
 
-    const prevDay = prevDate.getDay(); // 0 = Sun, 6 = Sat
-    const currDay = currDate.getDay();
+    // 1. Calculate Calendar Work Days
+    let workDays = 0;
+    let tempDate = new Date(prevDate);
+    // Iterate from day after previous log up to current log
+    tempDate.setDate(tempDate.getDate() + 1);
 
-    // Check if interval is "Purely Weekend"
-    // e.g., Filled Friday(5) or Sat(6) AND Refilled Sun(0) or Mon(1)
-    // AND duration is small (<= 4 days)
-    const isFriOrSat = (prevDay === 5 || prevDay === 6);
-    const isSunOrMon = (currDay === 0 || currDay === 1);
-    const isShortTrip = daysDiff <= 4;
-    const isWeekendInterval = isFriOrSat && isSunOrMon && isShortTrip;
+    while (tempDate <= currDate) {
+      const day = tempDate.getDay();
+      const isWeekend = (day === 0 || day === 6); // Sun=0, Sat=6
+      if (!isWeekend && !isHoliday(tempDate)) {
+        workDays++;
+      }
+      tempDate.setDate(tempDate.getDate() + 1);
+    }
 
+    // 2. Theoretical Work Distance
+    const theoreticalWorkDist = workDays * workRoundTrip;
+
+    // 3. Analysis
+    let workDistance = 0;
+    let leisureDistance = 0;
+
+    if (workRoundTrip > 0) {
+      // Cap work distance at actual distance (can't have driven more to work than totally driven)
+      workDistance = Math.min(distance, theoreticalWorkDist);
+      leisureDistance = Math.max(0, distance - theoreticalWorkDist);
+    } else {
+      // No work place defined -> assume 0 work
+      leisureDistance = distance;
+    }
+
+    const workRatio = distance > 0 ? (workDistance / distance) : 0;
+
+    // 4. Pattern Detection
     let patternType: RoutePattern['detectedPattern'] = 'unknown';
     let matchedPlaceId: string | undefined;
     let matchedPlaceName: string | undefined;
 
-    // 1. Try to match with known places
-    let bestMatch: { place: Place, score: number, type: RoutePattern['detectedPattern'] } | null = null;
-
-    for (const place of places) {
-      // Skip work places on weekend trips
-      if (isWeekendInterval && place.type === 'work') continue;
-
-      if (place.estimatedDistanceFromHome && place.estimatedDistanceFromHome > 0) {
-        const roundTrip = place.estimatedDistanceFromHome * 2;
-
-        // How many trips fit?
-        const loops = distance / roundTrip;
-        const roundLoops = Math.round(loops);
-
-        // Need at least 1 trip
-        if (roundLoops >= 1) {
-          const deviation = Math.abs(distance - (roundLoops * roundTrip));
-          const percentError = deviation / distance;
-
-          // We accept if error is < 20% OR deviation < 20km (for short trips)
-          if (percentError < 0.2 || deviation < 20) {
-
-            // Score = Compatibility (lower error is better)
-            // Bonus: If type matches context
-            let score = 1 - percentError; // Base score (0.8 to 1.0)
-
-            // Context Boosters
-            if (place.type === 'work') {
-              if (!isWeekendInterval) score += 0.2; // Work is likely during week
-              if (roundLoops >= 4) score += 0.1; // Frequency implies routine
-            }
-            if (place.type === 'leisure' && isWeekendInterval) score += 0.3; // Leisure likely on weekend
-
-            // Check if this is the best match so far
-            if (!bestMatch || score > (bestMatch ? bestMatch.score : 0)) {
-              let pType: RoutePattern['detectedPattern'] = 'occasional';
-              if (place.type === 'work') pType = 'daily_commute';
-              else if (place.type === 'leisure' || isWeekendInterval) pType = 'weekend_trip';
-
-              bestMatch = { place, score, type: pType };
-            }
+    if (workRatio > 0.6) {
+      patternType = 'daily_commute';
+      matchedPlaceId = workPlace?.id;
+      matchedPlaceName = workPlace?.name;
+    } else if (leisureDistance > distance * 0.8) {
+      // Mostly leisure
+      // Try to match specific leisure place
+      for (const place of places) {
+        if (place.type !== 'work' && place.estimatedDistanceFromHome) {
+          const roundTv = place.estimatedDistanceFromHome * 2;
+          const trips = Math.round(leisureDistance / roundTv);
+          if (trips > 0 && Math.abs(leisureDistance - (trips * roundTv)) < leisureDistance * 0.2) {
+            matchedPlaceId = place.id;
+            matchedPlaceName = place.name;
+            patternType = 'occasional';
+            break;
           }
         }
       }
-    }
-
-    if (bestMatch) {
-      patternType = bestMatch.type;
-      matchedPlaceId = bestMatch.place.id;
-      matchedPlaceName = bestMatch.place.name;
+      if (!patternType || patternType === 'unknown') patternType = 'weekend_trip';
     } else {
-      // Fallback Heuristics
-      if (isWeekendInterval) {
-        patternType = 'weekend_trip';
-      } else if (daysDiff > 0) {
-        const kmPerDay = distance / daysDiff;
-        // If driving > 30km/day regularly on weekdays, probably commute
-        if (kmPerDay > 20 && kmPerDay < 150) {
-          patternType = 'daily_commute';
-        } else if (distance > 400 && consumption < 6.5) {
-          patternType = 'occasional'; // Highway efficient
-        }
-      }
+      patternType = 'mixed'; // Mixed usage
     }
 
     patterns.push({
@@ -468,7 +467,13 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
       date: currentLog.date,
       detectedPattern: patternType,
       matchedPlaceId,
-      matchedPlaceName
+      matchedPlaceName,
+      analysis: {
+        workDistance,
+        leisureDistance,
+        workRatio,
+        commuteEfficiency: 0 // Will be calc on frontend vs avg
+      }
     });
   }
 

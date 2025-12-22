@@ -86,7 +86,7 @@ export type Place = {
   id: string;
   userId: string;
   name: string; // Ex: "Domicile", "Travail", "Salle de sport"
-  type: 'home' | 'work' | 'leisure' | 'other';
+  type: 'home' | 'work' | 'leisure' | 'sport' | 'parents' | 'other';
   address?: string;
   estimatedDistanceFromHome?: number; // Distance en km depuis le domicile (si applicable)
   icon?: string; // Emoji ou icone
@@ -105,7 +105,13 @@ export type RoutePattern = {
   consumption: number; // Consommation pour ce trajet (L/100km)
   cost: number; // Cout pour ce trajet
   date: string;
-  detectedPattern?: 'daily_commute' | 'weekend_trip' | 'occasional' | 'unknown';
+  detectedPattern?: 'daily_commute' | 'weekend_trip' | 'occasional' | 'mixed' | 'unknown';
   matchedPlaceId?: string;
   matchedPlaceName?: string;
+  analysis?: {
+    workDistance: number;
+    leisureDistance: number;
+    workRatio: number; // 0 to 1
+    commuteEfficiency: number; // diff from avg
+  };
 };
