@@ -199,7 +199,7 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
 
             {(latestConsumption != null || fuelCost != null) && (
               <div
-                className="mt-2 p-2 bg-primary/10 rounded-md border border-primary/20 space-y-1 cursor-pointer transition-all hover:bg-primary/20 hover:shadow-md"
+                className="mt-2 p-3 bg-primary/10 rounded-md border border-primary/20 space-y-2 cursor-pointer transition-all hover:bg-primary/20 hover:shadow-md"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowConsumptionModal(true);
@@ -216,22 +216,42 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
                 aria-label="Voir l'historique de consommation"
               >
                 {lastLogQuantity != null && lastLogTotalCost != null && (
-                  <div className="flex items-center gap-2 text-primary">
-                    <Droplets className="h-4 w-4" />
-                    <span className="font-medium text-sm">Ajout: {lastLogQuantity.toFixed(2)} L / {lastLogTotalCost.toFixed(1)} Dt</span>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2 text-primary">
+                      <Droplets className="h-4 w-4" />
+                      <span className="font-medium text-sm">Dernier plein: {lastLogQuantity.toFixed(2)} L</span>
+                    </div>
+                    <div className="ml-6 text-xs text-primary/70">
+                      Coût: {lastLogTotalCost.toFixed(2)} Dt
+                    </div>
                   </div>
                 )}
                 {latestConsumption != null && (
-                  <div className="flex items-center gap-2 text-primary">
-                    <Droplets className="h-4 w-4" />
-                    <span className="font-medium text-sm">Dernier: {latestConsumption.toFixed(2)} L/100km</span>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2 text-primary">
+                      <Droplets className="h-4 w-4" />
+                      <span className="font-medium text-sm">Consommation: {latestConsumption.toFixed(2)} L/100km</span>
+                      {fuelConsumption != null && (
+                        <span className="text-lg" title={
+                          latestConsumption > fuelConsumption + 0.5 ? 'Consommation en hausse' :
+                            latestConsumption < fuelConsumption - 0.5 ? 'Consommation en baisse' :
+                              'Consommation stable'
+                        }>
+                          {latestConsumption > fuelConsumption + 0.5 ? '↗️' :
+                            latestConsumption < fuelConsumption - 0.5 ? '↘️' : '→'}
+                        </span>
+                      )}
+                    </div>
+                    {fuelCost != null && (
+                      <div className="ml-6 text-xs text-primary/70">
+                        ≈ {fuelCost.toFixed(2)} Dt/100km
+                      </div>
+                    )}
                   </div>
                 )}
-                {fuelCost != null && (
-                  <div className="flex items-center gap-2 text-primary">
-                    <span className="font-bold text-lg ml-[1.5rem]">Prix: {fuelCost.toFixed(1)} Dt / 100 Km</span>
-                  </div>
-                )}
+                <div className="pt-1 border-t border-primary/10 text-center">
+                  <span className="text-xs text-primary/60 italic">Cliquez pour voir l'historique</span>
+                </div>
               </div>
             )}
           </div>

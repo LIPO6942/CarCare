@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import type { Vehicle, FuelLog } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ComposedChart } from 'recharts';
 import { Card, CardContent } from '@/components/ui/card';
 
 interface FuelConsumptionHistoryModalProps {
@@ -69,11 +69,16 @@ export function FuelConsumptionHistoryModal({ vehicle, fuelLogs, open, onOpenCha
         }
 
         if (consumption > 0 && consumption < 50) { // Sanity check
+          // Calculate cost per 100km using the current log's price per liter
+          const costPer100km = consumption * currentLog.pricePerLiter;
+
           intervals.push({
             date: new Date(currentLog.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
             fullDate: currentLog.date,
             consumption: parseFloat(consumption.toFixed(2)),
+            costPer100km: parseFloat(costPer100km.toFixed(2)),
             distance: distance,
+            pricePerLiter: currentLog.pricePerLiter,
           });
         }
       }
@@ -118,44 +123,46 @@ export function FuelConsumptionHistoryModal({ vehicle, fuelLogs, open, onOpenCha
           <CardContent className="pt-6">
             <div className="h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={consumptionHistory} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                <ComposedChart data={consumptionHistory} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis 
-                    dataKey="date" 
+                  <XAxis
+                    dataKey="date"
                     stroke="hsl(var(--foreground))"
                     tick={{ fill: 'hsl(var(--foreground))' }}
                     angle={-45}
                     textAnchor="end"
                     height={80}
                   />
-                  <YAxis 
+                  <YAxis
                     stroke="hsl(var(--foreground))"
                     tick={{ fill: 'hsl(var(--foreground))' }}
-                    label={{ 
-                      value: 'Consommation (L/100km)', 
-                      angle: -90, 
+                    label={{
+                      value: 'Consommation (L/100km)',
+                      angle: -90,
                       position: 'insideLeft',
                       style: { fill: 'hsl(var(--foreground))' }
                     }}
                   />
                   <Tooltip
                     cursor={{ fill: 'hsl(var(--muted))' }}
-                    contentStyle={{ 
-                      background: 'hsl(var(--background))', 
-                      border: '1px solid hsl(var(--border))', 
+                    contentStyle={{
+                      background: 'hsl(var(--background))',
+                      border: '1px solid hsl(var(--border))',
                       borderRadius: 'var(--radius)',
                       color: 'hsl(var(--foreground))'
                     }}
                     formatter={(value: number, name: string, props: any) => {
+                      const costInfo = props.payload.costPer100km ?
+                        ` (≈ ${props.payload.costPer100km.toFixed(2)} Dt/100km)` : '';
                       return [
-                        `${value.toFixed(2)} L/100km`,
+                        `${value.toFixed(2)} L/100km${costInfo}`,
                         `Distance: ${props.payload.distance} km`
                       ];
                     }}
                     labelFormatter={(label) => `Date: ${label}`}
                   />
-                  <Bar 
-                    dataKey="consumption" 
+                  <Bar
+                    dataKey="consumption"
                     radius={[8, 8, 0, 0]}
                     maxBarSize={100}
                   >
@@ -163,20 +170,61 @@ export function FuelConsumptionHistoryModal({ vehicle, fuelLogs, open, onOpenCha
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Bar>
-                </BarChart>
+                  <Line
+                    type="monotone"
+                    dataKey="consumption"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={3}
+                    dot={{ fill: 'hsl(var(--primary))', r: 6 }}
+                    activeDot={{ r: 8 }}
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
             <div className="mt-6 grid grid-cols-3 gap-4">
-              {consumptionHistory.map((item, index) => (
-                <div key={index} className="text-center p-3 rounded-lg border" style={{ borderColor: COLORS[index % COLORS.length] }}>
-                  <div className="text-sm text-muted-foreground">{item.date}</div>
-                  <div className="text-2xl font-bold mt-1" style={{ color: COLORS[index % COLORS.length] }}>
-                    {item.consumption.toFixed(2)}
+              {consumptionHistory.map((item, index) => {
+                // Calculate trend
+                let trendIndicator = '';
+                let trendColor = '';
+                if (index > 0) {
+                  const diff = item.consumption - consumptionHistory[index - 1].consumption;
+                  if (diff > 0.5) {
+                    trendIndicator = '↗️';
+                    trendColor = 'text-red-500';
+                  } else if (diff < -0.5) {
+                    trendIndicator = '↘️';
+                    trendColor = 'text-green-500';
+                  } else {
+                    trendIndicator = '→';
+                    trendColor = 'text-blue-500';
+                  }
+                }
+
+                return (
+                  <div key={index} className="text-center p-3 rounded-lg border bg-card relative" style={{ borderColor: COLORS[index % COLORS.length] }}>
+                    {trendIndicator && (
+                      <div className={`absolute top-2 right-2 text-xl ${trendColor}`} title={
+                        trendIndicator === '↗️' ? 'Consommation en hausse' :
+                          trendIndicator === '↘️' ? 'Consommation en baisse' :
+                            'Consommation stable'
+                      }>
+                        {trendIndicator}
+                      </div>
+                    )}
+                    <div className="text-sm font-medium text-muted-foreground">{item.date}</div>
+                    <div className="text-2xl font-bold mt-2" style={{ color: COLORS[index % COLORS.length] }}>
+                      {item.consumption.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">L/100km</div>
+                    <div className="text-sm font-semibold text-primary mt-2">
+                      ≈ {item.costPer100km.toFixed(2)} Dt
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {item.distance} km
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">L/100km</div>
-                  <div className="text-xs text-muted-foreground">{item.distance} km</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
