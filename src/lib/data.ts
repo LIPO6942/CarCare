@@ -378,13 +378,37 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
 
   // Calculate global average consumption for the vehicle to use for weighting
   // Re-sort fuel logs by mileage ascending
-  fuelLogs.sort((a, b) => a.mileage - b.mileage);
+  // Step A: Estimate Tank Capacity (Same logic as dashboard for consistency)
+  const capacityEstimates: number[] = [];
+  fuelLogs.forEach(log => {
+    if (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore < 1) {
+      const estimate = log.quantity / (1 - log.gaugeLevelBefore);
+      if (estimate > 0 && estimate < 200) { // Sanity check: tank < 200L
+        capacityEstimates.push(estimate);
+      }
+    }
+  });
 
-  if (fuelLogs.length < 2) return [];
+  let estimatedCapacity = 0;
+  if (capacityEstimates.length > 0) {
+    // Use median for robustness
+    capacityEstimates.sort((a, b) => a - b);
+    const mid = Math.floor(capacityEstimates.length / 2);
+    estimatedCapacity = capacityEstimates.length % 2 === 0
+      ? (capacityEstimates[mid - 1] + capacityEstimates[mid]) / 2
+      : capacityEstimates[mid];
+  }
 
   // Calculate global average consumption
   const totalKm = fuelLogs[fuelLogs.length - 1].mileage - fuelLogs[0].mileage;
-  const totalFuel = fuelLogs.slice(1).reduce((sum, log) => sum + log.quantity, 0);
+  let totalFuel = fuelLogs.slice(1).reduce((sum, log) => sum + log.quantity, 0);
+
+  // If we have gauge data and estimated capacity, we can refine the global average too
+  if (estimatedCapacity > 0 && fuelLogs[0].gaugeLevelBefore !== undefined && fuelLogs[fuelLogs.length - 1].gaugeLevelBefore !== undefined) {
+    totalFuel = fuelLogs.slice(0, -1).reduce((sum, log) => sum + log.quantity, 0) +
+      (estimatedCapacity * (fuelLogs[0].gaugeLevelBefore - fuelLogs[fuelLogs.length - 1].gaugeLevelBefore));
+  }
+
   const globalAvgConsumption = totalKm > 0 ? (totalFuel / totalKm) * 100 : 0;
 
   const patterns: RoutePattern[] = [];
@@ -398,7 +422,15 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
 
     if (distance <= 0) continue;
 
-    const consumption = (currentLog.quantity / distance) * 100;
+    let consumption = 0;
+    if (estimatedCapacity > 0 && previousLog.gaugeLevelBefore !== undefined && currentLog.gaugeLevelBefore !== undefined) {
+      // Step B: Use Delta V formula for maximum precision
+      const deltaV = previousLog.quantity + (estimatedCapacity * (previousLog.gaugeLevelBefore - currentLog.gaugeLevelBefore));
+      consumption = (deltaV / distance) * 100;
+    } else {
+      // Fallback to basic method if gauge data is missing
+      consumption = (previousLog.quantity / distance) * 100;
+    }
     const currDate = new Date(currentLog.date);
     const prevDate = new Date(previousLog.date);
 
