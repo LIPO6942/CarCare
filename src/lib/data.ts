@@ -372,12 +372,20 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
 
   // Find users work place for calculations
   const workPlace = places.find(p => p.type === 'work');
-  const workRoundTrip = workPlace?.estimatedDistanceFromHome ? workPlace.estimatedDistanceFromHome * 2 : 0;
+  const workDist = workPlace?.estimatedDistanceFromHome || 0;
+  const isWorkRoundTrip = workPlace?.isRoundTrip ?? false;
+  const workWorkingDays = workPlace?.workingDays || [1, 2, 3, 4, 5]; // Default Mon-Fri if not specified
 
-  // Sort logs by mileage ascending
+  // Calculate global average consumption for the vehicle to use for weighting
+  // Re-sort fuel logs by mileage ascending
   fuelLogs.sort((a, b) => a.mileage - b.mileage);
 
   if (fuelLogs.length < 2) return [];
+
+  // Calculate global average consumption
+  const totalKm = fuelLogs[fuelLogs.length - 1].mileage - fuelLogs[0].mileage;
+  const totalFuel = fuelLogs.slice(1).reduce((sum, log) => sum + log.quantity, 0);
+  const globalAvgConsumption = totalKm > 0 ? (totalFuel / totalKm) * 100 : 0;
 
   const patterns: RoutePattern[] = [];
 
@@ -394,32 +402,42 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
     const currDate = new Date(currentLog.date);
     const prevDate = new Date(previousLog.date);
 
-    // 1. Calculate Calendar Work Days
-    let workDays = 0;
+    // 1. Calculate Calendar Work Days based on custom selection
+    let workDaysCount = 0;
     let tempDate = new Date(prevDate);
     // Iterate from day after previous log up to current log
     tempDate.setDate(tempDate.getDate() + 1);
 
     while (tempDate <= currDate) {
       const day = tempDate.getDay();
-      const isWeekend = (day === 0 || day === 6); // Sun=0, Sat=6
-      if (!isWeekend && !isHoliday(tempDate)) {
-        workDays++;
+      const isWorkingDay = workWorkingDays.includes(day);
+      if (isWorkingDay && !isHoliday(tempDate)) {
+        workDaysCount++;
       }
       tempDate.setDate(tempDate.getDate() + 1);
     }
 
     // 2. Theoretical Work Distance
-    const theoreticalWorkDist = workDays * workRoundTrip;
+    const dailyDistance = isWorkRoundTrip ? workDist : (workDist * 2);
+    let theoreticalWorkDist = workDaysCount * dailyDistance;
+
+    // --- High Consumption Weighting (Traffic Jam Logic) ---
+    // User request: if consumption exceeds avg by > 0.5L/100km, it's likely Pro (traffic)
+    let consumptionWeightFactor = 1.0;
+    if (globalAvgConsumption > 0 && consumption > globalAvgConsumption + 0.5) {
+      // Increase theoretical work distance by 15% to prioritize Pro ratio
+      consumptionWeightFactor = 1.15;
+      theoreticalWorkDist *= consumptionWeightFactor;
+    }
 
     // 3. Analysis
     let workDistance = 0;
     let leisureDistance = 0;
 
-    if (workRoundTrip > 0) {
-      // Cap work distance at actual distance (can't have driven more to work than totally driven)
+    if (workDist > 0) {
+      // Cap work distance at actual distance
       workDistance = Math.min(distance, theoreticalWorkDist);
-      leisureDistance = Math.max(0, distance - theoreticalWorkDist);
+      leisureDistance = Math.max(0, distance - workDistance);
     } else {
       // No work place defined -> assume 0 work
       leisureDistance = distance;
@@ -441,7 +459,7 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
       // Try to match specific leisure place
       for (const place of places) {
         if (place.type !== 'work' && place.estimatedDistanceFromHome) {
-          const roundTv = place.estimatedDistanceFromHome * 2;
+          const roundTv = place.isRoundTrip ? place.estimatedDistanceFromHome : (place.estimatedDistanceFromHome * 2);
           const trips = Math.round(leisureDistance / roundTv);
           if (trips > 0 && Math.abs(leisureDistance - (trips * roundTv)) < leisureDistance * 0.2) {
             matchedPlaceId = place.id;

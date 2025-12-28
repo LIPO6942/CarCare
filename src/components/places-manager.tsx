@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Trash2, MapPin, Briefcase, Home as HomeIcon, Dumbbell, ShoppingCart, GraduationCap, Utensils, Fuel, Edit } from 'lucide-react';
+import { Loader2, Plus, Trash2, MapPin, Briefcase, Home as HomeIcon, Dumbbell, ShoppingCart, GraduationCap, Utensils, Fuel, Edit, Check } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -29,17 +29,30 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox";
 
 const PlaceSchema = z.object({
     name: z.string().min(1, 'Le nom est requis'),
     type: z.enum(['home', 'work', 'leisure', 'sport', 'parents', 'other']),
     address: z.string().optional(),
     estimatedDistanceFromHome: z.coerce.number().min(0).optional(),
+    isRoundTrip: z.boolean().default(false),
+    workingDays: z.array(z.number()).default([1, 2, 3, 4, 5]),
     icon: z.string().optional(),
     color: z.string().optional(),
 });
 
 type PlaceFormData = z.infer<typeof PlaceSchema>;
+
+const DAYS = [
+    { value: 1, label: 'Lun' },
+    { value: 2, label: 'Mar' },
+    { value: 3, label: 'Mer' },
+    { value: 4, label: 'Jeu' },
+    { value: 5, label: 'Ven' },
+    { value: 6, label: 'Sam' },
+    { value: 0, label: 'Dim' },
+];
 
 const ICONS = [
     { value: '🏢', label: 'Travail', icon: Briefcase },
@@ -76,11 +89,16 @@ export function PlacesManager() {
             type: 'other',
             color: 'bg-gray-500',
             icon: '📍',
+            isRoundTrip: false,
+            workingDays: [1, 2, 3, 4, 5],
         }
     });
 
     const selectedIcon = watch('icon');
     const selectedColor = watch('color');
+    const selectedType = watch('type');
+    const isRoundTrip = watch('isRoundTrip');
+    const workingDays = watch('workingDays');
 
     useEffect(() => {
         if (user) {
@@ -95,6 +113,8 @@ export function PlacesManager() {
                 type: editingPlace.type,
                 address: editingPlace.address,
                 estimatedDistanceFromHome: editingPlace.estimatedDistanceFromHome,
+                isRoundTrip: editingPlace.isRoundTrip || false,
+                workingDays: editingPlace.workingDays || [1, 2, 3, 4, 5],
                 icon: editingPlace.icon,
                 color: editingPlace.color,
             });
@@ -104,6 +124,8 @@ export function PlacesManager() {
                 type: 'other',
                 color: 'bg-gray-500',
                 icon: '📍',
+                isRoundTrip: false,
+                workingDays: [1, 2, 3, 4, 5],
             })
         }
     }, [editingPlace, reset]);
@@ -152,6 +174,15 @@ export function PlacesManager() {
         }
     };
 
+    const toggleDay = (day: number) => {
+        const currentDays = workingDays || [];
+        if (currentDays.includes(day)) {
+            setValue('workingDays', currentDays.filter(d => d !== day));
+        } else {
+            setValue('workingDays', [...currentDays, day]);
+        }
+    };
+
     if (isLoading) {
         return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
@@ -175,7 +206,7 @@ export function PlacesManager() {
                             Ajouter un lieu
                         </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-w-md">
                         <DialogHeader>
                             <DialogTitle>{editingPlace ? 'Modifier le lieu' : 'Ajouter un nouveau lieu'}</DialogTitle>
                             <DialogDescription>
@@ -193,7 +224,7 @@ export function PlacesManager() {
                                     <Label htmlFor="type">Type</Label>
                                     <Select
                                         onValueChange={(val: any) => setValue('type', val)}
-                                        defaultValue={editingPlace?.type || 'other'}
+                                        value={selectedType}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Sélectionner un type" />
@@ -214,11 +245,45 @@ export function PlacesManager() {
                                 <Input id="address" placeholder="Adresse ou quartier" {...register('address')} />
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="distance">Distance estimée depuis le domicile (km)</Label>
-                                <Input id="distance" type="number" step="0.1" placeholder="Ex: 15.5" {...register('estimatedDistanceFromHome')} />
-                                <p className="text-xs text-muted-foreground">Sert à estimer les trajets réguliers.</p>
+                            <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                                <div className="space-y-2">
+                                    <Label htmlFor="distance">Distance estimée depuis le domicile (km)</Label>
+                                    <div className="flex gap-4 items-center">
+                                        <Input id="distance" type="number" step="0.1" placeholder="Ex: 15.5" className="flex-1" {...register('estimatedDistanceFromHome')} />
+                                        <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id="isRoundTrip"
+                                                checked={isRoundTrip}
+                                                onCheckedChange={(checked) => setValue('isRoundTrip', checked as boolean)}
+                                            />
+                                            <Label htmlFor="isRoundTrip" className="text-xs cursor-pointer">Aller et retour</Label>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground">Sert à estimer les trajets réguliers.</p>
+                                </div>
                             </div>
+
+                            {selectedType === 'work' && (
+                                <div className="space-y-2">
+                                    <Label>Jours de travail</Label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {DAYS.map((day) => (
+                                            <button
+                                                key={day.value}
+                                                type="button"
+                                                onClick={() => toggleDay(day.value)}
+                                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${workingDays.includes(day.value)
+                                                        ? 'bg-primary text-primary-foreground shadow-sm'
+                                                        : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                                                    }`}
+                                            >
+                                                {day.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground">Le calcul Pro/Perso se basera sur ces jours.</p>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
@@ -229,7 +294,7 @@ export function PlacesManager() {
                                                 key={ic.value}
                                                 type="button"
                                                 onClick={() => setValue('icon', ic.value)}
-                                                className={`text-2xl p-2 rounded-md hover:bg-secondary ${selectedIcon === ic.value ? 'bg-secondary ring-2 ring-primary' : ''}`}
+                                                className={`text-2xl p-2 rounded-md hover:bg-secondary transition-all ${selectedIcon === ic.value ? 'bg-secondary ring-2 ring-primary scale-110' : 'opacity-70 hover:opacity-100'}`}
                                             >
                                                 {ic.value}
                                             </button>
@@ -244,7 +309,7 @@ export function PlacesManager() {
                                                 key={col.value}
                                                 type="button"
                                                 onClick={() => setValue('color', col.value)}
-                                                className={`w-8 h-8 rounded-full ${col.value} hover:opacity-80 transition-opacity ${selectedColor === col.value ? 'ring-2 ring-offset-2 ring-primary' : ''}`}
+                                                className={`w-8 h-8 rounded-full ${col.value} transition-all hover:scale-110 ${selectedColor === col.value ? 'ring-2 ring-offset-2 ring-primary scale-110' : 'opacity-80'}`}
                                                 title={col.label}
                                             />
                                         ))}
@@ -253,7 +318,7 @@ export function PlacesManager() {
                             </div>
 
                             <DialogFooter>
-                                <Button type="submit" disabled={isSubmitting}>
+                                <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     {editingPlace ? 'Mettre à jour' : 'Enregistrer'}
                                 </Button>
@@ -270,25 +335,47 @@ export function PlacesManager() {
                         </div>
                     ) : (
                         places.map((place) => (
-                            <div key={place.id} className="relative flex items-center p-4 border rounded-xl hover:shadow-md transition-shadow group">
-                                <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-2xl text-white ${place.color || 'bg-gray-500'}`}>
-                                    {place.icon || '📍'}
+                            <div key={place.id} className="relative flex flex-col p-4 border rounded-xl hover:shadow-md transition-shadow group bg-card">
+                                <div className="flex items-center">
+                                    <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-2xl text-white shadow-sm ${place.color || 'bg-gray-500'}`}>
+                                        {place.icon || '📍'}
+                                    </div>
+                                    <div className="ml-4 flex-1">
+                                        <h4 className="font-semibold text-lg line-clamp-1">{place.name}</h4>
+                                        <p className="text-xs text-muted-foreground capitalize flex items-center gap-1">
+                                            {place.type === 'work' ? <Briefcase className="h-3 w-3" /> : place.type === 'home' ? <HomeIcon className="h-3 w-3" /> : <MapPin className="h-3 w-3" />}
+                                            {place.type === 'home' ? 'Domicile' : place.type === 'work' ? 'Travail' : place.type === 'leisure' ? 'Loisir' : 'Autre'}
+                                        </p>
+                                    </div>
+                                    <div className="absolute top-2 right-2 flex gap-1 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingPlace(place)}>
+                                            <Edit className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDelete(place.id)}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
                                 </div>
-                                <div className="ml-4 flex-1">
-                                    <h4 className="font-semibold text-lg">{place.name}</h4>
-                                    <p className="text-sm text-muted-foreground capitalize">{place.type === 'home' ? 'Domicile' : place.type === 'work' ? 'Travail' : place.type === 'leisure' ? 'Loisir' : 'Autre'}</p>
-                                    {place.estimatedDistanceFromHome && place.estimatedDistanceFromHome > 0 && place.type !== 'home' && (
-                                        <p className="text-xs text-primary mt-1">~{place.estimatedDistanceFromHome} km du domicile</p>
-                                    )}
-                                </div>
-                                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingPlace(place)}>
-                                        <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(place.id)}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
+
+                                {place.estimatedDistanceFromHome && place.estimatedDistanceFromHome > 0 && place.type !== 'home' && (
+                                    <div className="mt-3 pt-3 border-t">
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-muted-foreground">Distance:</span>
+                                            <span className="font-medium text-primary">
+                                                {place.estimatedDistanceFromHome} km {place.isRoundTrip ? '(A/R)' : '(Aller)'}
+                                            </span>
+                                        </div>
+                                        {place.type === 'work' && place.workingDays && (
+                                            <div className="mt-2 text-[10px] flex flex-wrap gap-1">
+                                                {DAYS.map(d => (
+                                                    <span key={d.value} className={`px-1 rounded ${place.workingDays?.includes(d.value) ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground/50'}`}>
+                                                        {d.label}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ))
                     )}

@@ -89,6 +89,8 @@ export type Place = {
   type: 'home' | 'work' | 'leisure' | 'sport' | 'parents' | 'other';
   address?: string;
   estimatedDistanceFromHome?: number; // Distance en km depuis le domicile (si applicable)
+  isRoundTrip?: boolean; // Si la distance specifiee est aller-retour
+  workingDays?: number[]; // [0, 1, 2, 3, 4, 5, 6] (0=Dimanche, 1=Lundi, etc.)
   icon?: string; // Emoji ou icone
   color?: string; // Couleur pour la visualisation
   createdAt: string;
