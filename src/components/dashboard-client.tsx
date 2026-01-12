@@ -288,7 +288,7 @@ export function DashboardClient() {
   }, [vehicles, repairs, maintenance, fuelLogs]);
 
   const fuelStats = useMemo(() => {
-    const stats = new Map<string, { consumption: number; latestConsumption: number; cost: number; lastLogQuantity: number; lastLogTotalCost: number; kmPerDay: number; averageSpeed: number | null | undefined } | null>();
+    const stats = new Map<string, { consumption: number; latestConsumption: number; cost: number; lastLogQuantity: number; lastLogTotalCost: number; kmPerDay: number; averageSpeed: number | null | undefined; drivingStyle: string } | null>();
 
     vehicles.forEach(vehicle => {
       const vehicleFuelLogs = fuelLogs
@@ -366,29 +366,40 @@ export function DashboardClient() {
 
         // Estimate Average Speed based on consumption if not provided
         let estimatedSpeed = lastLog.averageSpeed;
+        let drivingStyle = 'Mixte';
+
+        if (kmPerDay < 30) {
+          drivingStyle = 'Urbain';
+        } else if (kmPerDay >= 60 && kmPerDay < 90) {
+          drivingStyle = 'Semi-Sport';
+        } else if (kmPerDay >= 90) {
+          drivingStyle = 'Sport/Route';
+        }
+
         if (!estimatedSpeed && latestConsumption > 0) {
           // Creative approach: Calculate a 'Traffic Stress Factor'
           // Ratio of current consumption vs lifetime average
           const baseline = averageConsumption > 0 ? averageConsumption : (vehicle.fuelType === 'Diesel' ? 5.5 : 7.5);
           const stressFactor = latestConsumption / baseline;
 
-          // Velocity Model:
-          // 1.0 (Normal for this car) -> ~45 km/h
-          // > 1.0 (Traffic) -> Quadratic drop (e.g., 1.5 stress -> ~20 km/h)
-          // < 1.0 (Highway) -> Linear increase (e.g., 0.7 stress -> ~85 km/h)
-          // Evolution: Sport Mode Detection
-          // If kmPerDay is high (> 80), increase the speed even if consumption is high 
-          // because it's likely highway/dynamic driving rather than traffic.
-          const sportBonus = kmPerDay > 80 ? Math.min(40, (kmPerDay - 80) / 2) : 0;
+          // Evolution: Tiered Usage Analysis
+          // < 30: Urbain/Bouchons, 30-60: Mixte, 60-90: Fluide/Semi-Sport, > 90: Sport/Autoroute
+          let intensityAdjustment = 0;
+
+          if (kmPerDay < 30) {
+            intensityAdjustment = -5;
+          } else if (kmPerDay >= 60 && kmPerDay < 90) {
+            intensityAdjustment = 15;
+          } else if (kmPerDay >= 90) {
+            intensityAdjustment = 35;
+          }
 
           if (stressFactor >= 1) {
-            // Speed = 45 / (stressFactor^1.8) -> High stress kills speed fast
-            estimatedSpeed = (45 / Math.pow(stressFactor, 1.8)) + sportBonus;
-            if (estimatedSpeed < 8) estimatedSpeed = 8; // Walking speed minimum
+            estimatedSpeed = (45 / Math.pow(stressFactor, 1.8)) + intensityAdjustment;
+            if (estimatedSpeed < 8) estimatedSpeed = 8;
           } else {
-            // Speed = 45 + (1 - stressFactor) * 110 -> Low stress adds speed
-            estimatedSpeed = 45 + (1 - stressFactor) * 110 + sportBonus;
-            if (estimatedSpeed > 130) estimatedSpeed = 130; // Realistic cap with sport bonus
+            estimatedSpeed = 45 + (1 - stressFactor) * 110 + intensityAdjustment;
+            if (estimatedSpeed > 135) estimatedSpeed = 135;
           }
         }
 
@@ -399,7 +410,8 @@ export function DashboardClient() {
           lastLogQuantity: lastLog.quantity,
           lastLogTotalCost: lastLog.totalCost,
           kmPerDay,
-          averageSpeed: estimatedSpeed
+          averageSpeed: estimatedSpeed,
+          drivingStyle
         });
       } else {
         stats.set(vehicle.id, null);
@@ -543,6 +555,7 @@ export function DashboardClient() {
                       fuelLogs={vehicleFuelLogs}
                       kmPerDay={stats?.kmPerDay}
                       averageSpeed={stats?.averageSpeed}
+                      drivingStyle={stats?.drivingStyle}
                     />
                   );
                 })}

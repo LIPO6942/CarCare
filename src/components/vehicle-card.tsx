@@ -29,7 +29,7 @@ import { getVehicleImage, saveVehicleImage } from '@/lib/local-db';
 import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 import { FuelConsumptionHistoryModal } from '@/components/fuel-consumption-history-modal';
 
-export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost, fuelLogs = [], kmPerDay, averageSpeed }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null; fuelLogs?: FuelLog[]; kmPerDay?: number | null; averageSpeed?: number | null }) {
+export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost, fuelLogs = [], kmPerDay, averageSpeed, drivingStyle }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null; fuelLogs?: FuelLog[]; kmPerDay?: number | null; averageSpeed?: number | null; drivingStyle?: string }) {
   const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -249,9 +249,12 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
                     )}
                     <div className="mt-2 grid grid-cols-2 gap-2 border-t border-primary/10 pt-2">
                       {averageSpeed != null && (
-                        <div className="flex items-center gap-1.5 text-[10px] text-primary/80">
+                        <div className={`flex items-center gap-1.5 text-[10px] font-medium ${averageSpeed < 30 ? 'text-orange-500' :
+                            averageSpeed > 70 ? 'text-emerald-500' :
+                              'text-primary/80'
+                          }`}>
                           <Gauge className="h-3 w-3" />
-                          <span>~{averageSpeed.toFixed(0)} km/h</span>
+                          <span className="capitalize">{drivingStyle || 'Mixte'}: ~{averageSpeed.toFixed(0)} km/h</span>
                         </div>
                       )}
                       {kmPerDay != null && (

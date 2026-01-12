@@ -112,6 +112,7 @@ export type RoutePattern = {
   matchedPlaceId?: string;
   matchedPlaceName?: string;
   averageSpeed?: number;
+  drivingStyle?: string;
   analysis?: {
     workDistance: number;
     leisureDistance: number;

@@ -436,6 +436,10 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
     const currDate = new Date(currentLog.date);
     const prevDate = new Date(previousLog.date);
 
+    // Tiered usage analysis
+    const dateDiff = Math.max(1, Math.ceil((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const intensity = distance / dateDiff;
+
     // Estimate Average Speed for this route based on consumption
     let estimatedAvgSpeed = 0;
     if (consumption > 0) {
@@ -443,19 +447,21 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
       const baseline = globalAvgConsumption > 0 ? globalAvgConsumption : (vehicle?.fuelType === 'Diesel' ? 5.5 : 7.5);
       const stressFactor = consumption / baseline;
 
-      // Calculate localized intensity (km per day for this specific interval)
-      const dateDiff = Math.max(1, Math.ceil((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24)));
-      const intervalIntensity = distance / dateDiff;
-      const sportBonus = intervalIntensity > 80 ? Math.min(40, (intervalIntensity - 80) / 2) : 0;
+      let adj = 0;
+      if (intensity < 30) adj = -5;
+      else if (intensity >= 60 && intensity < 90) adj = 15;
+      else if (intensity >= 90) adj = 35;
 
       if (stressFactor >= 1) {
-        estimatedAvgSpeed = (45 / Math.pow(stressFactor, 1.8)) + sportBonus;
+        estimatedAvgSpeed = (45 / Math.pow(stressFactor, 1.8)) + adj;
         if (estimatedAvgSpeed < 8) estimatedAvgSpeed = 8;
       } else {
-        estimatedAvgSpeed = 45 + (1 - stressFactor) * 110 + sportBonus;
-        if (estimatedAvgSpeed > 130) estimatedAvgSpeed = 130;
+        estimatedAvgSpeed = 45 + (1 - stressFactor) * 110 + adj;
+        if (estimatedAvgSpeed > 135) estimatedAvgSpeed = 135;
       }
     }
+
+    // ... (maintenance logic here if any)
 
     // 1. Calculate Calendar Work Days based on custom selection
     let workDaysCount = 0;
@@ -529,6 +535,11 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
       patternType = 'mixed'; // Mixed usage
     }
 
+    let s = 'Mixte';
+    if (intensity < 30) s = 'Urbain';
+    else if (intensity >= 60 && intensity < 90) s = 'Semi-Sport';
+    else if (intensity >= 90) s = 'Sport/Route';
+
     patterns.push({
       id: `pattern-${currentLog.id}`,
       userId,
@@ -542,6 +553,7 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
       matchedPlaceId,
       matchedPlaceName,
       averageSpeed: estimatedAvgSpeed,
+      drivingStyle: s,
       analysis: {
         workDistance,
         leisureDistance,
