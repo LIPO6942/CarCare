@@ -111,6 +111,7 @@ export type RoutePattern = {
   detectedPattern?: 'daily_commute' | 'weekend_trip' | 'occasional' | 'mixed' | 'unknown';
   matchedPlaceId?: string;
   matchedPlaceName?: string;
+  averageSpeed?: number;
   analysis?: {
     workDistance: number;
     leisureDistance: number;

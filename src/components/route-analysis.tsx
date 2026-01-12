@@ -5,7 +5,7 @@ import { RoutePattern } from '@/lib/types';
 import { analyzeRoutes } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, ArrowRight, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Loader2, ArrowRight, TrendingUp, TrendingDown, Minus, Gauge } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie, Legend } from 'recharts';
 
 export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
@@ -185,6 +185,12 @@ export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
                                                     </div>
                                                     <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                                                         {new Date(pattern.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} • {pattern.estimatedDistance.toFixed(0)} km
+                                                        {pattern.averageSpeed && (
+                                                            <>
+                                                                <span className="mx-1">•</span>
+                                                                <span className="flex items-center gap-0.5"><Gauge className="h-3 w-3" /> {pattern.averageSpeed.toFixed(0)} km/h</span>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>

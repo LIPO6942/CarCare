@@ -21,7 +21,6 @@ const QuickFuelLogSchema = z.object({
   totalCost: z.coerce.number().gt(0, 'Le coût doit être supérieur à 0.'),
   mileage: z.coerce.number().min(0, 'Le kilométrage doit être positif.'),
   gaugeLevelBefore: z.coerce.number().min(0).max(1, 'Niveau de jauge invalide.'),
-  averageSpeed: z.coerce.number().optional().nullable(),
 });
 
 interface QuickFuelLogFormProps {
@@ -99,7 +98,6 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
       totalCost: formData.get('totalCost'),
       mileage: formData.get('mileage'),
       gaugeLevelBefore: gaugeLevelBefore / 100, // Convert percentage to fraction
-      averageSpeed: formData.get('averageSpeed') || null,
     };
 
     const validatedFields = QuickFuelLogSchema.safeParse(data);
@@ -114,7 +112,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
       return;
     }
 
-    const { totalCost, mileage, vehicleId, gaugeLevelBefore: gaugeLevel, averageSpeed } = validatedFields.data;
+    const { totalCost, mileage, vehicleId, gaugeLevelBefore: gaugeLevel } = validatedFields.data;
 
     const pricePerLiter = defaultPricePerLiter;
     const quantity = totalCost / pricePerLiter;
@@ -128,7 +126,6 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
         pricePerLiter,
         totalCost,
         gaugeLevelBefore: gaugeLevel,
-        averageSpeed: averageSpeed || null,
       }, user.uid);
 
       toast({
@@ -225,11 +222,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
               <label htmlFor="quick-cost" className="text-sm font-medium mb-2 block">Coût Total (TND)</label>
               <Input id="quick-cost" name="totalCost" type="number" step="0.001" placeholder="ex: 120" required />
             </div>
-            <div className="w-full">
-              <label htmlFor="quick-speed" className="text-sm font-medium mb-2 block">Vitesse Moy. (km/h) - Opt.</label>
-              <Input id="quick-speed" name="averageSpeed" type="number" step="1" placeholder="ex: 39" />
-            </div>
-            <Button type="submit" disabled={isSubmitting} className="w-full sm:col-span-2">
+            <Button type="submit" disabled={isSubmitting} className="w-full">
               {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Fuel className="mr-2" />}
               {isSubmitting ? 'Ajout...' : 'Ajouter'}
             </Button>

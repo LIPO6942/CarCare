@@ -431,6 +431,17 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
       // Fallback to basic method if gauge data is missing
       consumption = (previousLog.quantity / distance) * 100;
     }
+
+    // Estimate Average Speed for this route based on consumption
+    let estimatedAvgSpeed = 0;
+    if (consumption > 0) {
+      if (consumption <= 5) estimatedAvgSpeed = 90;
+      else if (consumption >= 12) estimatedAvgSpeed = 20;
+      else {
+        estimatedAvgSpeed = 90 - (consumption - 5) * (70 / 7);
+      }
+    }
+
     const currDate = new Date(currentLog.date);
     const prevDate = new Date(previousLog.date);
 
@@ -518,6 +529,7 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
       detectedPattern: patternType,
       matchedPlaceId,
       matchedPlaceName,
+      averageSpeed: estimatedAvgSpeed,
       analysis: {
         workDistance,
         leisureDistance,
