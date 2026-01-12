@@ -433,6 +433,9 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
       consumption = (previousLog.quantity / distance) * 100;
     }
 
+    const currDate = new Date(currentLog.date);
+    const prevDate = new Date(previousLog.date);
+
     // Estimate Average Speed for this route based on consumption
     let estimatedAvgSpeed = 0;
     if (consumption > 0) {
@@ -440,17 +443,19 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
       const baseline = globalAvgConsumption > 0 ? globalAvgConsumption : (vehicle?.fuelType === 'Diesel' ? 5.5 : 7.5);
       const stressFactor = consumption / baseline;
 
+      // Calculate localized intensity (km per day for this specific interval)
+      const dateDiff = Math.max(1, Math.ceil((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24)));
+      const intervalIntensity = distance / dateDiff;
+      const sportBonus = intervalIntensity > 80 ? Math.min(40, (intervalIntensity - 80) / 2) : 0;
+
       if (stressFactor >= 1) {
-        estimatedAvgSpeed = 45 / Math.pow(stressFactor, 1.8);
+        estimatedAvgSpeed = (45 / Math.pow(stressFactor, 1.8)) + sportBonus;
         if (estimatedAvgSpeed < 8) estimatedAvgSpeed = 8;
       } else {
-        estimatedAvgSpeed = 45 + (1 - stressFactor) * 110;
-        if (estimatedAvgSpeed > 115) estimatedAvgSpeed = 115;
+        estimatedAvgSpeed = 45 + (1 - stressFactor) * 110 + sportBonus;
+        if (estimatedAvgSpeed > 130) estimatedAvgSpeed = 130;
       }
     }
-
-    const currDate = new Date(currentLog.date);
-    const prevDate = new Date(previousLog.date);
 
     // 1. Calculate Calendar Work Days based on custom selection
     let workDaysCount = 0;

@@ -376,14 +376,19 @@ export function DashboardClient() {
           // 1.0 (Normal for this car) -> ~45 km/h
           // > 1.0 (Traffic) -> Quadratic drop (e.g., 1.5 stress -> ~20 km/h)
           // < 1.0 (Highway) -> Linear increase (e.g., 0.7 stress -> ~85 km/h)
+          // Evolution: Sport Mode Detection
+          // If kmPerDay is high (> 80), increase the speed even if consumption is high 
+          // because it's likely highway/dynamic driving rather than traffic.
+          const sportBonus = kmPerDay > 80 ? Math.min(40, (kmPerDay - 80) / 2) : 0;
+
           if (stressFactor >= 1) {
-            // Speed = 45 / (stressFactor^1.5) -> High stress kills speed fast
-            estimatedSpeed = 45 / Math.pow(stressFactor, 1.8);
+            // Speed = 45 / (stressFactor^1.8) -> High stress kills speed fast
+            estimatedSpeed = (45 / Math.pow(stressFactor, 1.8)) + sportBonus;
             if (estimatedSpeed < 8) estimatedSpeed = 8; // Walking speed minimum
           } else {
-            // Speed = 45 + (1 - stressFactor) * 120 -> Low stress adds speed
-            estimatedSpeed = 45 + (1 - stressFactor) * 110;
-            if (estimatedSpeed > 115) estimatedSpeed = 115; // Realistic cap
+            // Speed = 45 + (1 - stressFactor) * 110 -> Low stress adds speed
+            estimatedSpeed = 45 + (1 - stressFactor) * 110 + sportBonus;
+            if (estimatedSpeed > 130) estimatedSpeed = 130; // Realistic cap with sport bonus
           }
         }
 
