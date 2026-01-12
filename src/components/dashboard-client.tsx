@@ -288,7 +288,7 @@ export function DashboardClient() {
   }, [vehicles, repairs, maintenance, fuelLogs]);
 
   const fuelStats = useMemo(() => {
-    const stats = new Map<string, { consumption: number; latestConsumption: number; cost: number; lastLogQuantity: number; lastLogTotalCost: number } | null>();
+    const stats = new Map<string, { consumption: number; latestConsumption: number; cost: number; lastLogQuantity: number; lastLogTotalCost: number; kmPerDay: number; averageSpeed: number | null | undefined } | null>();
 
     vehicles.forEach(vehicle => {
       const vehicleFuelLogs = fuelLogs
@@ -356,12 +356,36 @@ export function DashboardClient() {
       }
 
       if (averageConsumption > 0 || latestCost > 0 || latestConsumption > 0) {
+        // Calculate Km/Day for the last interval
+        let kmPerDay = 0;
+        const timeDiff = new Date(lastLog.date).getTime() - new Date(previousLog.date).getTime();
+        const daysDiff = Math.max(1, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)));
+        if (lastIntervalDistance > 0) {
+          kmPerDay = lastIntervalDistance / daysDiff;
+        }
+
+        // Estimate Average Speed based on consumption if not provided
+        // Logic: Lower consumption = higher speed (highway), Higher consumption = lower speed (city)
+        // Reference for a typical car: 5L/100 -> 90km/h, 12L/100 -> 20km/h
+        let estimatedSpeed = lastLog.averageSpeed;
+        if (!estimatedSpeed && latestConsumption > 0) {
+          // Simple linear interpolation/approximation
+          if (latestConsumption <= 5) estimatedSpeed = 90;
+          else if (latestConsumption >= 12) estimatedSpeed = 20;
+          else {
+            // formula: speed = 90 - (cons - 5) * (90-20)/(12-5)
+            estimatedSpeed = 90 - (latestConsumption - 5) * (70 / 7);
+          }
+        }
+
         stats.set(vehicle.id, {
           consumption: averageConsumption,
           latestConsumption,
           cost: latestCost,
           lastLogQuantity: lastLog.quantity,
-          lastLogTotalCost: lastLog.totalCost
+          lastLogTotalCost: lastLog.totalCost,
+          kmPerDay,
+          averageSpeed: estimatedSpeed
         });
       } else {
         stats.set(vehicle.id, null);
@@ -503,6 +527,8 @@ export function DashboardClient() {
                       lastLogQuantity={stats?.lastLogQuantity}
                       lastLogTotalCost={stats?.lastLogTotalCost}
                       fuelLogs={vehicleFuelLogs}
+                      kmPerDay={stats?.kmPerDay}
+                      averageSpeed={stats?.averageSpeed}
                     />
                   );
                 })}

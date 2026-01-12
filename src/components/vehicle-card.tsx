@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2, Droplets, RefreshCw } from 'lucide-react';
+import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2, Droplets, RefreshCw, Gauge, Zap } from 'lucide-react';
 import type { Vehicle, FuelLog } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,7 @@ import { getVehicleImage, saveVehicleImage } from '@/lib/local-db';
 import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 import { FuelConsumptionHistoryModal } from '@/components/fuel-consumption-history-modal';
 
-export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost, fuelLogs = [] }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null; fuelLogs?: FuelLog[] }) {
+export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost, fuelLogs = [], kmPerDay, averageSpeed }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null; fuelLogs?: FuelLog[]; kmPerDay?: number | null; averageSpeed?: number | null }) {
   const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -247,6 +247,20 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
                         ≈ {fuelCost.toFixed(2)} Dt/100km
                       </div>
                     )}
+                    <div className="mt-2 grid grid-cols-2 gap-2 border-t border-primary/10 pt-2">
+                      {averageSpeed != null && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-primary/80">
+                          <Gauge className="h-3 w-3" />
+                          <span>~{averageSpeed.toFixed(0)} km/h</span>
+                        </div>
+                      )}
+                      {kmPerDay != null && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-primary/80">
+                          <Zap className="h-3 w-3" />
+                          <span>{kmPerDay.toFixed(1)} km/j</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
                 <div className="pt-1 border-t border-primary/10 text-center">

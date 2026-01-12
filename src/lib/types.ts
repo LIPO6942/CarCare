@@ -43,6 +43,7 @@ export type FuelLog = {
   pricePerLiter: number;
   totalCost: number;
   gaugeLevelBefore: number;
+  averageSpeed?: number | null; // Optional user input for precise tracking
 };
 
 export type Document = {
