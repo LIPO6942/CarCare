@@ -245,7 +245,7 @@ export function DashboardClient() {
         sortValue: estimatedDate.getTime(),
         originalTask: lastOilChange,
       }
-    }).filter((item): item is Deadline => item !== null);
+    }).filter((item): item is any => item !== null) as Deadline[];
 
 
     const upcomingDeadlines: Deadline[] = [
@@ -365,16 +365,25 @@ export function DashboardClient() {
         }
 
         // Estimate Average Speed based on consumption if not provided
-        // Logic: Lower consumption = higher speed (highway), Higher consumption = lower speed (city)
-        // Reference for a typical car: 5L/100 -> 90km/h, 12L/100 -> 20km/h
         let estimatedSpeed = lastLog.averageSpeed;
         if (!estimatedSpeed && latestConsumption > 0) {
-          // Simple linear interpolation/approximation
-          if (latestConsumption <= 5) estimatedSpeed = 90;
-          else if (latestConsumption >= 12) estimatedSpeed = 20;
-          else {
-            // formula: speed = 90 - (cons - 5) * (90-20)/(12-5)
-            estimatedSpeed = 90 - (latestConsumption - 5) * (70 / 7);
+          // Creative approach: Calculate a 'Traffic Stress Factor'
+          // Ratio of current consumption vs lifetime average
+          const baseline = averageConsumption > 0 ? averageConsumption : (vehicle.fuelType === 'Diesel' ? 5.5 : 7.5);
+          const stressFactor = latestConsumption / baseline;
+
+          // Velocity Model:
+          // 1.0 (Normal for this car) -> ~45 km/h
+          // > 1.0 (Traffic) -> Quadratic drop (e.g., 1.5 stress -> ~20 km/h)
+          // < 1.0 (Highway) -> Linear increase (e.g., 0.7 stress -> ~85 km/h)
+          if (stressFactor >= 1) {
+            // Speed = 45 / (stressFactor^1.5) -> High stress kills speed fast
+            estimatedSpeed = 45 / Math.pow(stressFactor, 1.8);
+            if (estimatedSpeed < 8) estimatedSpeed = 8; // Walking speed minimum
+          } else {
+            // Speed = 45 + (1 - stressFactor) * 120 -> Low stress adds speed
+            estimatedSpeed = 45 + (1 - stressFactor) * 110;
+            if (estimatedSpeed > 115) estimatedSpeed = 115; // Realistic cap
           }
         }
 

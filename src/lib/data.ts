@@ -369,6 +369,7 @@ function isHoliday(date: Date): boolean {
 export async function analyzeRoutes(userId: string, vehicleId: string): Promise<RoutePattern[]> {
   const fuelLogs = await getFuelLogsForVehicle(vehicleId, userId);
   const places = await getPlaces(userId);
+  const vehicle = await getVehicleById(vehicleId);
 
   // Find users work place for calculations
   const workPlace = places.find(p => p.type === 'work');
@@ -435,10 +436,16 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
     // Estimate Average Speed for this route based on consumption
     let estimatedAvgSpeed = 0;
     if (consumption > 0) {
-      if (consumption <= 5) estimatedAvgSpeed = 90;
-      else if (consumption >= 12) estimatedAvgSpeed = 20;
-      else {
-        estimatedAvgSpeed = 90 - (consumption - 5) * (70 / 7);
+      // Creative approach: Calculate a 'Traffic Stress Factor' relative to car's own average
+      const baseline = globalAvgConsumption > 0 ? globalAvgConsumption : (vehicle?.fuelType === 'Diesel' ? 5.5 : 7.5);
+      const stressFactor = consumption / baseline;
+
+      if (stressFactor >= 1) {
+        estimatedAvgSpeed = 45 / Math.pow(stressFactor, 1.8);
+        if (estimatedAvgSpeed < 8) estimatedAvgSpeed = 8;
+      } else {
+        estimatedAvgSpeed = 45 + (1 - stressFactor) * 110;
+        if (estimatedAvgSpeed > 115) estimatedAvgSpeed = 115;
       }
     }
 
