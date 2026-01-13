@@ -29,7 +29,7 @@ import { getVehicleImage, saveVehicleImage } from '@/lib/local-db';
 import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 import { FuelConsumptionHistoryModal } from '@/components/fuel-consumption-history-modal';
 
-export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost, fuelLogs = [], kmPerDay, averageSpeed, drivingStyle }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null; fuelLogs?: FuelLog[]; kmPerDay?: number | null; averageSpeed?: number | null; drivingStyle?: string }) {
+export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost, fuelLogs = [], kmPerDay, averageSpeed, drivingStyle, daysUntilEmpty, remainingRangeKm }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null; fuelLogs?: FuelLog[]; kmPerDay?: number | null; averageSpeed?: number | null; drivingStyle?: string; daysUntilEmpty?: number; remainingRangeKm?: number }) {
   const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -250,20 +250,48 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
                     <div className="mt-2 grid grid-cols-2 gap-2 border-t border-primary/10 pt-2">
                       {averageSpeed != null && (
                         <div className={`flex items-center gap-1.5 text-[10px] font-medium ${averageSpeed < 30 ? 'text-orange-500' :
-                            averageSpeed > 70 ? 'text-emerald-500' :
-                              'text-primary/80'
+                          averageSpeed > 70 ? 'text-emerald-500' :
+                            'text-primary/80'
                           }`}>
                           <Gauge className="h-3 w-3" />
                           <span className="capitalize">{drivingStyle || 'Mixte'}: ~{averageSpeed.toFixed(0)} km/h</span>
                         </div>
                       )}
                       {kmPerDay != null && (
-                        <div className="flex items-center gap-1.5 text-[10px] text-primary/80">
+                        <div className="flex items-center gap-1.5 text-[10px] text-primary/80 font-medium">
                           <Zap className="h-3 w-3" />
-                          <span>{kmPerDay.toFixed(1)} km/j</span>
+                          <span>Intensité: {kmPerDay.toFixed(1)} km/j</span>
                         </div>
                       )}
                     </div>
+
+                    {remainingRangeKm != null && remainingRangeKm > 0 && (
+                      <div className={`mt-3 p-2 rounded border flex items-center justify-between transition-all duration-500 ${daysUntilEmpty != null && daysUntilEmpty < 3
+                        ? 'bg-red-500/10 border-red-500/30 animate-pulse'
+                        : 'bg-emerald-500/5 border-emerald-500/20'}`}>
+                        <div className="flex items-center gap-2">
+                          <div className={`p-1.5 rounded-full ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'bg-red-500/20' : 'bg-emerald-500/20'}`}>
+                            <Gauge className={`h-3 w-3 ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`} />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-muted-foreground leading-none">Smart Autonomie</span>
+                            <span className={`text-xs font-bold ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`}>
+                              ≈ {Math.round(remainingRangeKm)} km
+                            </span>
+                          </div>
+                        </div>
+                        {daysUntilEmpty != null && (
+                          <div className="text-right">
+                            <span className={`text-[10px] block font-medium ${daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-400'}`}>
+                              {daysUntilEmpty < 1 ? "Plein urgent !" :
+                                daysUntilEmpty < 2 ? "Aujourd'hui" :
+                                  `Dans ~${Math.ceil(daysUntilEmpty)} j`}
+                            </span>
+                            <span className="text-[9px] text-muted-foreground">Passage pompe</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="pt-1 border-t border-primary/10 text-center">

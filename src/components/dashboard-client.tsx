@@ -288,7 +288,18 @@ export function DashboardClient() {
   }, [vehicles, repairs, maintenance, fuelLogs]);
 
   const fuelStats = useMemo(() => {
-    const stats = new Map<string, { consumption: number; latestConsumption: number; cost: number; lastLogQuantity: number; lastLogTotalCost: number; kmPerDay: number; averageSpeed: number | null | undefined; drivingStyle: string } | null>();
+    const stats = new Map<string, {
+      consumption: number;
+      latestConsumption: number;
+      cost: number;
+      lastLogQuantity: number;
+      lastLogTotalCost: number;
+      kmPerDay: number;
+      averageSpeed: number | null | undefined;
+      drivingStyle: string;
+      daysUntilEmpty?: number;
+      remainingRangeKm?: number;
+    } | null>();
 
     vehicles.forEach(vehicle => {
       const vehicleFuelLogs = fuelLogs
@@ -356,17 +367,16 @@ export function DashboardClient() {
       }
 
       if (averageConsumption > 0 || latestCost > 0 || latestConsumption > 0) {
-        // Calculate Km/Day for the last interval
+        // Estimate Average Speed based on consumption if not provided
+        let estimatedSpeed = lastLog.averageSpeed;
+        let drivingStyle = 'Mixte';
         let kmPerDay = 0;
+
         const timeDiff = new Date(lastLog.date).getTime() - new Date(previousLog.date).getTime();
         const daysDiff = Math.max(1, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)));
         if (lastIntervalDistance > 0) {
           kmPerDay = lastIntervalDistance / daysDiff;
         }
-
-        // Estimate Average Speed based on consumption if not provided
-        let estimatedSpeed = lastLog.averageSpeed;
-        let drivingStyle = 'Mixte';
 
         if (kmPerDay < 30) {
           drivingStyle = 'Urbain';
@@ -378,14 +388,10 @@ export function DashboardClient() {
 
         if (!estimatedSpeed && latestConsumption > 0) {
           // Creative approach: Calculate a 'Traffic Stress Factor'
-          // Ratio of current consumption vs lifetime average
           const baseline = averageConsumption > 0 ? averageConsumption : (vehicle.fuelType === 'Diesel' ? 5.5 : 7.5);
           const stressFactor = latestConsumption / baseline;
 
-          // Evolution: Tiered Usage Analysis
-          // < 30: Urbain/Bouchons, 30-60: Mixte, 60-90: Fluide/Semi-Sport, > 90: Sport/Autoroute
           let intensityAdjustment = 0;
-
           if (kmPerDay < 30) {
             intensityAdjustment = -5;
           } else if (kmPerDay >= 60 && kmPerDay < 90) {
@@ -403,6 +409,30 @@ export function DashboardClient() {
           }
         }
 
+        // --- SMART RANGE PREDICTOR ---
+        let daysUntilEmpty = undefined;
+        let remainingRangeKm = undefined;
+
+        if (estimatedCapacity > 0 && latestConsumption > 0 && kmPerDay > 0) {
+          // Fuel level after last refill
+          const initialFuelAfterLog = (estimatedCapacity * lastLog.gaugeLevelBefore) + lastLog.quantity;
+          const cappedFuel = Math.min(initialFuelAfterLog, estimatedCapacity);
+
+          // Estimation of fuel consumed since last log based on average daily mileage
+          const now = new Date();
+          const lastLogDate = new Date(lastLog.date);
+          const totalHoursPassed = Math.max(0, (now.getTime() - lastLogDate.getTime()) / (1000 * 60 * 60));
+          const daysPassed = totalHoursPassed / 24;
+
+          const estimatedDistanceDrivenSinceLog = daysPassed * kmPerDay;
+          const fuelConsumedSinceLog = (estimatedDistanceDrivenSinceLog * latestConsumption) / 100;
+
+          const currentFuelInTank = Math.max(0, cappedFuel - fuelConsumedSinceLog);
+
+          remainingRangeKm = (currentFuelInTank / latestConsumption) * 100;
+          daysUntilEmpty = remainingRangeKm / kmPerDay;
+        }
+
         stats.set(vehicle.id, {
           consumption: averageConsumption,
           latestConsumption,
@@ -411,7 +441,9 @@ export function DashboardClient() {
           lastLogTotalCost: lastLog.totalCost,
           kmPerDay,
           averageSpeed: estimatedSpeed,
-          drivingStyle
+          drivingStyle,
+          daysUntilEmpty,
+          remainingRangeKm
         });
       } else {
         stats.set(vehicle.id, null);
@@ -556,6 +588,8 @@ export function DashboardClient() {
                       kmPerDay={stats?.kmPerDay}
                       averageSpeed={stats?.averageSpeed}
                       drivingStyle={stats?.drivingStyle}
+                      daysUntilEmpty={stats?.daysUntilEmpty}
+                      remainingRangeKm={stats?.remainingRangeKm}
                     />
                   );
                 })}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { addFuelLog } from '@/lib/data';
@@ -36,6 +36,44 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>(vehicles[0]?.id);
   const [currentMileage, setCurrentMileage] = useState<string>('');
   const [gaugeLevelBefore, setGaugeLevelBefore] = useState<number>(12.5);
+
+  // Assist user with mileage prefix
+  useEffect(() => {
+    if (!selectedVehicleId) return;
+
+    const lastLog = fuelLogs
+      .filter(log => log.vehicleId === selectedVehicleId)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
+    if (lastLog && lastLog.mileage) {
+      let mileageToUse = lastLog.mileage;
+
+      // Smart rounding: Adjusted to 70% threshold as a "middle ground"
+      // because the user might just be adding a small amount of fuel.
+      if (lastLog.mileage >= 100000 && lastLog.mileage % 1000 >= 700) {
+        mileageToUse = Math.ceil(lastLog.mileage / 1000) * 1000;
+      } else if (lastLog.mileage >= 10000 && lastLog.mileage % 100 >= 70) {
+        mileageToUse = Math.ceil(lastLog.mileage / 100) * 100;
+      } else if (lastLog.mileage >= 1000 && lastLog.mileage % 10 >= 7) {
+        mileageToUse = Math.ceil(lastLog.mileage / 10) * 10;
+      }
+
+      const mileageStr = mileageToUse.toString();
+      let prefix = '';
+
+      if (mileageToUse >= 100000) {
+        prefix = mileageStr.substring(0, 3);
+      } else if (mileageToUse >= 10000) {
+        prefix = mileageStr.substring(0, 2);
+      } else if (mileageToUse >= 1000) {
+        prefix = mileageStr.substring(0, 1);
+      }
+
+      setCurrentMileage(prefix);
+    } else {
+      setCurrentMileage('');
+    }
+  }, [selectedVehicleId, fuelLogs]);
 
   const defaultPricePerLiter = useMemo(() => {
     const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
