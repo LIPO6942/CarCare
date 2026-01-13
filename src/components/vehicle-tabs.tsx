@@ -109,15 +109,6 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataCha
         return Object.values(monthlyData).sort((a, b) => b.date.getTime() - a.date.getTime());
     }, [fuelLogs]);
 
-    const yearlyFuelTotals = useMemo(() => {
-        const totals: { [year: string]: number } = {};
-        fuelLogs.forEach(log => {
-            const year = new Date(log.date).getFullYear().toString();
-            totals[year] = (totals[year] || 0) + log.totalCost;
-        });
-        return totals;
-    }, [fuelLogs]);
-
     return (
         <Tabs defaultValue={initialTab || 'history'} className="w-full">
             <div className="w-full overflow-x-auto pb-1 no-scrollbar">
@@ -129,7 +120,7 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataCha
                 </TabsList>
             </div>
             <TabsContent value="history">
-                <HistoryTab repairs={repairs} maintenance={maintenance} monthlyFuelLogs={monthlyFuelLogs} yearlyFuelTotals={yearlyFuelTotals} />
+                <HistoryTab repairs={repairs} maintenance={maintenance} monthlyFuelLogs={monthlyFuelLogs} />
             </TabsContent>
             <TabsContent value="repairs">
                 <RepairsTab vehicle={vehicle} repairs={repairs} onDataChange={onDataChange} />
@@ -196,7 +187,7 @@ function DeleteConfirmationDialog({ open, onOpenChange, onConfirm, isDeleting, t
 
 // --- HISTORY TAB ---
 
-function HistoryTab({ repairs, maintenance, monthlyFuelLogs, yearlyFuelTotals }: { repairs: Repair[], maintenance: Maintenance[], monthlyFuelLogs: any[], yearlyFuelTotals: { [year: string]: number } }) {
+function HistoryTab({ repairs, maintenance, monthlyFuelLogs }: { repairs: Repair[], maintenance: Maintenance[], monthlyFuelLogs: any[] }) {
     const hasHistory = repairs.length > 0 || maintenance.length > 0 || monthlyFuelLogs.length > 0;
 
     if (!hasHistory) {
@@ -288,18 +279,9 @@ function HistoryTab({ repairs, maintenance, monthlyFuelLogs, yearlyFuelTotals }:
                     {monthlyFuelLogs.length > 0 && (
                         <AccordionItem value="fuel">
                             <AccordionTrigger className="text-base font-semibold bg-muted/50 px-4 rounded-md">
-                                <div className="flex items-center justify-between w-full pr-4">
-                                    <div className="flex items-center gap-3">
-                                        <Fuel className="h-5 w-5 text-[hsl(var(--chart-3))]" />
-                                        Carburant
-                                    </div>
-                                    <div className="flex gap-3 overflow-x-auto no-scrollbar">
-                                        {Object.entries(yearlyFuelTotals).sort(([a], [b]) => Number(b) - Number(a)).map(([year, total]) => (
-                                            <span key={year} className="text-[10px] font-normal text-muted-foreground whitespace-nowrap">
-                                                {year}: {Math.round(total)} Dt
-                                            </span>
-                                        ))}
-                                    </div>
+                                <div className="flex items-center gap-3">
+                                    <Fuel className="h-5 w-5 text-[hsl(var(--chart-3))]" />
+                                    Carburant
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent className="pt-2">
