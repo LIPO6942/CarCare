@@ -524,31 +524,30 @@ export function DashboardClient() {
               const remainingRangeKm = stats.remainingRangeKm;
 
               return (
-                <div key={vehicle.id} className={`mb-4 p-3 rounded-lg border flex items-center justify-between transition-all duration-500 shadow-sm ${daysUntilEmpty != null && daysUntilEmpty < 3
-                  ? 'bg-red-500/10 border-red-500/30'
+                <div key={vehicle.id} className={`mb-3 py-2 px-3 rounded-md border flex items-center justify-between transition-all duration-500 shadow-sm ${daysUntilEmpty != null && daysUntilEmpty < 3
+                  ? 'bg-red-500/10 border-red-500/30 animate-pulse'
                   : 'bg-card border-emerald-500/20'}`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`p-1.5 rounded-full ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'bg-red-500/20' : 'bg-emerald-500/20'}`}>
-                      <Gauge className={`h-4 w-4 ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`} />
+                  <div className="flex items-center gap-2">
+                    <div className={`p-1 rounded-full ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'bg-red-500/20' : 'bg-emerald-500/20'}`}>
+                      <Gauge className={`h-3.5 w-3.5 ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`} />
                     </div>
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium text-foreground">{vehicle.brand} {vehicle.model}</span>
-                        <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded-full bg-muted/50 border border-border/50">Smart Autonomie</span>
+                        <span className="text-[9px] uppercase tracking-widest text-muted-foreground/80 font-medium">Smart Autonomie</span>
                       </div>
-                      <span className={`text-lg font-bold ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`}>
+                      <span className={`text-base font-bold leading-tight ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`}>
                         ≈ {Math.round(remainingRangeKm)} km
                       </span>
                     </div>
                   </div>
                   {daysUntilEmpty != null && (
                     <div className="text-right">
-                      <span className={`text-xs block font-medium ${daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-400'}`}>
-                        {daysUntilEmpty < 1 ? "Plein urgent !" :
+                      <span className={`text-[10px] block font-semibold ${daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`}>
+                        {daysUntilEmpty < 1 ? "PLEIN URGENT !" :
                           daysUntilEmpty < 2 ? "Aujourd'hui" :
-                            `Dans ~${Math.ceil(daysUntilEmpty)} j`}
+                            `~${Math.ceil(daysUntilEmpty)} jours`}
                       </span>
-                      <span className="text-[10px] text-muted-foreground">Passage pompe</span>
                     </div>
                   )}
                 </div>
