@@ -523,58 +523,33 @@ export function DashboardClient() {
               const daysUntilEmpty = stats.daysUntilEmpty;
               const remainingRangeKm = stats.remainingRangeKm;
 
-              let statusMessage = "Consommation stable";
-              let statusColor = "text-muted-foreground";
-
-              if (daysUntilEmpty != null) {
-                if (daysUntilEmpty < 1) {
-                  statusMessage = "Passage pompe conseillé ⛽";
-                  statusColor = "text-red-500 font-bold animate-pulse";
-                } else if (daysUntilEmpty < 3) {
-                  statusMessage = "Pensez au plein 📉";
-                  statusColor = "text-orange-500 font-semibold";
-                } else if (daysUntilEmpty < 7) {
-                  statusMessage = "Autonomie confortable 👌";
-                  statusColor = "text-emerald-600";
-                } else {
-                  const goodVibes = [
-                    "Prêt à rouler 🚀",
-                    "Réservoir au top ✨",
-                    "Tranquille 😎",
-                    "La route est à vous 🛣️"
-                  ];
-                  // Simple pseudo-random selection
-                  const index = vehicle.id.charCodeAt(0) % goodVibes.length;
-                  statusMessage = goodVibes[index];
-                  statusColor = "text-emerald-500";
-                }
-              }
-
               return (
-                <div key={vehicle.id} className={`mb-3 py-2 px-3 rounded-md border flex items-center justify-between transition-all duration-500 shadow-sm ${daysUntilEmpty != null && daysUntilEmpty < 3
-                  ? 'bg-red-500/10 border-red-500/30'
+                <div key={vehicle.id} className={`mb-3 p-2 rounded-md border flex items-center justify-between transition-all duration-500 shadow-sm ${daysUntilEmpty != null && daysUntilEmpty < 3
+                  ? 'bg-red-500/10 border-red-500/30 animate-pulse'
                   : 'bg-card border-emerald-500/20'}`}>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     <div className={`p-1 rounded-full ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'bg-red-500/20' : 'bg-emerald-500/20'}`}>
                       <Gauge className={`h-3.5 w-3.5 ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`} />
                     </div>
                     <div className="flex flex-col">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-foreground">{vehicle.brand} {vehicle.model}</span>
-                        <span className="text-[9px] uppercase tracking-widest text-muted-foreground/80 font-medium">Smart Autonomie</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-medium text-foreground">{vehicle.brand} {vehicle.model}</span>
+                        <span className="text-[9px] text-muted-foreground px-1 py-px rounded-full bg-muted/50 border border-border/50">Smart Autonomie</span>
                       </div>
-                      <span className={`text-base font-bold leading-tight ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`}>
+                      <span className={`text-base font-bold leading-none mt-0.5 ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`}>
                         ≈ {Math.round(remainingRangeKm)} km
-                        <span className={`ml-2 text-[9px] font-normal normal-case tracking-normal ${statusColor}`}>
-                          - {statusMessage}
-                        </span>
                       </span>
                     </div>
                   </div>
                   {daysUntilEmpty != null && (
                     <div className="text-right">
-                      <span className={`text-[10px] block font-semibold ${daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`}>
-                        ~{Math.ceil(daysUntilEmpty)} jours
+                      <span className={`text-[10px] block font-medium ${daysUntilEmpty < 3 ? 'text-red-500' : daysUntilEmpty < 7 ? 'text-orange-500' : 'text-emerald-400'}`}>
+                        {daysUntilEmpty < 3 ? "Plein urgent ! ⛽" :
+                          daysUntilEmpty < 7 ? "Pensez-y cette semaine 📅" :
+                            "Tranquille 😎"}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground">
+                        {daysUntilEmpty < 2 ? "Aujourd'hui" : `~${Math.ceil(daysUntilEmpty)} jours restants`}
                       </span>
                     </div>
                   )}

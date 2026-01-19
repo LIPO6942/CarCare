@@ -177,15 +177,14 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="p-0 gap-0 max-w-full w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-4xl flex flex-col">
-        <DialogHeader className="p-4 border-b flex flex-row justify-between items-center pr-12">
-          <div className="overflow-hidden">
-            <DialogTitle className="text-xl sm:text-2xl truncate pr-2">{`${vehicle.brand || 'Marque'} ${vehicle.model || 'Modèle'}`}</DialogTitle>
-            <DialogDescription className="truncate">{`${vehicle.year || 'N/A'} - ${vehicle.licensePlate || 'N/A'}`}</DialogDescription>
+        <DialogHeader className="p-4 border-b flex flex-row justify-between items-center">
+          <div>
+            <DialogTitle className="text-xl sm:text-2xl">{`${vehicle.brand || 'Marque'} ${vehicle.model || 'Modèle'}`}</DialogTitle>
+            <DialogDescription>{`${vehicle.year || 'N/A'} - ${vehicle.licensePlate || 'N/A'}`}</DialogDescription>
           </div>
-          <Button variant="outline" onClick={handleExportPdf} disabled={isLoading || isGeneratingPdf} className="shrink-0">
+          <Button variant="outline" onClick={handleExportPdf} disabled={isLoading || isGeneratingPdf}>
             {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            <span className="hidden sm:inline">{isGeneratingPdf ? 'Génération...' : 'Exporter en PDF'}</span>
-            <span className="sm:hidden">PDF</span>
+            {isGeneratingPdf ? 'Génération...' : 'Exporter en PDF'}
           </Button>
         </DialogHeader>
 

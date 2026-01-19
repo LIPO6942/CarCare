@@ -193,25 +193,25 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
   }
 
   return (
-    <Card className="shadow-lg border-muted/60 overflow-hidden">
-      <CardHeader className="pb-5 pt-6 px-4 sm:px-7">
-        <div className="flex justify-between items-center gap-3">
-          <CardTitle className="text-xl sm:text-2xl min-w-0">Ajout rapide de carburant</CardTitle>
-          <span className="text-xs text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-md shrink-0 whitespace-nowrap">{lastFuelLogInfo}</span>
+    <Card className="shadow-sm">
+      <CardHeader className="pb-4 pt-6 px-6">
+        <div className="flex justify-between items-center flex-wrap gap-2">
+          <CardTitle className="text-xl whitespace-nowrap">Ajout rapide carburant</CardTitle>
+          <span className="text-xs text-muted-foreground">{lastFuelLogInfo}</span>
         </div>
       </CardHeader>
-      <CardContent className="px-4 pb-6 sm:px-7 sm:pb-7">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-          <div className="grid grid-cols-2 gap-4 sm:gap-6">
+      <CardContent className="px-6 pb-6">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <div className="grid grid-cols-2 gap-5">
             <div className="w-full">
-              <label htmlFor="quick-vehicle-select" className="text-sm sm:text-base font-medium mb-2.5 block text-foreground/80">Véhicule</label>
+              <label htmlFor="quick-vehicle-select" className="text-sm font-medium mb-2 block">Véhicule</label>
               <Select onValueChange={setSelectedVehicleId} value={selectedVehicleId} required>
-                <SelectTrigger id="quick-vehicle-select" className="h-12 text-sm sm:text-base bg-muted/20">
+                <SelectTrigger id="quick-vehicle-select" className="h-10 text-sm">
                   <SelectValue placeholder="Sélectionnez" />
                 </SelectTrigger>
                 <SelectContent>
                   {vehicles.map(vehicle => (
-                    <SelectItem key={vehicle.id} value={vehicle.id} className="text-base">
+                    <SelectItem key={vehicle.id} value={vehicle.id} className="text-sm">
                       {vehicle.brand} {vehicle.model}
                     </SelectItem>
                   ))}
@@ -219,7 +219,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
               </Select>
             </div>
             <div className="w-full">
-              <label htmlFor="quick-mileage" className="text-sm sm:text-base font-medium mb-2.5 block text-foreground/80">Kilométrage</label>
+              <label htmlFor="quick-mileage" className="text-sm font-medium mb-2 block">Km</label>
               <Input
                 id="quick-mileage"
                 name="mileage"
@@ -228,20 +228,20 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
                 required
                 value={currentMileage}
                 onChange={(e) => setCurrentMileage(e.target.value)}
-                className="h-12 text-sm sm:text-base font-medium bg-muted/20"
+                className="h-10 text-sm"
               />
               {distanceAndCostInfo && (
-                <p className="text-xs sm:text-sm text-emerald-600 dark:text-emerald-400 mt-2 font-medium truncate">
+                <p className="text-xs text-muted-foreground mt-1 truncate">
                   +{distanceAndCostInfo.distance} km / {distanceAndCostInfo.cost.toFixed(0)} Dt
                 </p>
               )}
             </div>
           </div>
 
-          <div className="w-full bg-muted/40 p-4 sm:p-5 rounded-lg border border-border/50">
-            <div className="flex justify-between items-center mb-2.5">
-              <label className="text-sm sm:text-base font-medium text-foreground/80">Jauge (Avant)</label>
-              <span className="text-sm sm:text-base font-bold text-primary">{gaugeLevelBefore.toFixed(0)}%</span>
+          <div className="w-full bg-muted/30 p-4 rounded-md">
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-sm font-medium">Jauge (Avant)</label>
+              <span className="text-sm font-bold text-primary">{gaugeLevelBefore.toFixed(0)}%</span>
             </div>
             <Slider
               value={[gaugeLevelBefore]}
@@ -249,19 +249,19 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
               min={0}
               max={75}
               step={5}
-              className="w-full py-2.5"
+              className="w-full py-2"
               rangeClassName={gaugeLevelBefore < 13 ? "bg-red-600" : undefined}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4 sm:gap-6 items-end">
+          <div className="grid grid-cols-2 gap-5 items-end">
             <div className="w-full">
-              <label htmlFor="quick-cost" className="text-sm sm:text-base font-medium mb-2.5 block text-foreground/80">Coût (TND)</label>
-              <Input id="quick-cost" name="totalCost" type="number" step="0.001" placeholder="ex: 50" required className="h-12 text-base sm:text-lg font-bold bg-muted/20" />
+              <label htmlFor="quick-cost" className="text-sm font-medium mb-2 block">Coût (TND)</label>
+              <Input id="quick-cost" name="totalCost" type="number" step="0.001" placeholder="ex: 50" required className="h-10 text-sm font-bold" />
             </div>
-            <Button type="submit" disabled={isSubmitting} className="w-full h-12 text-sm sm:text-base font-semibold shadow-sm" size="lg">
-              {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Fuel className="mr-2 h-5 w-5" />}
-              {isSubmitting ? '...' : 'AJOUTER'}
+            <Button type="submit" disabled={isSubmitting} className="w-full h-10 text-sm" size="sm">
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Fuel className="mr-2 h-4 w-4" />}
+              {isSubmitting ? '...' : 'Ajouter'}
             </Button>
           </div>
         </form>
