@@ -23,13 +23,13 @@ interface VehicleDetailModalProps {
 }
 
 const safeFormatCurrency = (numInput: any): string => {
-    try {
-        const num = Number(numInput);
-        if (isNaN(num)) return (0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
-        return num.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
-    } catch {
-        return (0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
-    }
+  try {
+    const num = Number(numInput);
+    if (isNaN(num)) return (0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
+    return num.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
+  } catch {
+    return (0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
+  }
 }
 
 const generateVehicleHistoryPDF = (vehicle: Vehicle, repairs: Repair[], maintenance: Maintenance[]) => {
@@ -80,12 +80,12 @@ const generateVehicleHistoryPDF = (vehicle: Vehicle, repairs: Repair[], maintena
     });
     finalY = (doc as any).lastAutoTable.finalY + 15;
   }
-  
+
   // Maintenance
   if (maintenance.length > 0) {
     doc.setFontSize(16);
     doc.text("Entretiens", 14, finalY);
-     (doc as any).autoTable({
+    (doc as any).autoTable({
       startY: finalY + 3,
       head: [['Date', 'Tâche', 'Kilométrage', 'Coût']],
       body: maintenance.map(m => [
@@ -102,7 +102,7 @@ const generateVehicleHistoryPDF = (vehicle: Vehicle, repairs: Repair[], maintena
 
   // Footer
   const pageCount = (doc as any).internal.getNumberOfPages();
-  for(let i = 1; i <= pageCount; i++) {
+  for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
     doc.text(`Page ${i} sur ${pageCount}`, 14, doc.internal.pageSize.height - 10);
@@ -116,13 +116,13 @@ const generateVehicleHistoryPDF = (vehicle: Vehicle, repairs: Repair[], maintena
 
 export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }: VehicleDetailModalProps) {
   const { user } = useAuth();
-  
+
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  
+
   const fetchVehicleSubCollections = useCallback(async () => {
     if (user && vehicle) {
       setIsLoading(true);
@@ -159,13 +159,13 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
     setIsGeneratingPdf(true);
     // Use a timeout to allow the UI to update to show the loading state
     setTimeout(() => {
-        try {
-            generateVehicleHistoryPDF(vehicle, repairs, maintenance);
-        } catch (error) {
-            console.error("PDF Generation Error:", error);
-        } finally {
-            setIsGeneratingPdf(false);
-        }
+      try {
+        generateVehicleHistoryPDF(vehicle, repairs, maintenance);
+      } catch (error) {
+        console.error("PDF Generation Error:", error);
+      } finally {
+        setIsGeneratingPdf(false);
+      }
     }, 50);
   }
 
@@ -177,32 +177,33 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="p-0 gap-0 max-w-full w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-4xl flex flex-col">
-        <DialogHeader className="p-4 border-b flex flex-row justify-between items-center">
-          <div>
-            <DialogTitle className="text-xl sm:text-2xl">{`${vehicle.brand || 'Marque'} ${vehicle.model || 'Modèle'}`}</DialogTitle>
-            <DialogDescription>{`${vehicle.year || 'N/A'} - ${vehicle.licensePlate || 'N/A'}`}</DialogDescription>
+        <DialogHeader className="p-4 border-b flex flex-row justify-between items-center pr-12">
+          <div className="overflow-hidden">
+            <DialogTitle className="text-xl sm:text-2xl truncate pr-2">{`${vehicle.brand || 'Marque'} ${vehicle.model || 'Modèle'}`}</DialogTitle>
+            <DialogDescription className="truncate">{`${vehicle.year || 'N/A'} - ${vehicle.licensePlate || 'N/A'}`}</DialogDescription>
           </div>
-          <Button variant="outline" onClick={handleExportPdf} disabled={isLoading || isGeneratingPdf}>
+          <Button variant="outline" onClick={handleExportPdf} disabled={isLoading || isGeneratingPdf} className="shrink-0">
             {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            {isGeneratingPdf ? 'Génération...' : 'Exporter en PDF'}
+            <span className="hidden sm:inline">{isGeneratingPdf ? 'Génération...' : 'Exporter en PDF'}</span>
+            <span className="sm:hidden">PDF</span>
           </Button>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           <ErrorBoundary>
             {isLoading ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-64 w-full" />
-                </div>
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-64 w-full" />
+              </div>
             ) : (
-              <VehicleTabs 
-                  vehicle={vehicle}
-                  repairs={repairs} 
-                  maintenance={maintenance} 
-                  fuelLogs={fuelLogs}
-                  onDataChange={handleDataChange}
-                  initialTab="history"
+              <VehicleTabs
+                vehicle={vehicle}
+                repairs={repairs}
+                maintenance={maintenance}
+                fuelLogs={fuelLogs}
+                onDataChange={handleDataChange}
+                initialTab="history"
               />
             )}
           </ErrorBoundary>
