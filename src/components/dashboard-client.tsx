@@ -7,7 +7,7 @@ import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { AddVehicleSheet } from '@/components/add-vehicle-sheet';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, CheckCircle2, Gauge } from 'lucide-react';
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -517,6 +517,46 @@ export function DashboardClient() {
           </AddVehicleSheet>
         </DashboardHeader>
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-8">
+          {vehicles.map(vehicle => {
+            const stats = fuelStats.get(vehicle.id);
+            if (stats && stats.remainingRangeKm != null && stats.remainingRangeKm > 0) {
+              const daysUntilEmpty = stats.daysUntilEmpty;
+              const remainingRangeKm = stats.remainingRangeKm;
+
+              return (
+                <div key={vehicle.id} className={`mb-6 p-4 rounded-lg border flex items-center justify-between transition-all duration-500 shadow-sm ${daysUntilEmpty != null && daysUntilEmpty < 3
+                  ? 'bg-red-500/10 border-red-500/30'
+                  : 'bg-card border-emerald-500/20'}`}>
+                  <div className="flex items-center gap-4">
+                    <div className={`p-2 rounded-full ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'bg-red-500/20' : 'bg-emerald-500/20'}`}>
+                      <Gauge className={`h-5 w-5 ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`} />
+                    </div>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">{vehicle.brand} {vehicle.model}</span>
+                        <span className="text-xs text-muted-foreground px-1.5 py-0.5 rounded-full bg-muted/50 border border-border/50">Smart Autonomie</span>
+                      </div>
+                      <span className={`text-xl font-bold ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`}>
+                        ≈ {Math.round(remainingRangeKm)} km
+                      </span>
+                    </div>
+                  </div>
+                  {daysUntilEmpty != null && (
+                    <div className="text-right">
+                      <span className={`text-sm block font-medium ${daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-400'}`}>
+                        {daysUntilEmpty < 1 ? "Plein urgent !" :
+                          daysUntilEmpty < 2 ? "Aujourd'hui" :
+                            `Dans ~${Math.ceil(daysUntilEmpty)} j`}
+                      </span>
+                      <span className="text-xs text-muted-foreground">Passage pompe</span>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return null;
+          })}
+
           {vehicles.length > 0 && (
             <QuickFuelLogForm
               vehicles={vehicles}

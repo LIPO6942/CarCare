@@ -265,33 +265,7 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
                       )}
                     </div>
 
-                    {remainingRangeKm != null && remainingRangeKm > 0 && (
-                      <div className={`mt-3 p-2 rounded border flex items-center justify-between transition-all duration-500 ${daysUntilEmpty != null && daysUntilEmpty < 3
-                        ? 'bg-red-500/10 border-red-500/30 animate-pulse'
-                        : 'bg-emerald-500/5 border-emerald-500/20'}`}>
-                        <div className="flex items-center gap-2">
-                          <div className={`p-1.5 rounded-full ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'bg-red-500/20' : 'bg-emerald-500/20'}`}>
-                            <Gauge className={`h-3 w-3 ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`} />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] text-muted-foreground leading-none">Smart Autonomie</span>
-                            <span className={`text-xs font-bold ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`}>
-                              ≈ {Math.round(remainingRangeKm)} km
-                            </span>
-                          </div>
-                        </div>
-                        {daysUntilEmpty != null && (
-                          <div className="text-right">
-                            <span className={`text-[10px] block font-medium ${daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-400'}`}>
-                              {daysUntilEmpty < 1 ? "Plein urgent !" :
-                                daysUntilEmpty < 2 ? "Aujourd'hui" :
-                                  `Dans ~${Math.ceil(daysUntilEmpty)} j`}
-                            </span>
-                            <span className="text-[9px] text-muted-foreground">Passage pompe</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
+
                   </div>
                 )}
                 <div className="pt-1 border-t border-primary/10 text-center">
