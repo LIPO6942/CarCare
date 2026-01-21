@@ -248,7 +248,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
               onValueChange={(value) => setGaugeLevelBefore(value[0])}
               min={0}
               max={75}
-              step={5}
+              step={1}
               className="w-full py-2"
               rangeClassName={gaugeLevelBefore < 13 ? "bg-red-600" : undefined}
             />
