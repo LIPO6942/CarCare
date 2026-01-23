@@ -132,51 +132,55 @@ export function ReportsClient() {
   return (
     <div className="grid gap-6">
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Coût Total</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Coût Carburant</CardTitle>
-            <Fuel className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Coût Réparations</CardTitle>
-            <Wrench className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Coût par Kilomètre</CardTitle>
-            <Route className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {costPerKm > 0 ? `${costPerKm.toLocaleString('fr-FR', { style: 'currency', currency: 'TND', minimumFractionDigits: 3 })} / km` : 'N/A'}
-            </div>
-            <p className="text-xs text-muted-foreground">{maxMileage > 0 ? `Basé sur ${maxMileage.toLocaleString('fr-FR')} km parcourus` : 'Données insuffisantes'}</p>
-          </CardContent>
-        </Card>
+        {[
+          {
+            title: "Coût Total",
+            value: totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' }),
+            icon: DollarSign,
+            gradient: "from-indigo-500 to-purple-600",
+            shadow: "shadow-indigo-500/20",
+          },
+          {
+            title: "Coût Carburant",
+            value: totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' }),
+            icon: Fuel,
+            gradient: "from-orange-400 to-amber-600",
+            shadow: "shadow-orange-500/20",
+          },
+          {
+            title: "Coût Réparations",
+            value: totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' }),
+            icon: Wrench,
+            gradient: "from-rose-500 to-red-600",
+            shadow: "shadow-rose-500/20",
+          },
+          {
+            title: "Coût / km",
+            value: costPerKm > 0 ? `${costPerKm.toLocaleString('fr-FR', { style: 'currency', currency: 'TND', minimumFractionDigits: 3 })}` : 'N/A',
+            description: maxMileage > 0 ? `Basé sur ${maxMileage.toLocaleString('fr-FR')} km` : 'Données insuffisantes',
+            icon: Milestone,
+            gradient: "from-emerald-400 to-teal-600",
+            shadow: "shadow-emerald-500/20",
+          }
+        ].map((stat, i) => (
+          <Card key={i} className={`relative overflow-hidden border-none ${stat.shadow} transition-all duration-300 hover:-translate-y-1 hover:shadow-xl`}>
+            <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${stat.gradient}`} />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{stat.title}</CardTitle>
+              <div className={`p-2 rounded-xl bg-gradient-to-br ${stat.gradient} bg-opacity-10 text-white shadow-lg`}>
+                <stat.icon className="h-4 w-4" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-black tracking-tight">{stat.value}</div>
+              {stat.description && (
+                <p className="text-[10px] text-muted-foreground mt-1 font-medium italic">{stat.description}</p>
+              )}
+            </CardContent>
+            {/* Background Decoration */}
+            <div className={`absolute -right-4 -bottom-4 w-24 h-24 bg-gradient-to-br ${stat.gradient} opacity-[0.03] rounded-full blur-2xl`} />
+          </Card>
+        ))}
       </div>
 
       <Card>
