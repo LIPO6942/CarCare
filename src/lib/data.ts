@@ -368,6 +368,9 @@ function isHoliday(date: Date): boolean {
 
 export async function analyzeRoutes(userId: string, vehicleId: string): Promise<RoutePattern[]> {
   const fuelLogs = await getFuelLogsForVehicle(vehicleId, userId);
+  // Sort logs by mileage ascending (oldest to newest mileage) for analysis
+  fuelLogs.sort((a, b) => a.mileage - b.mileage);
+
   const places = await getPlaces(userId);
   const vehicle = await getVehicleById(vehicleId);
 
