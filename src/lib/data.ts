@@ -565,8 +565,10 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
       analysis: {
         workDistance,
         leisureDistance,
+        workCost: currentLog.totalCost * workRatio,
+        leisureCost: currentLog.totalCost * (1 - workRatio),
         workRatio,
-        commuteEfficiency: 0 // Will be calc on frontend vs avg
+        commuteEfficiency: globalAvgConsumption > 0 ? (consumption - globalAvgConsumption) : 0
       }
     });
   }

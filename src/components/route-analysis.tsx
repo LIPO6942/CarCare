@@ -31,8 +31,6 @@ export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
     }, [user, vehicleId]);
 
     const stats = useMemo(() => {
-        // Group by detailed key (Place ID or Pattern Type) to get specific averages
-        const byKey: Record<string, { count: number; totalCons: number; totalDist: number }> = {};
         const byType: Record<string, { count: number; totalCons: number; totalDist: number }> = {
             'daily_commute': { count: 0, totalCons: 0, totalDist: 0 },
             'occasional': { count: 0, totalCons: 0, totalDist: 0 },
@@ -40,53 +38,36 @@ export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
             'unknown': { count: 0, totalCons: 0, totalDist: 0 },
         };
 
-        // Compute Global Split
         let totalWorkKm = 0;
         let totalLeisureKm = 0;
+        let totalWorkCost = 0;
+        let totalLeisureCost = 0;
 
         patterns.forEach(p => {
             if (p.analysis) {
                 totalWorkKm += p.analysis.workDistance;
                 totalLeisureKm += p.analysis.leisureDistance;
-            } else {
-                // Fallback if analysis missing (shouldn't happen with new logic)
-                if (p.detectedPattern === 'daily_commute') totalWorkKm += p.estimatedDistance;
-                else totalLeisureKm += p.estimatedDistance;
+                totalWorkCost += p.analysis.workCost;
+                totalLeisureCost += p.analysis.leisureCost;
             }
 
-            // General Type Stats
             const type = p.detectedPattern || 'unknown';
             if (!byType[type]) byType[type] = { count: 0, totalCons: 0, totalDist: 0 };
             byType[type].count++;
             byType[type].totalCons += p.consumption;
             byType[type].totalDist += p.estimatedDistance;
-
-            // Specific Route Stats (for deviation analysis)
-            // If matched place, use ID, otherwise use pattern type
-            const key = p.matchedPlaceId || type;
-            if (!byKey[key]) byKey[key] = { count: 0, totalCons: 0, totalDist: 0 };
-            byKey[key].count++;
-            byKey[key].totalCons += p.consumption;
-            byKey[key].totalDist += p.estimatedDistance;
         });
 
-        // Compute averages for chart
         const chartData = Object.entries(byType).map(([key, data]) => ({
-            name: key === 'daily_commute' ? 'Trajet Quotidien' :
+            name: key === 'daily_commute' ? 'Pro' :
                 key === 'occasional' ? 'Occasionnel' :
-                    key === 'weekend_trip' ? 'Weekend' : 'Inconnu',
+                    key === 'weekend_trip' ? 'Perso' : 'Inconnu',
             type: key,
             avgConsumption: data.count > 0 ? (data.totalCons / data.count) : 0,
             count: data.count,
         })).filter(d => d.count > 0);
 
-        // Compute averages map for easy lookup
-        const averages: Record<string, number> = {};
-        Object.entries(byKey).forEach(([k, v]) => {
-            if (v.count > 0) averages[k] = v.totalCons / v.count;
-        });
-
-        return { chartData, averages, totalWorkKm, totalLeisureKm };
+        return { chartData, totalWorkKm, totalLeisureKm, totalWorkCost, totalLeisureCost };
     }, [patterns]);
 
     if (isLoading) {
@@ -104,171 +85,204 @@ export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
     }
 
     const COLORS = {
-        'daily_commute': 'hsl(var(--chart-1))',
-        'occasional': 'hsl(var(--chart-2))',
-        'weekend_trip': 'hsl(var(--chart-3))',
-        'unknown': 'hsl(var(--muted))',
+        'daily_commute': '#3b82f6',
+        'occasional': '#10b981',
+        'weekend_trip': '#f59e0b',
+        'unknown': '#94a3b8',
     };
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Consommation par Type de Trajet</CardTitle>
-                        <CardDescription>Moyenne L/100km selon le type de déplacement détecté</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="h-[250px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={stats.chartData} layout="vertical" margin={{ left: 40 }}>
-                                    <XAxis type="number" hide />
-                                    <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
-                                    <Tooltip
-                                        cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }}
-                                        contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
-                                        formatter={(val: number) => [`${val.toFixed(2)} L/100km`, 'Moyenne']}
-                                    />
-                                    <Bar dataKey="avgConsumption" radius={[0, 4, 4, 0]} barSize={32}>
-                                        {stats.chartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[entry.type as keyof typeof COLORS] || COLORS['unknown']} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+            {/* Global Cost Summary */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/10 border-blue-200 dark:border-blue-800 shadow-sm relative overflow-hidden">
+                    <CardContent className="pt-6">
+                        <div className="flex justify-between items-start relative z-10">
+                            <div>
+                                <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1">Impact Financier Pro</p>
+                                <h4 className="text-2xl font-black text-blue-900 dark:text-blue-100">
+                                    {stats.totalWorkCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
+                                </h4>
+                                <p className="text-[10px] text-blue-700/70 dark:text-blue-400/70 mt-1">Coût estimé des trajets Domicile-Travail</p>
+                            </div>
+                            <div className="p-2 bg-blue-500 rounded-lg shadow-lg shadow-blue-500/30">
+                                <TrendingUp className="h-4 w-4 text-white" />
+                            </div>
                         </div>
+                        <div className="mt-4 flex items-center gap-2 relative z-10">
+                            <div className="h-1.5 flex-1 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-600" style={{ width: `${(stats.totalWorkCost / ((stats.totalWorkCost + stats.totalLeisureCost) || 1)) * 100}%` }} />
+                            </div>
+                        </div>
+                        {/* Background Decor */}
+                        <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl" />
                     </CardContent>
                 </Card>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Derniers Trajets & Performance</CardTitle>
-                        <CardDescription>Comparé à la moyenne de ce trajet spécifique</CardDescription>
+                <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/10 border-emerald-200 dark:border-emerald-800 shadow-sm relative overflow-hidden">
+                    <CardContent className="pt-6">
+                        <div className="flex justify-between items-start relative z-10">
+                            <div>
+                                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Impact Financier Perso</p>
+                                <h4 className="text-2xl font-black text-emerald-900 dark:text-emerald-100">
+                                    {stats.totalLeisureCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
+                                </h4>
+                                <p className="text-[10px] text-emerald-700/70 dark:text-emerald-400/70 mt-1">Coût estimé des sorties et loisirs</p>
+                            </div>
+                            <div className="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/30">
+                                <ArrowRight className="h-4 w-4 text-white" />
+                            </div>
+                        </div>
+                        <div className="mt-4 flex items-center gap-2 relative z-10">
+                            <div className="h-1.5 flex-1 bg-emerald-200 dark:bg-emerald-800 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-600" style={{ width: `${(stats.totalLeisureCost / ((stats.totalWorkCost + stats.totalLeisureCost) || 1)) * 100}%` }} />
+                            </div>
+                        </div>
+                        {/* Background Decor */}
+                        <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl" />
+                    </CardContent>
+                </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="lg:col-span-2">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <div>
+                            <CardTitle className="text-lg">Derniers Trajets</CardTitle>
+                            <CardDescription>Analyse détaillée des 10 dernières périodes</CardDescription>
+                        </div>
+                        <div className="flex gap-2">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 uppercase">
+                                <div className="w-2 h-2 rounded-full bg-blue-500" /> Pro
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 uppercase">
+                                <div className="w-2 h-2 rounded-full bg-emerald-500" /> Perso
+                            </div>
+                        </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                        <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                             {patterns.slice(0, 10).map(pattern => {
-                                const key = pattern.matchedPlaceId || pattern.detectedPattern || 'unknown';
-                                const avg = stats.averages[key] || 0;
-                                const diff = pattern.consumption - avg;
-                                const isEfficient = diff < -0.2; // 0.2L tolerance
-                                const isInefficient = diff > 0.2;
                                 const workRatio = pattern.analysis?.workRatio || 0;
+                                const efficiency = pattern.analysis?.commuteEfficiency || 0;
+                                const isEfficient = efficiency < -0.1;
+                                const isInefficient = efficiency > 0.1;
 
                                 return (
-                                    <div key={pattern.id} className="group relative flex flex-col p-4 border rounded-xl bg-card hover:bg-accent/5 transition-all duration-200">
+                                    <div key={pattern.id} className="group flex flex-col p-4 border rounded-xl bg-card hover:border-primary/30 transition-all duration-200">
                                         <div className="flex items-start justify-between mb-3">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg shadow-sm ${pattern.detectedPattern === 'daily_commute' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' :
-                                                    pattern.detectedPattern === 'weekend_trip' ? 'bg-green-100 dark:bg-green-900/30 text-green-600' :
-                                                        pattern.detectedPattern === 'mixed' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600' :
-                                                            'bg-gray-100 dark:bg-gray-800 text-gray-500'
+                                                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl shadow-inner ${pattern.detectedPattern === 'daily_commute' ? 'bg-blue-500 text-white' :
+                                                    pattern.detectedPattern === 'weekend_trip' ? 'bg-emerald-500 text-white' :
+                                                        pattern.detectedPattern === 'mixed' ? 'bg-indigo-500 text-white' :
+                                                            'bg-slate-200 dark:bg-slate-800 text-slate-500'
                                                     }`}>
-                                                    {pattern.detectedPattern === 'daily_commute' && '🏢'}
-                                                    {pattern.detectedPattern === 'weekend_trip' && '🌴'}
+                                                    {pattern.detectedPattern === 'daily_commute' && '💼'}
+                                                    {pattern.detectedPattern === 'weekend_trip' && '🏡'}
                                                     {pattern.detectedPattern === 'mixed' && '⚖️'}
-                                                    {pattern.detectedPattern === 'occasional' && '🚗'}
+                                                    {pattern.detectedPattern === 'occasional' && '🚙'}
                                                 </div>
                                                 <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-semibold text-sm">
-                                                            {pattern.matchedPlaceName ||
-                                                                (pattern.detectedPattern === 'daily_commute' ? 'Trajet Quotidien' :
-                                                                    pattern.detectedPattern === 'mixed' ? 'Trajet Mixte' :
-                                                                        pattern.detectedPattern === 'weekend_trip' ? 'Sortie Week-end' : 'Autre Trajet')}
-                                                        </span>
-                                                        {pattern.detectedPattern === 'mixed' && (
-                                                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 font-medium">
-                                                                {Math.round(workRatio * 100)}% Pro
-                                                            </span>
-                                                        )}
+                                                    <div className="font-extrabold text-sm tracking-tight text-foreground">
+                                                        {pattern.matchedPlaceName ||
+                                                            (pattern.detectedPattern === 'daily_commute' ? 'Routine Travail' :
+                                                                pattern.detectedPattern === 'weekend_trip' ? 'Loisirs & Sorties' : 'Trajet Mixte')}
                                                     </div>
-                                                    <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                                                        {new Date(pattern.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} • {pattern.estimatedDistance.toFixed(0)} km
-                                                        {pattern.averageSpeed && (
-                                                            <>
-                                                                <span className="mx-1">•</span>
-                                                                <span className="flex items-center gap-0.5"><Gauge className="h-3 w-3" /> {pattern.averageSpeed.toFixed(0)} km/h</span>
-                                                            </>
-                                                        )}
+                                                    <div className="text-[11px] font-medium text-muted-foreground mt-0.5">
+                                                        {new Date(pattern.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} • {pattern.estimatedDistance.toFixed(0)} km
                                                     </div>
                                                 </div>
                                             </div>
 
                                             <div className="text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <div className="font-bold text-primary text-base">
-                                                        {pattern.consumption.toFixed(1)} <span className="text-[10px] font-normal text-muted-foreground uppercase">L/100</span>
-                                                    </div>
-                                                    {/* Efficiency Indicator */}
-                                                    <div className={`flex items-center justify-center w-6 h-6 rounded-full bg-secondary/50 ${isEfficient ? 'text-green-500' : isInefficient ? 'text-red-500' : 'text-gray-400'}`} title={`${diff > 0 ? '+' : ''}${diff.toFixed(1)} L/100km vs Habituel`}>
-                                                        {isEfficient ? <TrendingDown className="h-3.5 w-3.5" /> : isInefficient ? <TrendingUp className="h-3.5 w-3.5" /> : <Minus className="h-3 w-3" />}
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${isEfficient ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                                        isInefficient ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
+                                                            'bg-slate-100 text-slate-600 dark:bg-slate-800'
+                                                        }`}>
+                                                        {pattern.consumption.toFixed(1)} L
+                                                    </span>
+                                                    <div className={`text-[11px] font-black ${isEfficient ? 'text-emerald-500' : isInefficient ? 'text-rose-500' : 'text-slate-400'}`}>
+                                                        {efficiency > 0 ? '+' : ''}{efficiency.toFixed(1)}
                                                     </div>
                                                 </div>
-                                                <div className="text-xs text-muted-foreground font-medium">
-                                                    {pattern.cost.toFixed(0)} Dt
+                                                <div className="text-[10px] font-bold text-muted-foreground italic mt-1">
+                                                    {pattern.cost.toFixed(0)} DT
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Progressive Bar for Mixed/Work Context */}
-                                        {pattern.analysis && (pattern.detectedPattern === 'mixed' || pattern.detectedPattern === 'daily_commute') && (
-                                            <div className="mt-1 space-y-1.5">
-                                                <div className="relative w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                                                    <div className="absolute top-0 left-0 h-full bg-blue-500 transition-all duration-500" style={{ width: `${workRatio * 100}%` }} />
-                                                    <div className="absolute top-0 right-0 h-full bg-green-500 transition-all duration-500" style={{ width: `${100 - (workRatio * 100)}%` }} />
-                                                </div>
-                                                <div className="flex justify-between text-[10px] font-medium text-muted-foreground px-1">
-                                                    <span className="text-blue-600 dark:text-blue-400">{pattern.analysis.workDistance.toFixed(0)} km Travail</span>
-                                                    <span className="text-green-600 dark:text-green-400">{pattern.analysis.leisureDistance.toFixed(0)} km Loisirs</span>
-                                                </div>
-                                            </div>
-                                        )}
+                                        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                                            <div className="h-full bg-blue-500 border-r border-white/20" style={{ width: `${workRatio * 100}%` }} />
+                                            <div className="h-full bg-emerald-500" style={{ width: `${(1 - workRatio) * 100}%` }} />
+                                        </div>
                                     </div>
                                 )
                             })}
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="md:col-span-2 lg:col-span-1">
-                    <CardHeader>
-                        <CardTitle>Répartition Globale Pro / Perso</CardTitle>
-                        <CardDescription>Basé sur la distance totale parcourue ({stats.totalWorkKm.toFixed(0)} km pro vs {stats.totalLeisureKm.toFixed(0)} km perso)</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex justify-center">
-                        <div className="h-[200px] w-full max-w-[300px] relative">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={[
-                                            { name: 'Travail', value: stats.totalWorkKm, fill: '#3b82f6' },
-                                            { name: 'Loisirs', value: stats.totalLeisureKm, fill: '#22c55e' },
-                                        ]}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={80}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                    >
-                                        <Cell key="cell-work" fill="#3b82f6" />
-                                        <Cell key="cell-leisure" fill="#22c55e" />
-                                    </Pie>
-                                    <Tooltip
-                                        formatter={(val: number) => [`${val.toFixed(0)} km`, 'Distance']}
-                                        contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
-                                    />
-                                    <Legend verticalAlign="bottom" height={36} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <span className="text-sm font-bold text-muted-foreground">
-                                    {(stats.totalWorkKm / ((stats.totalWorkKm + stats.totalLeisureKm) || 1) * 100).toFixed(0)}% Pro
-                                </span>
+
+                <div className="space-y-6">
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground font-bold italic">Répartition Km</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col items-center">
+                            <div className="h-[200px] w-full relative">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={[
+                                                { name: 'Pro', value: stats.totalWorkKm, fill: '#3b82f6' },
+                                                { name: 'Perso', value: stats.totalLeisureKm, fill: '#10b981' },
+                                            ]}
+                                            cx="50%" cy="50%" innerRadius={55} outerRadius={75} paddingAngle={8} dataKey="value"
+                                        >
+                                            <Cell fill="#3b82f6" />
+                                            <Cell fill="#10b981" />
+                                        </Pie>
+                                        <Tooltip
+                                            contentStyle={{ background: 'hsl(var(--background))', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                            formatter={(p: number) => [`${p.toFixed(0)} km`, '']}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                    <span className="text-2xl font-black text-foreground">
+                                        {Math.round((stats.totalWorkKm / ((stats.totalWorkKm + stats.totalLeisureKm) || 1)) * 100)}%
+                                    </span>
+                                    <span className="text-[10px] font-bold text-blue-500 uppercase tracking-tighter">Pro</span>
+                                </div>
                             </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground font-bold italic">Consommation / Type</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="h-[180px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={stats.chartData} margin={{ left: -30 }}>
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={10} fontWeight="bold" />
+                                        <YAxis axisLine={false} tickLine={false} fontSize={10} />
+                                        <Tooltip
+                                            cursor={{ fill: 'transparent' }}
+                                            contentStyle={{ background: 'hsl(var(--background))', borderRadius: '8px' }}
+                                        />
+                                        <Bar dataKey="avgConsumption" radius={[4, 4, 0, 0]} barSize={24}>
+                                            {stats.chartData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[entry.type as keyof typeof COLORS] || '#94a3b8'} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         </div>
     );
