@@ -383,24 +383,23 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
   // Calculate global average consumption for the vehicle to use for weighting
   // Re-sort fuel logs by mileage ascending
   // Step A: Estimate Tank Capacity (Same logic as dashboard for consistency)
-  const capacityEstimates: number[] = [];
-  fuelLogs.forEach(log => {
-    if (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore < 1) {
-      const estimate = log.quantity / (1 - log.gaugeLevelBefore);
-      if (estimate > 0 && estimate < 200) { // Sanity check: tank < 200L
-        capacityEstimates.push(estimate);
-      }
-    }
-  });
+  let estimatedCapacity = vehicle?.estimatedTankCapacity || 0;
 
-  let estimatedCapacity = 0;
-  if (capacityEstimates.length > 0) {
-    // Use median for robustness
-    capacityEstimates.sort((a, b) => a - b);
-    const mid = Math.floor(capacityEstimates.length / 2);
-    estimatedCapacity = capacityEstimates.length % 2 === 0
-      ? (capacityEstimates[mid - 1] + capacityEstimates[mid]) / 2
-      : capacityEstimates[mid];
+  if (!estimatedCapacity) {
+    const capacityEstimates: number[] = [];
+    fuelLogs.forEach(log => {
+      if (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore < 1) {
+        const estimate = log.quantity / (1 - log.gaugeLevelBefore);
+        if (estimate > 0 && estimate < 200) { // Sanity check: tank < 200L
+          capacityEstimates.push(estimate);
+        }
+      }
+    });
+
+    if (capacityEstimates.length > 0) {
+      // Use MAX instead of median for better results with partial refills
+      estimatedCapacity = Math.max(...capacityEstimates);
+    }
   }
 
   // Calculate global average consumption

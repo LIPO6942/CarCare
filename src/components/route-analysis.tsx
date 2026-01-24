@@ -61,11 +61,12 @@ export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
         const chartData = Object.entries(byType).map(([key, data]) => ({
             name: key === 'daily_commute' ? 'Pro' :
                 key === 'occasional' ? 'Occasionnel' :
-                    key === 'weekend_trip' ? 'Perso' : 'Inconnu',
+                    key === 'weekend_trip' ? 'Perso' :
+                        key === 'mixed' ? 'Mixte' : 'Inconnu',
             type: key,
             avgConsumption: data.count > 0 ? (data.totalCons / data.count) : 0,
             count: data.count,
-        })).filter(d => d.count > 0 && d.type !== 'unknown');
+        })).filter(d => d.count > 0 && d.name !== 'Inconnu');
 
         return { chartData, totalWorkKm, totalLeisureKm, totalWorkCost, totalLeisureCost };
     }, [patterns]);
@@ -103,10 +104,7 @@ export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
                                 <h4 className="text-2xl font-black text-blue-900 dark:text-blue-100">
                                     {stats.totalWorkCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
                                 </h4>
-                                <div className="mt-1 flex items-start gap-1">
-                                    <Info className="h-3 w-3 text-blue-600/50 mt-0.5 shrink-0" />
-                                    <p className="text-[10px] text-blue-700/70 dark:text-blue-400/70 leading-tight">Pro: Basé sur vos jours ouvrés x distance domicile-travail paramétrée.</p>
-                                </div>
+                                <p className="text-[10px] text-blue-700/60 dark:text-blue-400/60 font-bold mt-1 tracking-tight">({stats.totalWorkKm.toLocaleString('fr-FR')} km)</p>
                             </div>
                             <div className="p-2 bg-blue-500 rounded-lg shadow-lg shadow-blue-500/30">
                                 <TrendingUp className="h-4 w-4 text-white" />
@@ -130,10 +128,7 @@ export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
                                 <h4 className="text-2xl font-black text-emerald-900 dark:text-emerald-100">
                                     {stats.totalLeisureCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
                                 </h4>
-                                <div className="mt-1 flex items-start gap-1">
-                                    <Info className="h-3 w-3 text-emerald-600/50 mt-0.5 shrink-0" />
-                                    <p className="text-[10px] text-emerald-700/70 dark:text-emerald-400/70 leading-tight">Perso: Distance totale parcourue moins la distance théorique Pro.</p>
-                                </div>
+                                <p className="text-[10px] text-emerald-700/60 dark:text-emerald-400/60 font-bold mt-1 tracking-tight">({stats.totalLeisureKm.toLocaleString('fr-FR')} km)</p>
                             </div>
                             <div className="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/30">
                                 <ArrowRight className="h-4 w-4 text-white" />

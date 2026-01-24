@@ -73,7 +73,7 @@ export function ReportsClient() {
       name,
       Coût: data.cost,
       fill: data.fill,
-    }));
+    })).filter(d => d.name !== 'Non classé' && d.name !== 'Inconnu');
 
     const maxMileage = Math.max(
       ...repairs.map(r => r.mileage || 0),

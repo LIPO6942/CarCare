@@ -312,24 +312,24 @@ export function DashboardClient() {
       }
 
       // Step A: Estimate Tank Capacity
-      const capacityEstimates: number[] = [];
-      vehicleFuelLogs.forEach(log => {
-        if (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore < 1) {
-          const estimate = log.quantity / (1 - log.gaugeLevelBefore);
-          if (estimate > 0 && estimate < 200) { // Sanity check: tank < 200L
-            capacityEstimates.push(estimate);
-          }
-        }
-      });
+      let estimatedCapacity = vehicle.estimatedTankCapacity || 0;
 
-      let estimatedCapacity = 0;
-      if (capacityEstimates.length > 0) {
-        // Use median for robustness
-        capacityEstimates.sort((a, b) => a - b);
-        const mid = Math.floor(capacityEstimates.length / 2);
-        estimatedCapacity = capacityEstimates.length % 2 === 0
-          ? (capacityEstimates[mid - 1] + capacityEstimates[mid]) / 2
-          : capacityEstimates[mid];
+      if (!estimatedCapacity) {
+        const capacityEstimates: number[] = [];
+        vehicleFuelLogs.forEach(log => {
+          if (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore < 1) {
+            const estimate = log.quantity / (1 - log.gaugeLevelBefore);
+            if (estimate > 0 && estimate < 200) { // Sanity check: tank < 200L
+              capacityEstimates.push(estimate);
+            }
+          }
+        });
+
+        if (capacityEstimates.length > 0) {
+          // Use MAX instead of median because partial refills underestimate, 
+          // but a full refill gives the true capacity.
+          estimatedCapacity = Math.max(...capacityEstimates);
+        }
       }
 
       // 1. Lifetime Average Consumption (L/100km)

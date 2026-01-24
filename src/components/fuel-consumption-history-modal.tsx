@@ -30,23 +30,23 @@ export function FuelConsumptionHistoryModal({ vehicle, fuelLogs, open, onOpenCha
     }
 
     // Step A: Estimate Tank Capacity
-    const capacityEstimates: number[] = [];
-    vehicleFuelLogs.forEach(log => {
-      if (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore < 1) {
-        const estimate = log.quantity / (1 - log.gaugeLevelBefore);
-        if (estimate > 0 && estimate < 200) {
-          capacityEstimates.push(estimate);
-        }
-      }
-    });
+    let estimatedCapacity = vehicle.estimatedTankCapacity || 0;
 
-    let estimatedCapacity = 0;
-    if (capacityEstimates.length > 0) {
-      capacityEstimates.sort((a, b) => a - b);
-      const mid = Math.floor(capacityEstimates.length / 2);
-      estimatedCapacity = capacityEstimates.length % 2 === 0
-        ? (capacityEstimates[mid - 1] + capacityEstimates[mid]) / 2
-        : capacityEstimates[mid];
+    if (!estimatedCapacity) {
+      const capacityEstimates: number[] = [];
+      vehicleFuelLogs.forEach(log => {
+        if (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore < 1) {
+          const estimate = log.quantity / (1 - log.gaugeLevelBefore);
+          if (estimate > 0 && estimate < 200) {
+            capacityEstimates.push(estimate);
+          }
+        }
+      });
+
+      if (capacityEstimates.length > 0) {
+        // Use MAX because partial strokes underestimate, but a full stroke gives the real capacity.
+        estimatedCapacity = Math.max(...capacityEstimates);
+      }
     }
 
     // Calculate consumption for each interval
