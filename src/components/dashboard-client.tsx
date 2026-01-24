@@ -337,14 +337,23 @@ export function DashboardClient() {
       const lastLog = vehicleFuelLogs[vehicleFuelLogs.length - 1];
       const totalDistance = lastLog.mileage - firstLog.mileage;
 
+      // We sum all quantities EXCEPT the first one, because the first quantity 
+      // was refilled BEFORE driving the distance we are tracking.
       let totalFuel = 0;
-      for (let i = 0; i < vehicleFuelLogs.length - 1; i++) {
+      for (let i = 1; i < vehicleFuelLogs.length; i++) {
         totalFuel += vehicleFuelLogs[i].quantity;
       }
 
       let averageConsumption = 0;
       if (totalDistance > 0 && totalFuel > 0) {
-        averageConsumption = (totalFuel / totalDistance) * 100;
+        if (estimatedCapacity > 0 && firstLog.gaugeLevelBefore !== undefined && lastLog.gaugeLevelBefore !== undefined) {
+          // If we have gauge data, we can be much more precise by accounting for the fuel 
+          // level difference between the very first log and the very last one.
+          const fuelLevelDifference = (firstLog.gaugeLevelBefore - lastLog.gaugeLevelBefore) * estimatedCapacity;
+          averageConsumption = ((totalFuel + fuelLevelDifference) / totalDistance) * 100;
+        } else {
+          averageConsumption = (totalFuel / totalDistance) * 100;
+        }
       }
 
       // 2. Latest Interval Stats (Gauge-Based if capacity known)
@@ -356,11 +365,13 @@ export function DashboardClient() {
       if (lastIntervalDistance > 0) {
         if (estimatedCapacity > 0 && previousLog.gaugeLevelBefore !== undefined && lastLog.gaugeLevelBefore !== undefined) {
           // Step B: Use Delta V formula
-          const deltaV = previousLog.quantity + (estimatedCapacity * previousLog.gaugeLevelBefore) - (estimatedCapacity * lastLog.gaugeLevelBefore);
+          // deltaV = Fuel Added + (Level Before - Level Now) * Capacity
+          const deltaV = lastLog.quantity + (estimatedCapacity * previousLog.gaugeLevelBefore) - (estimatedCapacity * lastLog.gaugeLevelBefore);
           latestConsumption = (deltaV / lastIntervalDistance) * 100;
         } else {
-          // Fallback to old method if gauge data missing
-          latestConsumption = (previousLog.quantity / lastIntervalDistance) * 100;
+          // Fallback: Use the last refill quantity (lastLog.quantity) 
+          // because it's what was refilled AFTER driving the interval distance.
+          latestConsumption = (lastLog.quantity / lastIntervalDistance) * 100;
         }
 
         latestCost = (latestConsumption * lastLog.pricePerLiter);
