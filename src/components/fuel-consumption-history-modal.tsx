@@ -64,8 +64,8 @@ export function FuelConsumptionHistoryModal({ vehicle, fuelLogs, open, onOpenCha
           const deltaV = previousLog.quantity + (estimatedCapacity * previousLog.gaugeLevelBefore) - (estimatedCapacity * currentLog.gaugeLevelBefore);
           consumption = (deltaV / distance) * 100;
         } else {
-          // Fallback method
-          consumption = (previousLog.quantity / distance) * 100;
+          // Fallback method: refill at the end of interval
+          consumption = (currentLog.quantity / distance) * 100;
         }
 
         if (consumption > 0 && consumption < 50) { // Sanity check

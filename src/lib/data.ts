@@ -428,9 +428,9 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
 
     let consumption = 0;
     if (estimatedCapacity > 0 && previousLog.gaugeLevelBefore !== undefined && currentLog.gaugeLevelBefore !== undefined) {
-      // Step B: Use Delta V formula for maximum precision
-      // deltaV = Fuel Added + (Level Before - Level Now) * Capacity
-      const deltaV = currentLog.quantity + (estimatedCapacity * (previousLog.gaugeLevelBefore - currentLog.gaugeLevelBefore));
+      // Step B: Use Precise Formula for Interval [i-1, i]
+      // Consumed = Q_{i-1} + (G_{i-1} - G_i) * Cap
+      const deltaV = previousLog.quantity + (estimatedCapacity * (previousLog.gaugeLevelBefore - currentLog.gaugeLevelBefore));
       consumption = (deltaV / distance) * 100;
     } else {
       // Fallback: Use current refill quantity (currentLog.quantity)

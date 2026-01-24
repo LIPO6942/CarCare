@@ -5,7 +5,7 @@ import { RoutePattern } from '@/lib/types';
 import { analyzeRoutes } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, ArrowRight, TrendingUp, TrendingDown, Minus, Gauge } from 'lucide-react';
+import { Loader2, ArrowRight, TrendingUp, TrendingDown, Minus, Gauge, Info } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie, Legend } from 'recharts';
 
 export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
@@ -65,7 +65,7 @@ export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
             type: key,
             avgConsumption: data.count > 0 ? (data.totalCons / data.count) : 0,
             count: data.count,
-        })).filter(d => d.count > 0);
+        })).filter(d => d.count > 0 && d.type !== 'unknown');
 
         return { chartData, totalWorkKm, totalLeisureKm, totalWorkCost, totalLeisureCost };
     }, [patterns]);
@@ -103,7 +103,10 @@ export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
                                 <h4 className="text-2xl font-black text-blue-900 dark:text-blue-100">
                                     {stats.totalWorkCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
                                 </h4>
-                                <p className="text-[10px] text-blue-700/70 dark:text-blue-400/70 mt-1">Coût estimé des trajets Domicile-Travail</p>
+                                <div className="mt-1 flex items-start gap-1">
+                                    <Info className="h-3 w-3 text-blue-600/50 mt-0.5 shrink-0" />
+                                    <p className="text-[10px] text-blue-700/70 dark:text-blue-400/70 leading-tight">Pro: Basé sur vos jours ouvrés x distance domicile-travail paramétrée.</p>
+                                </div>
                             </div>
                             <div className="p-2 bg-blue-500 rounded-lg shadow-lg shadow-blue-500/30">
                                 <TrendingUp className="h-4 w-4 text-white" />
@@ -127,7 +130,10 @@ export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
                                 <h4 className="text-2xl font-black text-emerald-900 dark:text-emerald-100">
                                     {stats.totalLeisureCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
                                 </h4>
-                                <p className="text-[10px] text-emerald-700/70 dark:text-emerald-400/70 mt-1">Coût estimé des sorties et loisirs</p>
+                                <div className="mt-1 flex items-start gap-1">
+                                    <Info className="h-3 w-3 text-emerald-600/50 mt-0.5 shrink-0" />
+                                    <p className="text-[10px] text-emerald-700/70 dark:text-emerald-400/70 leading-tight">Perso: Distance totale parcourue moins la distance théorique Pro.</p>
+                                </div>
                             </div>
                             <div className="p-2 bg-emerald-500 rounded-lg shadow-lg shadow-emerald-500/30">
                                 <ArrowRight className="h-4 w-4 text-white" />

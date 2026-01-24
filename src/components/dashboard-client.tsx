@@ -337,22 +337,28 @@ export function DashboardClient() {
       const lastLog = vehicleFuelLogs[vehicleFuelLogs.length - 1];
       const totalDistance = lastLog.mileage - firstLog.mileage;
 
-      // We sum all quantities EXCEPT the first one, because the first quantity 
-      // was refilled BEFORE driving the distance we are tracking.
+      // Correct approach for average: Sum all quantities from Log 0 to Log n-2
+      // because Q_i is the fuel that was used for the interval [i, i+1].
       let totalFuel = 0;
-      for (let i = 1; i < vehicleFuelLogs.length; i++) {
+      for (let i = 0; i < vehicleFuelLogs.length - 1; i++) {
         totalFuel += vehicleFuelLogs[i].quantity;
       }
 
       let averageConsumption = 0;
       if (totalDistance > 0 && totalFuel > 0) {
         if (estimatedCapacity > 0 && firstLog.gaugeLevelBefore !== undefined && lastLog.gaugeLevelBefore !== undefined) {
-          // If we have gauge data, we can be much more precise by accounting for the fuel 
-          // level difference between the very first log and the very last one.
+          // Precise Formula: Total Consumed = Sum(Qi) + (G_start - G_end) * Cap
           const fuelLevelDifference = (firstLog.gaugeLevelBefore - lastLog.gaugeLevelBefore) * estimatedCapacity;
           averageConsumption = ((totalFuel + fuelLevelDifference) / totalDistance) * 100;
         } else {
-          averageConsumption = (totalFuel / totalDistance) * 100;
+          // Fallback: Standard average logic
+          // (Wait, standard fallback is actually sum(Q1..Q_last) / distance if you assume fill-to-full)
+          // To be safe and consistent with non-gauge users, we'll keep the standard fallback
+          let fallbackFuel = 0;
+          for (let i = 1; i < vehicleFuelLogs.length; i++) {
+            fallbackFuel += vehicleFuelLogs[i].quantity;
+          }
+          averageConsumption = (fallbackFuel / totalDistance) * 100;
         }
       }
 
@@ -364,13 +370,13 @@ export function DashboardClient() {
 
       if (lastIntervalDistance > 0) {
         if (estimatedCapacity > 0 && previousLog.gaugeLevelBefore !== undefined && lastLog.gaugeLevelBefore !== undefined) {
-          // Step B: Use Delta V formula
-          // deltaV = Fuel Added + (Level Before - Level Now) * Capacity
-          const deltaV = lastLog.quantity + (estimatedCapacity * previousLog.gaugeLevelBefore) - (estimatedCapacity * lastLog.gaugeLevelBefore);
+          // Precise Formula for Interval [n-2, n-1]:
+          // Consumed = Q_{n-2} + (G_{n-2} - G_{n-1}) * Cap
+          const deltaV = previousLog.quantity + (estimatedCapacity * previousLog.gaugeLevelBefore) - (estimatedCapacity * lastLog.gaugeLevelBefore);
           latestConsumption = (deltaV / lastIntervalDistance) * 100;
         } else {
-          // Fallback: Use the last refill quantity (lastLog.quantity) 
-          // because it's what was refilled AFTER driving the interval distance.
+          // Fallback: Use the last refill quantity (lastLog.quantity)
+          // Because it's what was refilled AFTER driving the interval distance.
           latestConsumption = (lastLog.quantity / lastIntervalDistance) * 100;
         }
 
