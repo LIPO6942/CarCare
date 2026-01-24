@@ -368,6 +368,9 @@ function isHoliday(date: Date): boolean {
 
 export async function analyzeRoutes(userId: string, vehicleId: string): Promise<RoutePattern[]> {
   const fuelLogs = await getFuelLogsForVehicle(vehicleId, userId);
+  // Sort logs by mileage ascending (oldest to newest mileage) for analysis
+  fuelLogs.sort((a, b) => a.mileage - b.mileage);
+
   const places = await getPlaces(userId);
   const vehicle = await getVehicleById(vehicleId);
 
@@ -444,22 +447,27 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
     // Estimate Average Speed for this route based on consumption
     let estimatedAvgSpeed = 0;
     if (consumption > 0) {
-      // Creative approach: Calculate a 'Traffic Stress Factor' relative to car's own average
-      const baseline = globalAvgConsumption > 0 ? globalAvgConsumption : (vehicle?.fuelType === 'Diesel' ? 5.5 : 7.5);
-      const stressFactor = consumption / baseline;
+      const fiscalPower = vehicle?.fiscalPower || 6;
+      const isDiesel = vehicle?.fuelType === 'Diesel';
 
-      let adj = 0;
-      if (intensity < 30) adj = -5;
-      else if (intensity >= 60 && intensity < 90) adj = 15;
-      else if (intensity >= 90) adj = 35;
+      const baseReference = isDiesel ? 5.2 + (fiscalPower - 4) * 0.4 : 7.0 + (fiscalPower - 4) * 0.5;
+      const carAvg = globalAvgConsumption > 0 ? globalAvgConsumption : baseReference;
+      const stressFactor = consumption / carAvg;
 
+      let baseSpeed = 0;
       if (stressFactor >= 1) {
-        estimatedAvgSpeed = (45 / Math.pow(stressFactor, 1.8)) + adj;
-        if (estimatedAvgSpeed < 8) estimatedAvgSpeed = 8;
+        baseSpeed = (38 / Math.pow(stressFactor, 1.6));
+        if (baseSpeed < 10) baseSpeed = 10;
       } else {
-        estimatedAvgSpeed = 45 + (1 - stressFactor) * 110 + adj;
-        if (estimatedAvgSpeed > 135) estimatedAvgSpeed = 135;
+        baseSpeed = 38 + (1 - stressFactor) * 100;
+        if (baseSpeed > 130) baseSpeed = 130;
       }
+
+      let intensityAdjustment = 0;
+      if (intensity < 15) intensityAdjustment = -3;
+      else if (intensity > 100) intensityAdjustment = 15;
+
+      estimatedAvgSpeed = baseSpeed + intensityAdjustment;
     }
 
     // ... (maintenance logic here if any)
@@ -558,8 +566,10 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
       analysis: {
         workDistance,
         leisureDistance,
+        workCost: currentLog.totalCost * workRatio,
+        leisureCost: currentLog.totalCost * (1 - workRatio),
         workRatio,
-        commuteEfficiency: 0 // Will be calc on frontend vs avg
+        commuteEfficiency: globalAvgConsumption > 0 ? (consumption - globalAvgConsumption) : 0
       }
     });
   }

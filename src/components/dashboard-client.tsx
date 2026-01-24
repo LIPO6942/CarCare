@@ -398,50 +398,87 @@ export function DashboardClient() {
         }
 
         if (!estimatedSpeed && latestConsumption > 0) {
-          // Creative approach: Calculate a 'Traffic Stress Factor'
-          const baseline = averageConsumption > 0 ? averageConsumption : (vehicle.fuelType === 'Diesel' ? 5.5 : 7.5);
-          const stressFactor = latestConsumption / baseline;
+          // --- RECALIBRATED SPEED ESTIMATION (Version 2.1) ---
+          // Targeting ~29 km/h for normal urban/mixed usage as reported by the user
+          const fiscalPower = vehicle.fiscalPower || 6;
+          const isDiesel = vehicle.fuelType === 'Diesel';
 
-          let intensityAdjustment = 0;
-          if (kmPerDay < 30) {
-            intensityAdjustment = -5;
-          } else if (kmPerDay >= 60 && kmPerDay < 90) {
-            intensityAdjustment = 15;
-          } else if (kmPerDay >= 90) {
-            intensityAdjustment = 35;
-          }
+          // Realistic consumption baseline for Tunis-like traffic
+          const baseReference = isDiesel ? 5.2 + (fiscalPower - 4) * 0.4 : 7.0 + (fiscalPower - 4) * 0.5;
+          const carAvg = averageConsumption > 0 ? averageConsumption : baseReference;
+          const stressFactor = latestConsumption / carAvg;
 
+          // Use a base speed of 38 km/h for "normal" usage, with more aggressive decay (1.6)
+          let baseSpeed = 0;
           if (stressFactor >= 1) {
-            estimatedSpeed = (45 / Math.pow(stressFactor, 1.8)) + intensityAdjustment;
-            if (estimatedSpeed < 8) estimatedSpeed = 8;
+            // Stronger impact of consumption on speed prediction
+            baseSpeed = (38 / Math.pow(stressFactor, 1.6));
+            if (baseSpeed < 10) baseSpeed = 10;
           } else {
-            estimatedSpeed = 45 + (1 - stressFactor) * 110 + intensityAdjustment;
-            if (estimatedSpeed > 135) estimatedSpeed = 135;
+            // Highway efficiency
+            baseSpeed = 38 + (1 - stressFactor) * 100;
+            if (baseSpeed > 130) baseSpeed = 130;
           }
+
+          // Smaller intensity adjustment to avoid overestimating on longer trips
+          let intensityAdjustment = 0;
+          if (kmPerDay < 15) intensityAdjustment = -3;
+          else if (kmPerDay > 100) intensityAdjustment = 15;
+
+          estimatedSpeed = baseSpeed + intensityAdjustment;
         }
 
-        // --- SMART RANGE PREDICTOR ---
+        // --- SMART RANGE PREDICTOR (Adaptive Logic) ---
         let daysUntilEmpty = undefined;
         let remainingRangeKm = undefined;
 
         if (estimatedCapacity > 0 && latestConsumption > 0 && kmPerDay > 0) {
-          // Fuel level after last refill
-          const initialFuelAfterLog = (estimatedCapacity * lastLog.gaugeLevelBefore) + lastLog.quantity;
-          const cappedFuel = Math.min(initialFuelAfterLog, estimatedCapacity);
+          // 1. Calculate historical behavior context
+          const timeStats = [];
+          for (let i = 1; i < vehicleFuelLogs.length; i++) {
+            const dPrev = new Date(vehicleFuelLogs[i - 1].date);
+            const dCurr = new Date(vehicleFuelLogs[i].date);
+            const diff = (dCurr.getTime() - dPrev.getTime()) / (1000 * 60 * 60 * 24);
+            if (diff > 0) timeStats.push(diff);
+          }
 
-          // Estimation of fuel consumed since last log based on average daily mileage
+          // Typical period between refills (average days)
+          const avgDaysBetweenLogs = timeStats.length > 0
+            ? timeStats.reduce((a, b) => a + b, 0) / timeStats.length
+            : 14; // Fallback 14 days
+
+          // 2. Calculate time passed since last log
           const now = new Date();
           const lastLogDate = new Date(lastLog.date);
-          const totalHoursPassed = Math.max(0, (now.getTime() - lastLogDate.getTime()) / (1000 * 60 * 60));
-          const daysPassed = totalHoursPassed / 24;
+          const hoursPassed = Math.max(0, (now.getTime() - lastLogDate.getTime()) / (1000 * 60 * 60));
+          const daysPassed = hoursPassed / 24;
 
-          const estimatedDistanceDrivenSinceLog = daysPassed * kmPerDay;
+          // 3. ADAPTIVE LOGIC: Brake the consumption if user exceeds their typical refill period
+          // If daysPassed > avgDaysBetweenLogs, it's likely the car is stationary or used less
+          let adaptiveKmPerDay = kmPerDay;
+          const latencyThreshold = avgDaysBetweenLogs * 1.1; // 10% margin
+
+          if (daysPassed > latencyThreshold) {
+            // Apply a decay factor: the longer it stays without a log, the less we assume it drives
+            // This is a "damping" effect. 
+            const overtime = daysPassed - latencyThreshold;
+            const dampingFactor = 1 / (1 + (overtime / (avgDaysBetweenLogs * 0.5)));
+            adaptiveKmPerDay = kmPerDay * dampingFactor;
+          }
+
+          // 4. Fuel level calculations
+          const initialFuelAfterLog = (estimatedCapacity * lastLog.gaugeLevelBefore!) + lastLog.quantity;
+          const cappedFuel = Math.min(initialFuelAfterLog, estimatedCapacity);
+
+          // Calculate estimated distance using integration-like logic for better accuracy over time changes
+          // For simplicity here, we use the damped adaptiveKmPerDay for the whole period if in overtime
+          const estimatedDistanceDrivenSinceLog = daysPassed * adaptiveKmPerDay;
           const fuelConsumedSinceLog = (estimatedDistanceDrivenSinceLog * latestConsumption) / 100;
 
           const currentFuelInTank = Math.max(0, cappedFuel - fuelConsumedSinceLog);
 
           remainingRangeKm = (currentFuelInTank / latestConsumption) * 100;
-          daysUntilEmpty = remainingRangeKm / kmPerDay;
+          daysUntilEmpty = adaptiveKmPerDay > 0 ? (remainingRangeKm / adaptiveKmPerDay) : 99;
         }
 
         stats.set(vehicle.id, {

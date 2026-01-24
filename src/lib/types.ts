@@ -116,6 +116,8 @@ export type RoutePattern = {
   analysis?: {
     workDistance: number;
     leisureDistance: number;
+    workCost: number;
+    leisureCost: number;
     workRatio: number; // 0 to 1
     commuteEfficiency: number; // diff from avg
   };
