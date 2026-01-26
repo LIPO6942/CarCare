@@ -20,6 +20,7 @@ interface VehicleDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDataChange: () => void;
+  initialTab?: string;
 }
 
 const safeFormatCurrency = (numInput: any): string => {
@@ -114,7 +115,7 @@ const generateVehicleHistoryPDF = (vehicle: Vehicle, repairs: Repair[], maintena
 };
 
 
-export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }: VehicleDetailModalProps) {
+export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange, initialTab }: VehicleDetailModalProps) {
   const { user } = useAuth();
 
   const [repairs, setRepairs] = useState<Repair[]>([]);
@@ -202,7 +203,7 @@ export function VehicleDetailModal({ vehicle, open, onOpenChange, onDataChange }
                 maintenance={maintenance}
                 fuelLogs={fuelLogs}
                 onDataChange={handleDataChange}
-                initialTab="history"
+                initialTab={initialTab}
               />
             )}
           </ErrorBoundary>

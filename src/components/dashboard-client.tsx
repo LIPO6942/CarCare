@@ -168,6 +168,7 @@ export function DashboardClient() {
   const [isStatsLoading, setIsStatsLoading] = useState(true);
 
   const [vehicleForDetailView, setVehicleForDetailView] = useState<Vehicle | null>(null);
+  const [targetTab, setTargetTab] = useState<string | undefined>(undefined);
   const [vehicleForInitialMaintenance, setVehicleForInitialMaintenance] = useState<Vehicle | null>(null);
 
   const [deadlineToComplete, setDeadlineToComplete] = useState<Deadline | null>(null);
@@ -674,6 +675,13 @@ export function DashboardClient() {
               vehicles={vehicles}
               fuelLogs={fuelLogs}
               onFuelLogAdded={() => fetchData(false)}
+              onOpenVehicleFuel={(vehicleId) => {
+                const vehicle = vehicles.find(v => v.id === vehicleId);
+                if (vehicle) {
+                  setTargetTab('fuel');
+                  setVehicleForDetailView(vehicle);
+                }
+              }}
             />
           )}
 
@@ -683,7 +691,10 @@ export function DashboardClient() {
               value={getNextDeadlineValue(nextDeadline)}
               icon={Bell}
               description={getNextDeadlineDescription(nextDeadline)}
-              onClick={() => setVehicleForDetailView(getVehicleForStat(nextDeadline?.vehicleId) || null)}
+              onClick={() => {
+                setTargetTab(undefined);
+                setVehicleForDetailView(getVehicleForStat(nextDeadline?.vehicleId) || null);
+              }}
               onComplete={() => setDeadlineToComplete(nextDeadline)}
               disabled={!nextDeadline}
               isLoading={isStatsLoading}
@@ -696,7 +707,10 @@ export function DashboardClient() {
               value={getNextDeadlineValue(secondNextDeadline)}
               icon={Bell}
               description={getNextDeadlineDescription(secondNextDeadline)}
-              onClick={() => setVehicleForDetailView(getVehicleForStat(secondNextDeadline?.vehicleId) || null)}
+              onClick={() => {
+                setTargetTab(undefined);
+                setVehicleForDetailView(getVehicleForStat(secondNextDeadline?.vehicleId) || null);
+              }}
               onComplete={() => setDeadlineToComplete(secondNextDeadline)}
               disabled={!secondNextDeadline}
               isLoading={isStatsLoading}
@@ -737,7 +751,10 @@ export function DashboardClient() {
                     <VehicleCard
                       key={vehicle.id}
                       vehicle={vehicle}
-                      onShowDetails={() => setVehicleForDetailView(vehicle)}
+                      onShowDetails={() => {
+                        setTargetTab(undefined);
+                        setVehicleForDetailView(vehicle);
+                      }}
                       onDeleted={() => fetchData(true)}
                       fuelConsumption={stats?.consumption}
                       latestConsumption={stats?.latestConsumption}
@@ -782,6 +799,7 @@ export function DashboardClient() {
         open={!!vehicleForDetailView}
         onOpenChange={(isOpen) => !isOpen && setVehicleForDetailView(null)}
         onDataChange={() => fetchData(false)}
+        initialTab={targetTab}
       />
 
       <AddInitialMaintenanceForm

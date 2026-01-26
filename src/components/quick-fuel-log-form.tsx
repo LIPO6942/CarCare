@@ -27,15 +27,22 @@ interface QuickFuelLogFormProps {
   vehicles: Vehicle[];
   fuelLogs: FuelLog[];
   onFuelLogAdded: () => void;
+  onOpenVehicleFuel?: (vehicleId: string) => void;
 }
 
-export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFuelLogFormProps) {
+export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVehicleFuel }: QuickFuelLogFormProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>(vehicles[0]?.id);
   const [currentMileage, setCurrentMileage] = useState<string>('');
   const [gaugeLevelBefore, setGaugeLevelBefore] = useState<number>(12.5);
+
+  const handleOpenFuelTracking = () => {
+    if (selectedVehicleId && onOpenVehicleFuel) {
+      onOpenVehicleFuel(selectedVehicleId);
+    }
+  };
 
   // Assist user with mileage prefix
   useEffect(() => {
@@ -196,7 +203,15 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded }: QuickFu
     <Card className="shadow-sm">
       <CardHeader className="pb-4 pt-6 px-6">
         <div className="flex justify-between items-center flex-wrap gap-2">
-          <CardTitle className="text-xl whitespace-nowrap">Ajout rapide carburant</CardTitle>
+          <CardTitle className="text-xl whitespace-nowrap">
+            Ajout rapide <button
+              type="button"
+              onClick={handleOpenFuelTracking}
+              className="text-primary hover:underline decoration-primary/30 underline-offset-4 transition-all hover:text-primary/80 active:scale-95 px-1 rounded hover:bg-primary/5 -mx-1"
+            >
+              carburant
+            </button>
+          </CardTitle>
           <span className="text-xs text-muted-foreground">{lastFuelLogInfo}</span>
         </div>
       </CardHeader>
