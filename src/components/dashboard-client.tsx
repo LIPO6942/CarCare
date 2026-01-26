@@ -35,44 +35,100 @@ type Deadline = {
 } & ({ type: 'date'; date: Date } | { type: 'mileage'; kmRemaining: number });
 
 
-function StatCard({ title, value, icon: Icon, description, onClick, disabled, isLoading, isUrgent, onComplete }: { title: string, value: string | number, icon: ComponentType<{ className?: string }>, description?: string, onClick?: () => void, disabled?: boolean, isLoading?: boolean, isUrgent?: boolean, onComplete?: () => void }) {
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+  description,
+  onClick,
+  disabled,
+  isLoading,
+  isUrgent,
+  onComplete,
+  gradient = "from-primary/10 to-primary/5",
+  iconGradient = "from-primary to-primary-foreground/50",
+  shadow = "shadow-primary/10"
+}: {
+  title: string,
+  value: string | number,
+  icon: ComponentType<{ className?: string }>,
+  description?: string,
+  onClick?: () => void,
+  disabled?: boolean,
+  isLoading?: boolean,
+  isUrgent?: boolean,
+  onComplete?: () => void,
+  gradient?: string,
+  iconGradient?: string,
+  shadow?: string
+}) {
   const isClickable = !!onClick && !disabled;
 
   if (isLoading) {
-    return <Skeleton className="h-32" />;
+    return <Skeleton className="h-32 rounded-xl" />;
   }
 
   let IconToRender = Icon;
-  let cardClasses = "h-full flex flex-col";
+  let currentGradient = gradient;
+  let currentIconGradient = iconGradient;
+  let currentShadow = shadow;
 
   if (isUrgent) {
     IconToRender = AlertTriangle;
-    cardClasses = cn(cardClasses, "bg-destructive/10 border-destructive text-destructive");
+    currentGradient = "from-destructive/20 to-destructive/5";
+    currentIconGradient = "from-destructive to-rose-600";
+    currentShadow = "shadow-destructive/20";
   }
 
   const cardContent = (
-    <Card className={cardClasses}>
+    <Card className={cn(
+      "relative overflow-hidden border-none transition-all duration-300 h-full flex flex-col",
+      currentShadow,
+      isClickable && "hover:shadow-2xl hover:-translate-y-1"
+    )}>
+      {/* Top Gradient Bar */}
+      <div className={cn("absolute top-0 left-0 w-full h-1 bg-gradient-to-r", currentIconGradient)} />
+
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <IconToRender className={cn("h-4 w-4 text-muted-foreground", isUrgent && "text-destructive")} />
+        <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+          {title}
+        </CardTitle>
+        <div className={cn(
+          "p-2 rounded-xl bg-gradient-to-br shadow-lg text-white",
+          currentIconGradient
+        )}>
+          <IconToRender className="h-3.5 w-3.5" />
+        </div>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col justify-center">
-        <div className="text-2xl font-bold">{value}</div>
-        {description && <p className="text-sm text-current/90 pt-1">{description}</p>}
+
+      <CardContent className="flex-1 flex flex-col justify-center py-2">
+        <div className="text-2xl font-black tracking-tight">{value}</div>
+        {description && (
+          <p className="text-[10px] text-muted-foreground mt-1 font-medium italic leading-tight">
+            {description}
+          </p>
+        )}
       </CardContent>
+
       {onComplete && !disabled && (
-        <CardFooter className="p-2 border-t -mx-0 -mb-0 mt-auto bg-background/20 dark:bg-card/30">
+        <CardFooter className="p-2 border-t bg-background/40 backdrop-blur-sm mt-auto">
           <Button
             variant="ghost"
             size="sm"
-            className="w-full text-muted-foreground"
+            className="w-full text-[10px] h-7 font-bold uppercase tracking-tighter hover:bg-primary/10"
             onClick={(e) => { e.stopPropagation(); onComplete(); }}
           >
-            <CheckCircle2 className="mr-2 h-4 w-4" />
+            <CheckCircle2 className="mr-1.5 h-3 w-3" />
             Échéance réglée
           </Button>
         </CardFooter>
       )}
+
+      {/* Background Decoration */}
+      <div className={cn(
+        "absolute -right-4 -bottom-4 w-24 h-24 bg-gradient-to-br opacity-[0.05] rounded-full blur-2xl",
+        currentIconGradient
+      )} />
     </Card>
   );
 
@@ -80,7 +136,7 @@ function StatCard({ title, value, icon: Icon, description, onClick, disabled, is
     return (
       <div
         onClick={() => !disabled && onClick ? onClick() : undefined}
-        className={cn("text-left w-full h-full", isClickable && "cursor-pointer transition-all hover:shadow-md hover:-translate-y-1", disabled && "opacity-50 cursor-not-allowed")}
+        className={cn("text-left w-full h-full", disabled && "opacity-50 cursor-not-allowed")}
         role="button"
         tabIndex={disabled ? -1 : 0}
         onKeyDown={(e) => {
@@ -632,6 +688,8 @@ export function DashboardClient() {
               disabled={!nextDeadline}
               isLoading={isStatsLoading}
               isUrgent={isDeadlineUrgent}
+              iconGradient="from-blue-500 to-indigo-600"
+              shadow="shadow-blue-500/20"
             />
             <StatCard
               title={secondNextDeadline ? (isSecondDeadlineUrgent ? "Échéance Suivante" : "Échéance Suivante") : "Échéance Suivante"}
@@ -643,6 +701,8 @@ export function DashboardClient() {
               disabled={!secondNextDeadline}
               isLoading={isStatsLoading}
               isUrgent={isSecondDeadlineUrgent}
+              iconGradient="from-slate-500 to-slate-700"
+              shadow="shadow-slate-500/20"
             />
             <StatCard
               title="Coût des Réparations"
@@ -651,6 +711,8 @@ export function DashboardClient() {
               description={costCardDescription}
               disabled
               isLoading={isStatsLoading}
+              iconGradient="from-rose-500 to-red-600"
+              shadow="shadow-rose-500/20"
             />
             <StatCard
               title="Dépenses Carburant"
@@ -659,6 +721,8 @@ export function DashboardClient() {
               description={costCardDescription}
               disabled
               isLoading={isStatsLoading}
+              iconGradient="from-orange-400 to-amber-600"
+              shadow="shadow-orange-500/20"
             />
           </div>
 
