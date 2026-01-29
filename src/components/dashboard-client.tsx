@@ -471,15 +471,15 @@ export function DashboardClient() {
           const carAvg = averageConsumption > 0 ? averageConsumption : baseReference;
           const stressFactor = latestConsumption / carAvg;
 
-          // Use a base speed of 38 km/h for "normal" usage, with more aggressive decay (1.6)
+          // Use a base speed of 29 km/h for "normal" usage, with more aggressive decay (1.6)
           let baseSpeed = 0;
           if (stressFactor >= 1) {
             // Stronger impact of consumption on speed prediction
-            baseSpeed = (38 / Math.pow(stressFactor, 1.6));
+            baseSpeed = (29 / Math.pow(stressFactor, 1.6));
             if (baseSpeed < 10) baseSpeed = 10;
           } else {
             // Highway efficiency
-            baseSpeed = 38 + (1 - stressFactor) * 100;
+            baseSpeed = 29 + (1 - stressFactor) * 100;
             if (baseSpeed > 130) baseSpeed = 130;
           }
 
