@@ -8,6 +8,7 @@ export type Vehicle = {
   fuelType: 'Essence' | 'Diesel' | 'Électrique' | 'Hybride';
   fiscalPower?: number;
   estimatedTankCapacity?: number | null;
+  vin?: string;
 };
 
 export type Repair = {

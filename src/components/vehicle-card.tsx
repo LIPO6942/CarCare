@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2, Droplets, RefreshCw, Gauge, Zap } from 'lucide-react';
+import { Car, Fuel, GitCommitHorizontal, MoreHorizontal, Trash2, Droplets, RefreshCw, Gauge, Zap, Fingerprint, Copy, Check } from 'lucide-react';
 import type { Vehicle, FuelLog } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,17 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
   const [showConsumptionModal, setShowConsumptionModal] = useState(false);
   const { toast } = useToast();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyVin = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (vehicle.vin) {
+      navigator.clipboard.writeText(vehicle.vin);
+      setCopied(true);
+      toast({ title: 'Copié !', description: 'Le VIN a été copié dans le presse-papier.' });
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const loadImage = async () => {
     const imageBlob = await getVehicleImage(vehicle.id);
@@ -182,6 +193,18 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
               <GitCommitHorizontal className="h-4 w-4" />
               <span>{vehicle.licensePlate || 'N/A'}</span>
             </div>
+            {vehicle.vin && (
+              <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground/80 bg-muted/30 p-1 rounded group/vin relative cursor-pointer" onClick={handleCopyVin}>
+                <Fingerprint className="h-3 w-3" />
+                <span className="truncate">{vehicle.vin}</span>
+                <button
+                  className="ml-auto opacity-0 group-hover/vin:opacity-100 transition-opacity"
+                  title="Copier le VIN"
+                >
+                  {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                </button>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Car className="h-4 w-4" />
               <span>{vehicle.year || 'N/A'}</span>

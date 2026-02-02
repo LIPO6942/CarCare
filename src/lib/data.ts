@@ -198,6 +198,12 @@ export async function updateFuelLog(id: string, data: Partial<Omit<FuelLog, 'id'
   await updateDoc(doc(db, 'fuelLogs', id), data);
 }
 
+export async function updateVehicle(id: string, data: Partial<Omit<Vehicle, 'id' | 'userId'>>): Promise<void> {
+  const docRef = doc(db, 'vehicles', id);
+  const cleanData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined && v !== null));
+  await updateDoc(docRef, cleanData);
+}
+
 
 // --- Delete Functions ---
 export async function deleteRepair(id: string): Promise<void> {
