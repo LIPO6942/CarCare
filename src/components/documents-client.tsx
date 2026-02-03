@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from './ui/skeleton';
-import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Euro, Calendar, Edit, Fingerprint, Save } from 'lucide-react';
+import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Euro, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -19,6 +19,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Label } from './ui/label';
+import { cn } from '@/lib/utils';
+
 
 
 const safeFormatDate = (dateInput: any, formatString: string = 'P') => {
@@ -62,6 +64,8 @@ export function DocumentsClient() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<Document | null>(null);
     const [objectUrls, setObjectUrls] = useState<Map<number, { recto: string; verso?: string }>>(new Map());
+    const [isVinEditing, setIsVinEditing] = useState(false);
+    const [isVinCollapsed, setIsVinCollapsed] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -198,49 +202,94 @@ export function DocumentsClient() {
             </div>
 
             {selectedVehicleId && (
-                <Card className="mt-6">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Fingerprint className="h-5 w-5 text-primary" />
-                            Numéro de Châssis (VIN)
-                        </CardTitle>
-                        <CardDescription>
-                            Saisissez le VIN de votre véhicule pour l'avoir à portée de main.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex flex-col sm:flex-row gap-4 items-end">
-                            <div className="flex-1 space-y-2 w-full">
-                                <Label htmlFor="vin-input">VIN du véhicule</Label>
-                                <Input
-                                    id="vin-input"
-                                    placeholder="Ex: 17 caractères (VF...)"
-                                    value={vehicles.find(v => v.id === selectedVehicleId)?.vin || ''}
-                                    onChange={(e) => {
-                                        const newVin = e.target.value.toUpperCase();
-                                        setVehicles(prev => prev.map(v => v.id === selectedVehicleId ? { ...v, vin: newVin } : v));
-                                    }}
-                                    maxLength={17}
-                                />
+                <Card className="mt-6 overflow-hidden transition-all duration-300">
+                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4" onClick={() => setIsVinCollapsed(!isVinCollapsed)}>
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                    <Fingerprint className="h-5 w-5 text-primary" />
+                                    Numéro de Châssis (VIN)
+                                    {vehicles.find(v => v.id === selectedVehicleId)?.vin && !isVinEditing && (
+                                        <CheckCircle className="h-4 w-4 text-green-500 ml-1" />
+                                    )}
+                                </CardTitle>
+                                <CardDescription className="text-xs sm:text-sm">
+                                    Gérez le VIN de votre véhicule.
+                                </CardDescription>
                             </div>
-                            <Button
-                                onClick={async () => {
-                                    const vehicle = vehicles.find(v => v.id === selectedVehicleId);
-                                    if (vehicle) {
-                                        try {
-                                            await updateVehicle(vehicle.id, { vin: vehicle.vin });
-                                            toast({ title: 'Succès', description: 'Le VIN a été mis à jour.' });
-                                        } catch (error) {
-                                            toast({ title: 'Erreur', description: 'Impossible de mettre à jour le VIN.', variant: 'destructive' });
-                                        }
-                                    }
-                                }}
-                                className="w-full sm:w-auto"
-                            >
-                                <Save className="mr-2 h-4 w-4" /> Enregistrer le VIN
-                            </Button>
+                            {isVinCollapsed ? <ChevronDown className="h-5 w-5 text-muted-foreground" /> : <ChevronUp className="h-5 w-5 text-muted-foreground" />}
                         </div>
-                    </CardContent>
+                    </CardHeader>
+                    {!isVinCollapsed && (
+                        <CardContent className="pt-0 pb-6">
+                            <div className="flex flex-col sm:flex-row gap-3 items-end">
+                                <div className="flex-1 space-y-2 w-full">
+                                    <div className="flex justify-between items-center">
+                                        <Label htmlFor="vin-input">VIN du véhicule</Label>
+                                        {vehicles.find(v => v.id === selectedVehicleId)?.vin && !isVinEditing && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 px-2 text-xs"
+                                                onClick={() => setIsVinEditing(true)}
+                                            >
+                                                <Edit className="h-3 w-3 mr-1" /> Modifier
+                                            </Button>
+                                        )}
+                                    </div>
+                                    <div className="relative">
+                                        <Input
+                                            id="vin-input"
+                                            placeholder="Ex: 17 caractères (VF...)"
+                                            value={vehicles.find(v => v.id === selectedVehicleId)?.vin || ''}
+                                            onChange={(e) => {
+                                                const newVin = e.target.value.toUpperCase();
+                                                setVehicles(prev => prev.map(v => v.id === selectedVehicleId ? { ...v, vin: newVin } : v));
+                                            }}
+                                            maxLength={17}
+                                            disabled={!!vehicles.find(v => v.id === selectedVehicleId)?.vin && !isVinEditing}
+                                            className={cn(
+                                                "uppercase tracking-widest font-mono",
+                                                vehicles.find(v => v.id === selectedVehicleId)?.vin && !isVinEditing && "bg-muted text-muted-foreground opacity-70"
+                                            )}
+                                        />
+                                    </div>
+                                </div>
+                                {(!vehicles.find(v => v.id === selectedVehicleId)?.vin || isVinEditing) && (
+                                    <div className="flex gap-2 w-full sm:w-auto">
+                                        {isVinEditing && (
+                                            <Button
+                                                variant="outline"
+                                                className="flex-1 sm:flex-none"
+                                                onClick={() => setIsVinEditing(false)}
+                                            >
+                                                Annuler
+                                            </Button>
+                                        )}
+                                        <Button
+                                            onClick={async () => {
+                                                const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+                                                if (vehicle) {
+                                                    try {
+                                                        await updateVehicle(vehicle.id, { vin: vehicle.vin });
+                                                        toast({ title: 'Succès', description: 'Le VIN a été mis à jour.' });
+                                                        setIsVinEditing(false);
+                                                        // Automatically collapse after a short delay for better UX
+                                                        setTimeout(() => setIsVinCollapsed(true), 1500);
+                                                    } catch (error) {
+                                                        toast({ title: 'Erreur', description: 'Impossible de mettre à jour le VIN.', variant: 'destructive' });
+                                                    }
+                                                }
+                                            }}
+                                            className="flex-1 sm:flex-none"
+                                        >
+                                            <Save className="mr-2 h-4 w-4" /> Enregistrer
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    )}
                 </Card>
             )}
 
@@ -256,11 +305,11 @@ export function DocumentsClient() {
                             <p>Chargement des documents...</p>
                         </div>
                     ) : documents.length > 0 ? (
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                             {documents.map((doc) => {
                                 const docUrls = objectUrls.get(doc.id);
                                 return (
-                                    <Card key={doc.id} className="group relative flex flex-col">
+                                    <Card key={doc.id} className="group relative flex flex-col overflow-hidden">
                                         <CardHeader>
                                             <CardTitle className="flex items-center gap-2 text-lg">
                                                 <FileText className="h-5 w-5 text-primary" />
@@ -275,16 +324,16 @@ export function DocumentsClient() {
                                                     {doc.invoiceAmount && <p className="flex items-center gap-2"><Euro className="h-4 w-4" /> {safeFormatCurrency(doc.invoiceAmount)}</p>}
                                                 </div>
                                             )}
-                                            <div className="flex gap-2">
-                                                <Button asChild variant="secondary" className="flex-1" disabled={!docUrls?.recto}>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Button asChild variant="secondary" className="flex-1 min-w-[120px] text-xs sm:text-sm" disabled={!docUrls?.recto}>
                                                     <Link href={docUrls?.recto || '#'} target="_blank" rel="noopener noreferrer">
-                                                        <Download className="mr-2 h-4 w-4" /> Voir Recto
+                                                        <Download className="mr-2 h-4 w-4 shrink-0" /> <span className="truncate">Voir Recto</span>
                                                     </Link>
                                                 </Button>
                                                 {docUrls?.verso && (
-                                                    <Button asChild variant="secondary" className="flex-1">
+                                                    <Button asChild variant="secondary" className="flex-1 min-w-[120px] text-xs sm:text-sm">
                                                         <Link href={docUrls.verso} target="_blank" rel="noopener noreferrer">
-                                                            <Download className="mr-2 h-4 w-4" /> Verso
+                                                            <Download className="mr-2 h-4 w-4 shrink-0" /> <span className="truncate">Verso</span>
                                                         </Link>
                                                     </Button>
                                                 )}
