@@ -38,6 +38,8 @@ import { DialogFooter } from './ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { getSettings } from '@/lib/settings';
 import { cn } from '@/lib/utils';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
 
 interface VehicleTabsProps {
     vehicle: Vehicle;
@@ -820,6 +822,7 @@ const FuelLogSchema = z.object({
     quantity: z.coerce.number().gt(0, 'La quantité doit être supérieure à 0.'),
     pricePerLiter: z.coerce.number().gt(0, 'Le prix par litre doit être supérieur à 0.'),
     totalCost: z.coerce.number().min(0, 'Le coût total doit être positif.'),
+    gaugeLevelBefore: z.coerce.number().min(0).max(1, 'Niveau de jauge doit être entre 0% et 100%.'),
 });
 
 interface GroupedFuelLogs {
@@ -1030,6 +1033,7 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
     const [quantity, setQuantity] = useState(initialData?.quantity?.toString() || '');
     const [pricePerLiter, setPricePerLiter] = useState(initialData?.pricePerLiter?.toString() || '');
     const [totalCost, setTotalCost] = useState(initialData?.totalCost?.toString() || '');
+    const [gaugeLevelBefore, setGaugeLevelBefore] = useState<number>((initialData?.gaugeLevelBefore ?? 0.5) * 100);
 
     useEffect(() => {
         const settings = getSettings();
@@ -1040,10 +1044,12 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
                 setQuantity(initialData.quantity?.toString() || '');
                 setPricePerLiter(initialData.pricePerLiter?.toString() || defaultPrice);
                 setTotalCost(initialData.totalCost?.toString() || '');
+                setGaugeLevelBefore((initialData.gaugeLevelBefore ?? 0.5) * 100);
             } else {
                 setQuantity('');
                 setPricePerLiter(defaultPrice);
                 setTotalCost('');
+                setGaugeLevelBefore(50); // Default à 50%
             }
         }
     }, [initialData, open, vehicle.fuelType]);
@@ -1103,6 +1109,7 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
         formData.set('quantity', quantity);
         formData.set('pricePerLiter', pricePerLiter);
         formData.set('totalCost', totalCost);
+        formData.set('gaugeLevelBefore', (gaugeLevelBefore / 100).toString());
 
         const validatedFields = FuelLogSchema.safeParse(Object.fromEntries(formData.entries()));
 
@@ -1114,10 +1121,10 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
 
         try {
             if (initialData) {
-                await updateFuelLog(initialData.id, { ...validatedFields.data, gaugeLevelBefore: initialData.gaugeLevelBefore || 0 });
+                await updateFuelLog(initialData.id, validatedFields.data);
                 toast({ title: "Succès", description: "Plein mis à jour." });
             } else {
-                await addFuelLog({ ...validatedFields.data, vehicleId: vehicle.id, gaugeLevelBefore: 0 }, user.uid);
+                await addFuelLog({ ...validatedFields.data, vehicleId: vehicle.id }, user.uid);
                 toast({ title: "Succès", description: "Plein de carburant ajouté." });
             }
             onOpenChange(false);
@@ -1158,6 +1165,25 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
                             <label htmlFor="totalCost">Coût total (TND)</label>
                             <Input id="totalCost" name="totalCost" type="number" step="0.001" placeholder="Ex: 100" required value={totalCost} onChange={handleTotalCostChange} />
                         </div>
+                    </div>
+                    <div className="space-y-3 bg-muted/30 p-4 rounded-md">
+                        <div className="flex justify-between items-center">
+                            <Label htmlFor="gaugeLevelBefore" className="text-sm font-medium">Niveau du réservoir AVANT le plein</Label>
+                            <span className="text-sm font-bold text-primary">{gaugeLevelBefore.toFixed(0)}%</span>
+                        </div>
+                        <Slider
+                            id="gaugeLevelBefore"
+                            name="gaugeLevelBefore"
+                            value={[gaugeLevelBefore]}
+                            onValueChange={(value) => setGaugeLevelBefore(value[0])}
+                            min={0}
+                            max={100}
+                            step={1}
+                            className="w-full"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            {gaugeLevelBefore < 20 ? '🔴 Réservoir très bas' : gaugeLevelBefore < 50 ? '🟡 Réservoir à moitié plein' : gaugeLevelBefore < 85 ? '🟢 Réservoir entre moitié et plein' : '✅ Réservoir presque plein'}
+                        </p>
                     </div>
                     <DialogFooter>
                         <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
