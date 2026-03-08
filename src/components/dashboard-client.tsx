@@ -12,7 +12,7 @@ import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { VehicleCard } from '@/components/vehicle-card';
-import { calculateNextVignetteDate } from '@/lib/vignette';
+import { calculateNextVignetteDate, formatDateToLocalISO } from '@/lib/vignette';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
@@ -235,20 +235,8 @@ export function DashboardClient() {
       ...fuelLogs.map(item => ({ ...item, eventDate: new Date(item.date) }))
     ].filter(e => e.mileage > 0 && e.date && !isNaN(new Date(e.date).getTime()));
 
-    // Group maintenance tasks by type and vehicle to find the most recent one.
-    const latestTasksMap = new Map<string, Maintenance>();
-    maintenance.forEach(task => {
-      const key = `${task.vehicleId}-${task.task}`;
-      const existingTask = latestTasksMap.get(key);
-      if (!existingTask || new Date(task.date) > new Date(existingTask.date)) {
-        latestTasksMap.set(key, task);
-      }
-    });
-
-    const latestTasks = Array.from(latestTasksMap.values());
-
-    const dateBasedDeadlines: Deadline[] = latestTasks
-      .filter(m => m.nextDueDate)
+    const dateBasedDeadlines: Deadline[] = maintenance
+      .filter(m => m.nextDueDate && new Date(m.nextDueDate) >= today)
       .map(m => ({
         type: 'date' as const,
         name: m.task,
@@ -258,6 +246,17 @@ export function DashboardClient() {
         sortValue: new Date(m.nextDueDate!).getTime(),
         originalTask: m,
       }));
+
+    // For mileage-based, we still need the latest ones for context
+    const latestTasksMap = new Map<string, Maintenance>();
+    maintenance.forEach(task => {
+      const key = `${task.vehicleId}-${task.task}`;
+      const existingTask = latestTasksMap.get(key);
+      if (!existingTask || new Date(task.date) > new Date(existingTask.date)) {
+        latestTasksMap.set(key, task);
+      }
+    });
+    const latestTasks = Array.from(latestTasksMap.values());
 
     const mileageBasedDeadlines: Deadline[] = vehicles.map(vehicle => {
       const latestVehicleEvent = allEvents
@@ -742,6 +741,66 @@ export function DashboardClient() {
           </div>
 
           <div className="space-y-4">
+            <h2 className="text-2xl font-bold tracking-tight">Prochaines Échéances</h2>
+            <Card className="overflow-hidden border-none shadow-lg bg-card/50 backdrop-blur-sm">
+              <CardContent className="p-0">
+                <div className="divide-y divide-border">
+                  {upcomingDeadlines.length > 0 ? (
+                    upcomingDeadlines.map((deadline, idx) => {
+                      const vehicle = getVehicleForStat(deadline.vehicleId);
+                      const isOverdue = deadline.date < today;
+                      return (
+                        <div
+                          key={`${deadline.vehicleId}-${deadline.name}-${idx}`}
+                          className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                          onClick={() => {
+                            setTargetTab(undefined);
+                            setVehicleForDetailView(vehicle || null);
+                          }}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={cn(
+                              "p-2 rounded-lg",
+                              isOverdue ? "bg-red-500/20 text-red-500" : "bg-blue-500/20 text-blue-500"
+                            )}>
+                              <Bell className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <div className="font-bold">{deadline.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {vehicle?.brand} {vehicle?.model} ({vehicle?.licensePlate})
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className={cn(
+                              "font-mono font-bold",
+                              isOverdue ? "text-red-500" : "text-foreground"
+                            )}>
+                              {deadline.type === 'date'
+                                ? format(deadline.date, 'dd/MM/yyyy')
+                                : `${deadline.kmRemaining.toLocaleString()} km`}
+                            </div>
+                            {isOverdue && (
+                              <div className="text-[10px] uppercase font-black text-red-500 animate-pulse">
+                                Retard !
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="p-8 text-center text-muted-foreground italic">
+                      Aucune échéance prévue pour le moment.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-4">
             <h2 className="text-2xl font-bold tracking-tight">Mes Véhicules</h2>
             {vehicles.length > 0 ? (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -928,7 +987,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
           previousDueDate.setFullYear(previousDueDate.getFullYear() + 1);
         } else if (deadline.name === 'Vignette') {
           // On utilise la nouvelle logique en passant la date saisie (ici today/addedMaintenance)
-          nextMaintenanceData.nextDueDate = calculateNextVignetteDate(vehicle.licensePlate, new Date(addedMaintenance.date)).toISOString().split('T')[0];
+          nextMaintenanceData.nextDueDate = formatDateToLocalISO(calculateNextVignetteDate(vehicle.licensePlate, new Date(addedMaintenance.date)));
         } else if (deadline.name === 'Paiement Assurance') {
           const oldDueDate = new Date(deadline.originalTask.nextDueDate);
           const oldDate = new Date(deadline.originalTask.date);
@@ -937,7 +996,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
           previousDueDate.setMonth(previousDueDate.getMonth() + (isAnnual ? 12 : 6));
         }
         if (deadline.name !== 'Vignette') {
-          nextMaintenanceData.nextDueDate = previousDueDate.toISOString().split('T')[0];
+          nextMaintenanceData.nextDueDate = formatDateToLocalISO(previousDueDate);
         }
       }
 

@@ -60,7 +60,7 @@ export async function GET(request: Request) {
             const smartNextDate = adjustVignetteDate(licensePlate, oldDate);
             const newDateString = formatDateToLocalISO(smartNextDate);
 
-            // Si la date intelligente est différente de la date bête (+1 an), on la met à jour
+            // Si la date intelligente est différente, on la met à jour
             if (nextDueDate !== newDateString) {
                 batch.update(doc.ref, { nextDueDate: newDateString });
                 updatedCount++;
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
             // Firestore Batch limits to 500 operations at a time
             if (batchCount >= 450) {
                 await batch.commit();
-                batchCount = 0; // Reset pour le prochain lot
+                batchCount = 0;
             }
         }
 
