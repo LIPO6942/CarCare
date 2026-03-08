@@ -13,21 +13,22 @@ import { Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getSettings } from '@/lib/settings';
+import { calculateNextVignetteDate } from '@/lib/vignette';
 
 interface AddInitialMaintenanceFormProps {
-  vehicle: Vehicle | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onFinished: () => void;
+    vehicle: Vehicle | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onFinished: () => void;
 }
 
 const InitialMaintenanceSchema = z.object({
-  currentMileage: z.coerce.number().min(0, "Le kilométrage doit être positif.").optional(),
-  lastTechnicalInspectionDate: z.string().optional(),
-  lastInsurancePaymentDate: z.string().optional(),
-  insuranceType: z.enum(['semestrielle', 'annuelle']).optional(),
-  lastVignettePaymentDate: z.string().optional(),
-  lastOilChangeDate: z.string().optional(),
+    currentMileage: z.coerce.number().min(0, "Le kilométrage doit être positif.").optional(),
+    lastTechnicalInspectionDate: z.string().optional(),
+    lastInsurancePaymentDate: z.string().optional(),
+    insuranceType: z.enum(['semestrielle', 'annuelle']).optional(),
+    lastVignettePaymentDate: z.string().optional(),
+    lastOilChangeDate: z.string().optional(),
 }).refine(data => !(data.lastInsurancePaymentDate && !data.insuranceType), {
     message: "Le type d'assurance est requis si la date est fournie.",
     path: ['insuranceType'],
@@ -35,213 +36,213 @@ const InitialMaintenanceSchema = z.object({
 
 
 export function AddInitialMaintenanceForm({ vehicle, open, onOpenChange, onFinished }: AddInitialMaintenanceFormProps) {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isTechInspectionEligible = useMemo(() => {
-    if (!vehicle?.year) return true; // Default to visible if year is unknown
-    const vehicleAge = new Date().getFullYear() - vehicle.year;
-    return vehicleAge >= 4; // Eligible in the 5th year, so age must be >= 4
-  }, [vehicle]);
+    const isTechInspectionEligible = useMemo(() => {
+        if (!vehicle?.year) return true; // Default to visible if year is unknown
+        const vehicleAge = new Date().getFullYear() - vehicle.year;
+        return vehicleAge >= 4; // Eligible in the 5th year, so age must be >= 4
+    }, [vehicle]);
 
-  useEffect(() => {
-    // Reset state when dialog is closed
-    if (!open) {
-      setIsSubmitting(false);
-    }
-  }, [open]);
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!user || !vehicle) {
-      toast({ title: 'Erreur', description: 'Aucun véhicule ou utilisateur sélectionné.', variant: 'destructive' });
-      return;
-    }
-    setIsSubmitting(true);
-
-    const formData = new FormData(event.currentTarget);
-    const data = Object.fromEntries(formData.entries());
-
-    // Clean empty fields so zod validation works on optional fields
-    Object.keys(data).forEach(key => {
-        if (data[key] === '') {
-            delete (data as any)[key];
+    useEffect(() => {
+        // Reset state when dialog is closed
+        if (!open) {
+            setIsSubmitting(false);
         }
-    });
+    }, [open]);
 
-    const validatedFields = InitialMaintenanceSchema.safeParse(data);
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!user || !vehicle) {
+            toast({ title: 'Erreur', description: 'Aucun véhicule ou utilisateur sélectionné.', variant: 'destructive' });
+            return;
+        }
+        setIsSubmitting(true);
 
-    if (!validatedFields.success) {
-      toast({
-        title: 'Erreur de validation',
-        description: validatedFields.error.issues[0].message,
-        variant: 'destructive',
-      });
-      setIsSubmitting(false);
-      return;
-    }
+        const formData = new FormData(event.currentTarget);
+        const data = Object.fromEntries(formData.entries());
 
-    try {
-        const { 
-            currentMileage, 
-            lastTechnicalInspectionDate, 
-            lastInsurancePaymentDate, 
-            insuranceType, 
-            lastVignettePaymentDate, 
-            lastOilChangeDate 
-        } = validatedFields.data;
+        // Clean empty fields so zod validation works on optional fields
+        Object.keys(data).forEach(key => {
+            if (data[key] === '') {
+                delete (data as any)[key];
+            }
+        });
 
-        const maintenancePromises: Promise<any>[] = [];
-        const settings = getSettings();
+        const validatedFields = InitialMaintenanceSchema.safeParse(data);
 
-        if (lastTechnicalInspectionDate) {
-            const nextDueDate = new Date(lastTechnicalInspectionDate);
-            nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
-            maintenancePromises.push(addMaintenance({
-                vehicleId: vehicle.id,
-                date: lastTechnicalInspectionDate,
-                mileage: currentMileage || 0,
-                task: 'Visite technique',
-                cost: settings.costVisiteTechnique || 0,
-                nextDueDate: nextDueDate.toISOString().split('T')[0],
-            }, user.uid));
+        if (!validatedFields.success) {
+            toast({
+                title: 'Erreur de validation',
+                description: validatedFields.error.issues[0].message,
+                variant: 'destructive',
+            });
+            setIsSubmitting(false);
+            return;
         }
 
-        if (lastInsurancePaymentDate && insuranceType) {
-            const nextDueDate = new Date(lastInsurancePaymentDate);
-            nextDueDate.setMonth(nextDueDate.getMonth() + (insuranceType === 'annuelle' ? 12 : 6));
-             maintenancePromises.push(addMaintenance({
-                vehicleId: vehicle.id,
-                date: lastInsurancePaymentDate,
-                mileage: currentMileage || 0,
-                task: 'Paiement Assurance',
-                cost: 0, // Insurance cost is manually entered
-                nextDueDate: nextDueDate.toISOString().split('T')[0],
-            }, user.uid));
-        }
+        try {
+            const {
+                currentMileage,
+                lastTechnicalInspectionDate,
+                lastInsurancePaymentDate,
+                insuranceType,
+                lastVignettePaymentDate,
+                lastOilChangeDate
+            } = validatedFields.data;
 
-        if (lastVignettePaymentDate) {
-            const nextDueDate = new Date(lastVignettePaymentDate);
-            nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
-            
-            let vignetteCost = 0;
-            const power = vehicle.fiscalPower;
-            if (power) {
-                const vignetteSettings = vehicle.fuelType === 'Diesel' ? settings.vignetteDiesel : settings.vignetteEssence;
-                const powerRange = vignetteSettings.find(v => {
-                    if (v.range.includes('-')) {
-                        const [min, max] = v.range.split('-').map(Number);
-                        return power >= min && power <= max;
-                    }
-                    return Number(v.range) === power;
-                });
-                if (powerRange) {
-                    vignetteCost = powerRange.cost;
-                }
+            const maintenancePromises: Promise<any>[] = [];
+            const settings = getSettings();
+
+            if (lastTechnicalInspectionDate) {
+                const nextDueDate = new Date(lastTechnicalInspectionDate);
+                nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
+                maintenancePromises.push(addMaintenance({
+                    vehicleId: vehicle.id,
+                    date: lastTechnicalInspectionDate,
+                    mileage: currentMileage || 0,
+                    task: 'Visite technique',
+                    cost: settings.costVisiteTechnique || 0,
+                    nextDueDate: nextDueDate.toISOString().split('T')[0],
+                }, user.uid));
             }
 
-            maintenancePromises.push(addMaintenance({
-                vehicleId: vehicle.id,
-                date: lastVignettePaymentDate,
-                mileage: currentMileage || 0,
-                task: 'Vignette',
-                cost: vignetteCost,
-                nextDueDate: nextDueDate.toISOString().split('T')[0],
-            }, user.uid));
+            if (lastInsurancePaymentDate && insuranceType) {
+                const nextDueDate = new Date(lastInsurancePaymentDate);
+                nextDueDate.setMonth(nextDueDate.getMonth() + (insuranceType === 'annuelle' ? 12 : 6));
+                maintenancePromises.push(addMaintenance({
+                    vehicleId: vehicle.id,
+                    date: lastInsurancePaymentDate,
+                    mileage: currentMileage || 0,
+                    task: 'Paiement Assurance',
+                    cost: 0, // Insurance cost is manually entered
+                    nextDueDate: nextDueDate.toISOString().split('T')[0],
+                }, user.uid));
+            }
+
+            if (lastVignettePaymentDate) {
+                const lastPayment = new Date(lastVignettePaymentDate);
+                const nextDueDate = calculateNextVignetteDate(vehicle.licensePlate, lastPayment);
+
+                let vignetteCost = 0;
+                const power = vehicle.fiscalPower;
+                if (power) {
+                    const vignetteSettings = vehicle.fuelType === 'Diesel' ? settings.vignetteDiesel : settings.vignetteEssence;
+                    const powerRange = vignetteSettings.find(v => {
+                        if (v.range.includes('-')) {
+                            const [min, max] = v.range.split('-').map(Number);
+                            return power >= min && power <= max;
+                        }
+                        return Number(v.range) === power;
+                    });
+                    if (powerRange) {
+                        vignetteCost = powerRange.cost;
+                    }
+                }
+
+                maintenancePromises.push(addMaintenance({
+                    vehicleId: vehicle.id,
+                    date: lastVignettePaymentDate,
+                    mileage: currentMileage || 0,
+                    task: 'Vignette',
+                    cost: vignetteCost,
+                    nextDueDate: nextDueDate.toISOString().split('T')[0],
+                }, user.uid));
+            }
+
+            if (lastOilChangeDate && currentMileage) {
+                maintenancePromises.push(addMaintenance({
+                    vehicleId: vehicle.id,
+                    date: lastOilChangeDate,
+                    mileage: currentMileage,
+                    task: 'Vidange',
+                    cost: 0, // Oil change cost is manually entered
+                    nextDueMileage: currentMileage + 10000,
+                }, user.uid));
+            }
+
+            await Promise.all(maintenancePromises);
+
+            toast({
+                title: 'Succès',
+                description: 'Les informations d\'entretien initiales ont été enregistrées.',
+            });
+            onFinished();
+
+        } catch (error) {
+            console.error("Error setting initial maintenance:", error);
+            toast({
+                title: 'Erreur',
+                description: "Une erreur est survenue lors de l'enregistrement.",
+                variant: 'destructive',
+            });
+        } finally {
+            setIsSubmitting(false);
         }
+    };
 
-        if (lastOilChangeDate && currentMileage) {
-            maintenancePromises.push(addMaintenance({
-                vehicleId: vehicle.id,
-                date: lastOilChangeDate,
-                mileage: currentMileage,
-                task: 'Vidange',
-                cost: 0, // Oil change cost is manually entered
-                nextDueMileage: currentMileage + 10000,
-            }, user.uid));
-        }
+    if (!vehicle) return null;
 
-        await Promise.all(maintenancePromises);
-      
-        toast({
-            title: 'Succès',
-            description: 'Les informations d\'entretien initiales ont été enregistrées.',
-        });
-        onFinished();
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-lg flex flex-col max-h-[90vh]">
+                <DialogHeader>
+                    <DialogTitle>Ajouter les dates d'entretien pour {vehicle.brand} {vehicle.model}</DialogTitle>
+                    <DialogDescription>
+                        Ces informations permettront de calculer vos prochaines échéances. Vous pouvez ignorer cette étape.
+                    </DialogDescription>
+                </DialogHeader>
 
-    } catch (error) {
-        console.error("Error setting initial maintenance:", error);
-        toast({
-            title: 'Erreur',
-            description: "Une erreur est survenue lors de l'enregistrement.",
-            variant: 'destructive',
-        });
-    } finally {
-        setIsSubmitting(false);
-    }
-  };
-
-  if (!vehicle) return null;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg flex flex-col max-h-[90vh]">
-            <DialogHeader>
-                <DialogTitle>Ajouter les dates d'entretien pour {vehicle.brand} {vehicle.model}</DialogTitle>
-                <DialogDescription>
-                    Ces informations permettront de calculer vos prochaines échéances. Vous pouvez ignorer cette étape.
-                </DialogDescription>
-            </DialogHeader>
-
-            <form id="initial-maintenance-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
-                <div className="px-6 py-4 space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="currentMileage">Kilométrage Actuel</Label>
-                        <Input id="currentMileage" name="currentMileage" type="number" placeholder="ex: 85000" />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="lastOilChangeDate">Date du dernier vidange</Label>
-                        <Input id="lastOilChangeDate" name="lastOilChangeDate" type="date" />
-                    </div>
-                    {isTechInspectionEligible && (
+                <form id="initial-maintenance-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+                    <div className="px-6 py-4 space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="lastTechnicalInspectionDate">Date de la dernière visite technique</Label>
-                            <Input id="lastTechnicalInspectionDate" name="lastTechnicalInspectionDate" type="date" />
+                            <Label htmlFor="currentMileage">Kilométrage Actuel</Label>
+                            <Input id="currentMileage" name="currentMileage" type="number" placeholder="ex: 85000" />
                         </div>
-                    )}
-                     <div className="space-y-2">
-                        <Label>Dernier paiement d'assurance</Label>
-                        <div className="grid grid-cols-2 gap-4">
-                             <Input name="lastInsurancePaymentDate" type="date" />
-                             <Select name="insuranceType">
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="semestrielle">Semestrielle</SelectItem>
-                                    <SelectItem value="annuelle">Annuelle</SelectItem>
-                                </SelectContent>
-                            </Select>
+                        <div className="space-y-2">
+                            <Label htmlFor="lastOilChangeDate">Date du dernier vidange</Label>
+                            <Input id="lastOilChangeDate" name="lastOilChangeDate" type="date" />
+                        </div>
+                        {isTechInspectionEligible && (
+                            <div className="space-y-2">
+                                <Label htmlFor="lastTechnicalInspectionDate">Date de la dernière visite technique</Label>
+                                <Input id="lastTechnicalInspectionDate" name="lastTechnicalInspectionDate" type="date" />
+                            </div>
+                        )}
+                        <div className="space-y-2">
+                            <Label>Dernier paiement d'assurance</Label>
+                            <div className="grid grid-cols-2 gap-4">
+                                <Input name="lastInsurancePaymentDate" type="date" />
+                                <Select name="insuranceType">
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="semestrielle">Semestrielle</SelectItem>
+                                        <SelectItem value="annuelle">Annuelle</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="lastVignettePaymentDate">Date du dernier paiement de la vignette</Label>
+                            <Input id="lastVignettePaymentDate" name="lastVignettePaymentDate" type="date" />
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="lastVignettePaymentDate">Date du dernier paiement de la vignette</Label>
-                        <Input id="lastVignettePaymentDate" name="lastVignettePaymentDate" type="date" />
-                    </div>
-                </div>
-            </form>
-            
-            <DialogFooter className="p-6 pt-4 border-t">
-                <Button type="button" variant="ghost" onClick={onFinished} disabled={isSubmitting}>
-                    Ignorer
-                </Button>
-                <Button type="submit" form="initial-maintenance-form" disabled={isSubmitting} className="w-full sm:w-auto">
-                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {isSubmitting ? 'Enregistrement...' : 'Enregistrer les dates'}
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-  );
+                </form>
+
+                <DialogFooter className="p-6 pt-4 border-t">
+                    <Button type="button" variant="ghost" onClick={onFinished} disabled={isSubmitting}>
+                        Ignorer
+                    </Button>
+                    <Button type="submit" form="initial-maintenance-form" disabled={isSubmitting} className="w-full sm:w-auto">
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        {isSubmitting ? 'Enregistrement...' : 'Enregistrer les dates'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 }

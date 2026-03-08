@@ -11,62 +11,70 @@ export async function GET(request: Request) {
     }
 
     try {
-        // Calcul de la date dans 3 jours
-        const targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() + 3);
-        const dateString = targetDate.toISOString().split('T')[0];
+        // Calculation for J-3
+        const date3 = new Date();
+        date3.setDate(date3.getDate() + 3);
+        const dateString3 = date3.toISOString().split('T')[0];
 
-        // Recherche des maintenances prévues pour cette date (Assurance, Visite Technique, etc.)
-        const maintenanceTasksSnapshot = await adminDb
-            .collection('maintenance')
-            .where('nextDueDate', '==', dateString)
-            .get();
+        // Calculation for J-7
+        const date7 = new Date();
+        date7.setDate(date7.getDate() + 7);
+        const dateString7 = date7.toISOString().split('T')[0];
 
-        if (maintenanceTasksSnapshot.empty) {
-            return NextResponse.json({ message: `Aucun rappel trouvé pour la date ${dateString}.` });
+        // Fetching maintenances for J-3
+        const snapshot3 = adminDb.collection('maintenance').where('nextDueDate', '==', dateString3).get();
+        // Fetching maintenances for J-7
+        const snapshot7 = adminDb.collection('maintenance').where('nextDueDate', '==', dateString7).get();
+
+        const [results3, results7] = await Promise.all([snapshot3, snapshot7]);
+
+        if (results3.empty && results7.empty) {
+            return NextResponse.json({ message: `Aucun rappel trouvé pour ${dateString3} ou ${dateString7}.` });
         }
 
-        const messages = [];
+        const messages: any[] = [];
 
-        // Pour chaque maintenance trouvée
-        for (const doc of maintenanceTasksSnapshot.docs) {
-            const data = doc.data();
-            const { userId, vehicleId, task } = data;
+        // Helper function to process docs and format the notification messages
+        const processDocs = async (docs: any[], daysRemaining: number) => {
+            for (const doc of docs) {
+                const data = doc.data();
+                const { userId, vehicleId, task } = data;
 
-            // Récupération des infos du véhicule
-            let vehicleName = 'votre véhicule';
-            if (vehicleId) {
-                const vehicleDoc = await adminDb.collection('vehicles').doc(vehicleId).get();
-                if (vehicleDoc.exists) {
-                    const vehicleData = vehicleDoc.data();
-                    if (vehicleData) {
-                        vehicleName = `${vehicleData.brand} ${vehicleData.model}`;
+                let vehicleName = 'votre véhicule';
+                if (vehicleId) {
+                    const vehicleDoc = await adminDb.collection('vehicles').doc(vehicleId).get();
+                    if (vehicleDoc.exists) {
+                        const vehicleData = vehicleDoc.data();
+                        if (vehicleData) {
+                            vehicleName = `${vehicleData.brand} ${vehicleData.model}`;
+                        }
                     }
                 }
+
+                // Récupération des tokens de notification associés au user
+                const tokensSnapshot = await adminDb
+                    .collection('fcmTokens')
+                    .where('userId', '==', userId)
+                    .get();
+
+                if (!tokensSnapshot.empty) {
+                    const title = 'Rappel Entretien !';
+                    const body = `Dans ${daysRemaining} jours : ${task} pour ${vehicleName}. N'oubliez pas !`;
+
+                    const tokens = tokensSnapshot.docs.map(t => t.data().token);
+
+                    messages.push({
+                        notification: { title, body },
+                        tokens: tokens, // Array de tokens pour ce destinataire
+                    });
+                }
             }
+        };
 
-            // Récupération des tokens de notification associés au user
-            const tokensSnapshot = await adminDb
-                .collection('fcmTokens')
-                .where('userId', '==', userId)
-                .get();
+        // Execution of the helper for both groups
+        if (!results3.empty) await processDocs(results3.docs, 3);
+        if (!results7.empty) await processDocs(results7.docs, 7);
 
-            if (!tokensSnapshot.empty) {
-                const title = 'Rappel imminent !';
-                const body = `Dans 3 jours : ${task} pour ${vehicleName}. N'oubliez pas !`;
-
-                // Un utilisateur peut avoir plusieurs appareils/tokens
-                const tokens = tokensSnapshot.docs.map(t => t.data().token);
-
-                messages.push({
-                    notification: {
-                        title,
-                        body,
-                    },
-                    tokens: tokens, // Array de tokens pour ce destinataire
-                });
-            }
-        }
 
         let successCount = 0;
         let failureCount = 0;
@@ -87,8 +95,8 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            targetDate: dateString,
-            tasksFound: maintenanceTasksSnapshot.size,
+            targets: { "J-3": dateString3, "J-7": dateString7 },
+            tasksFound: results3.size + results7.size,
             notificationsSent: successCount,
             notificationsFailed: failureCount
         });

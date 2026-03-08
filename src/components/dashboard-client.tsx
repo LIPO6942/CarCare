@@ -12,6 +12,7 @@ import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { VehicleCard } from '@/components/vehicle-card';
+import { calculateNextVignetteDate } from '@/lib/vignette';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
@@ -923,8 +924,11 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
       } else if (deadline.originalTask.nextDueDate) {
         const previousDueDate = new Date(deadline.originalTask.nextDueDate);
 
-        if (deadline.name === 'Visite technique' || deadline.name === 'Vignette') {
+        if (deadline.name === 'Visite technique') {
           previousDueDate.setFullYear(previousDueDate.getFullYear() + 1);
+        } else if (deadline.name === 'Vignette') {
+          // On utilise la nouvelle logique en passant la date saisie (ici today/addedMaintenance)
+          nextMaintenanceData.nextDueDate = calculateNextVignetteDate(vehicle.licensePlate, new Date(addedMaintenance.date)).toISOString().split('T')[0];
         } else if (deadline.name === 'Paiement Assurance') {
           const oldDueDate = new Date(deadline.originalTask.nextDueDate);
           const oldDate = new Date(deadline.originalTask.date);
@@ -932,7 +936,9 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
           const isAnnual = monthDiff > 8;
           previousDueDate.setMonth(previousDueDate.getMonth() + (isAnnual ? 12 : 6));
         }
-        nextMaintenanceData.nextDueDate = previousDueDate.toISOString().split('T')[0];
+        if (deadline.name !== 'Vignette') {
+          nextMaintenanceData.nextDueDate = previousDueDate.toISOString().split('T')[0];
+        }
       }
 
       if (Object.keys(nextMaintenanceData).length > 0) {
