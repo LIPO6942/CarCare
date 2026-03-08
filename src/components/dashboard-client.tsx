@@ -33,7 +33,8 @@ type Deadline = {
   vehicleId: string;
   sortValue: number;
   originalTask: Maintenance;
-} & ({ type: 'date'; date: Date } | { type: 'mileage'; kmRemaining: number });
+  date: Date;
+} & ({ type: 'date' } | { type: 'mileage'; kmRemaining: number });
 
 
 function StatCard({
@@ -221,6 +222,8 @@ export function DashboardClient() {
     secondNextDeadline,
     isDeadlineUrgent,
     isSecondDeadlineUrgent,
+    upcomingDeadlines,
+    today,
     allEvents
   } = useMemo(() => {
     const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
@@ -340,6 +343,8 @@ export function DashboardClient() {
       secondNextDeadline,
       isDeadlineUrgent: checkUrgency(nextDeadline),
       isSecondDeadlineUrgent: checkUrgency(secondNextDeadline),
+      upcomingDeadlines,
+      today,
       allEvents
     }
   }, [vehicles, repairs, maintenance, fuelLogs]);
