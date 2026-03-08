@@ -235,20 +235,8 @@ export function DashboardClient() {
       ...fuelLogs.map(item => ({ ...item, eventDate: new Date(item.date) }))
     ].filter(e => e.mileage > 0 && e.date && !isNaN(new Date(e.date).getTime()));
 
-    // Group maintenance tasks by type and vehicle to find the most recent one.
-    const latestTasksMap = new Map<string, Maintenance>();
-    maintenance.forEach(task => {
-      const key = `${task.vehicleId}-${task.task}`;
-      const existingTask = latestTasksMap.get(key);
-      if (!existingTask || new Date(task.date) > new Date(existingTask.date)) {
-        latestTasksMap.set(key, task);
-      }
-    });
-
-    const latestTasks = Array.from(latestTasksMap.values());
-
-    const dateBasedDeadlines: Deadline[] = latestTasks
-      .filter(m => m.nextDueDate)
+    const dateBasedDeadlines: Deadline[] = maintenance
+      .filter(m => m.nextDueDate && new Date(m.nextDueDate) >= today)
       .map(m => ({
         type: 'date' as const,
         name: m.task,
@@ -258,6 +246,17 @@ export function DashboardClient() {
         sortValue: new Date(m.nextDueDate!).getTime(),
         originalTask: m,
       }));
+
+    // For mileage-based, we still need the latest ones for context
+    const latestTasksMap = new Map<string, Maintenance>();
+    maintenance.forEach(task => {
+      const key = `${task.vehicleId}-${task.task}`;
+      const existingTask = latestTasksMap.get(key);
+      if (!existingTask || new Date(task.date) > new Date(existingTask.date)) {
+        latestTasksMap.set(key, task);
+      }
+    });
+    const latestTasks = Array.from(latestTasksMap.values());
 
     const mileageBasedDeadlines: Deadline[] = vehicles.map(vehicle => {
       const latestVehicleEvent = allEvents
