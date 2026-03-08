@@ -219,8 +219,6 @@ export function DashboardClient() {
     totalFuelCost,
     nextDeadline,
     secondNextDeadline,
-    thirdNextDeadline,
-    fourthNextDeadline,
     isDeadlineUrgent,
     isSecondDeadlineUrgent,
     allEvents
@@ -322,8 +320,6 @@ export function DashboardClient() {
 
     const nextDeadline = upcomingDeadlines[0] || null;
     const secondNextDeadline = upcomingDeadlines[1] || null;
-    const thirdNextDeadline = upcomingDeadlines[2] || null;
-    const fourthNextDeadline = upcomingDeadlines[3] || null;
 
     const checkUrgency = (deadline: Deadline | null) => {
       if (!deadline) return false;
@@ -343,8 +339,6 @@ export function DashboardClient() {
       totalFuelCost,
       nextDeadline,
       secondNextDeadline,
-      thirdNextDeadline,
-      fourthNextDeadline,
       isDeadlineUrgent: checkUrgency(nextDeadline),
       isSecondDeadlineUrgent: checkUrgency(secondNextDeadline),
       allEvents
