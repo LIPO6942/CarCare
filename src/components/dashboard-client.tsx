@@ -741,6 +741,66 @@ export function DashboardClient() {
           </div>
 
           <div className="space-y-4">
+            <h2 className="text-2xl font-bold tracking-tight">Prochaines Échéances</h2>
+            <Card className="overflow-hidden border-none shadow-lg bg-card/50 backdrop-blur-sm">
+              <CardContent className="p-0">
+                <div className="divide-y divide-border">
+                  {upcomingDeadlines.length > 0 ? (
+                    upcomingDeadlines.map((deadline, idx) => {
+                      const vehicle = getVehicleForStat(deadline.vehicleId);
+                      const isOverdue = deadline.date < today;
+                      return (
+                        <div
+                          key={`${deadline.vehicleId}-${deadline.name}-${idx}`}
+                          className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                          onClick={() => {
+                            setTargetTab(undefined);
+                            setVehicleForDetailView(vehicle || null);
+                          }}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={cn(
+                              "p-2 rounded-lg",
+                              isOverdue ? "bg-red-500/20 text-red-500" : "bg-blue-500/20 text-blue-500"
+                            )}>
+                              <Bell className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <div className="font-bold">{deadline.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {vehicle?.brand} {vehicle?.model} ({vehicle?.licensePlate})
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className={cn(
+                              "font-mono font-bold",
+                              isOverdue ? "text-red-500" : "text-foreground"
+                            )}>
+                              {deadline.type === 'date'
+                                ? format(deadline.date, 'dd/MM/yyyy')
+                                : `${deadline.kmRemaining.toLocaleString()} km`}
+                            </div>
+                            {isOverdue && (
+                              <div className="text-[10px] uppercase font-black text-red-500 animate-pulse">
+                                Retard !
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="p-8 text-center text-muted-foreground italic">
+                      Aucune échéance prévue pour le moment.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-4">
             <h2 className="text-2xl font-bold tracking-tight">Mes Véhicules</h2>
             {vehicles.length > 0 ? (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
