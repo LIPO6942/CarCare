@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-import { calculateNextVignetteDate } from '@/lib/vignette';
+import { adjustVignetteDate, formatDateToLocalISO } from '@/lib/vignette';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -55,12 +55,12 @@ export async function GET(request: Request) {
             }
 
             // Calcul de la nouvelle date intelligente
-            // On se base sur l'ANCIENNE date prévue (ex: "2026-08-15") pour savoir dans quelle année on se situe.
+            // On se base sur l'ANCIENNE date prévue (ex: "2026-02-27") et on RECTIFIE juste le mois/jour
             const oldDate = new Date(nextDueDate);
-            const smartNextDate = calculateNextVignetteDate(licensePlate, oldDate);
-            const newDateString = smartNextDate.toISOString().split('T')[0];
+            const smartNextDate = adjustVignetteDate(licensePlate, oldDate);
+            const newDateString = formatDateToLocalISO(smartNextDate);
 
-            // Si la date intelligente est différente de la date bête (+1 an), on la met à jour
+            // Si la date intelligente est différente, on la met à jour
             if (nextDueDate !== newDateString) {
                 batch.update(doc.ref, { nextDueDate: newDateString });
                 updatedCount++;
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
             // Firestore Batch limits to 500 operations at a time
             if (batchCount >= 450) {
                 await batch.commit();
-                batchCount = 0; // Reset pour le prochain lot
+                batchCount = 0;
             }
         }
 
