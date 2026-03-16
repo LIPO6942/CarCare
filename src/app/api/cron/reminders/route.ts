@@ -11,6 +11,10 @@ export async function GET(request: Request) {
     }
 
     try {
+        // Calculation for J+0 (Today)
+        const date0 = new Date();
+        const dateString0 = date0.toISOString().split('T')[0];
+
         // Calculation for J-3
         const date3 = new Date();
         date3.setDate(date3.getDate() + 3);
@@ -21,15 +25,15 @@ export async function GET(request: Request) {
         date7.setDate(date7.getDate() + 7);
         const dateString7 = date7.toISOString().split('T')[0];
 
-        // Fetching maintenances for J-3
+        // Fetching maintenances for each date
+        const snapshot0 = adminDb.collection('maintenance').where('nextDueDate', '==', dateString0).get();
         const snapshot3 = adminDb.collection('maintenance').where('nextDueDate', '==', dateString3).get();
-        // Fetching maintenances for J-7
         const snapshot7 = adminDb.collection('maintenance').where('nextDueDate', '==', dateString7).get();
 
-        const [results3, results7] = await Promise.all([snapshot3, snapshot7]);
+        const [results0, results3, results7] = await Promise.all([snapshot0, snapshot3, snapshot7]);
 
-        if (results3.empty && results7.empty) {
-            return NextResponse.json({ message: `Aucun rappel trouvé pour ${dateString3} ou ${dateString7}.` });
+        if (results0.empty && results3.empty && results7.empty) {
+            return NextResponse.json({ message: `Aucun rappel trouvé pour aujourd'hui, J+3 ou J+7.` });
         }
 
         const messages: any[] = [];
@@ -58,20 +62,28 @@ export async function GET(request: Request) {
                     .get();
 
                 if (!tokensSnapshot.empty) {
-                    const title = 'Rappel Entretien !';
-                    const body = `Dans ${daysRemaining} jours : ${task} pour ${vehicleName}. N'oubliez pas !`;
+                    let title = 'Rappel Entretien !';
+                    let body = '';
+
+                    if (daysRemaining === 0) {
+                        title = 'Jour J : Entretien';
+                        body = `C'est aujourd'hui ! N'oubliez pas l'entretien "${task}" pour votre ${vehicleName}. Pensez à ajouter le document "${task}" dans l'onglet "Documents" pour un suivi complet.`;
+                    } else {
+                        body = `Dans ${daysRemaining} jours : ${task} pour ${vehicleName}. N'oubliez pas !`;
+                    }
 
                     const tokens = tokensSnapshot.docs.map(t => t.data().token);
 
                     messages.push({
                         notification: { title, body },
-                        tokens: tokens, // Array de tokens pour ce destinataire
+                        tokens: tokens,
                     });
                 }
             }
         };
 
-        // Execution of the helper for both groups
+        // Execution of the helper for all groups
+        if (!results0.empty) await processDocs(results0.docs, 0);
         if (!results3.empty) await processDocs(results3.docs, 3);
         if (!results7.empty) await processDocs(results7.docs, 7);
 
@@ -95,8 +107,8 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            targets: { "J-3": dateString3, "J-7": dateString7 },
-            tasksFound: results3.size + results7.size,
+            targets: { "J0": dateString0, "J-3": dateString3, "J-7": dateString7 },
+            tasksFound: results0.size + results3.size + results7.size,
             notificationsSent: successCount,
             notificationsFailed: failureCount
         });

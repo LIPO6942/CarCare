@@ -104,8 +104,18 @@ async function checkDeadlinesAndNotify(userId: string) {
             
             // Check if the due date is within the reminder threshold
             if (dueDate >= today && dueDate <= reminderDateThreshold) {
-                const title = 'Rappel d\'Entretien Proche';
-                const body = `N'oubliez pas: "${task.task}" est à faire avant le ${dueDate.toLocaleDateString('fr-FR')}.`;
+                // Determine if it's today
+                const isToday = dueDate.getFullYear() === today.getFullYear() &&
+                               dueDate.getMonth() === today.getMonth() &&
+                               dueDate.getDate() === today.getDate();
+
+                let title = 'Rappel d\'Entretien Proche';
+                let body = `N'oubliez pas : "${task.task}" est à faire avant le ${dueDate.toLocaleDateString('fr-FR')}.`;
+
+                if (isToday) {
+                    title = 'Jour J : Entretien';
+                    body = `C'est aujourd'hui ! N'oubliez pas l'entretien "${task.task}". Pensez à ajouter le document "${task.task}" dans l'onglet "Documents" pour un suivi complet.`;
+                }
                 
                 new Notification(title, {
                     body: body,
