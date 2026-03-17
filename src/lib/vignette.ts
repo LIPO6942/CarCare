@@ -1,7 +1,7 @@
 /**
  * Tunisian Rules for Vignettes:
- * - Ends in EVEN (0, 2, 4, 6, 8): March 5th
- * - Ends in ODD (1, 3, 5, 7, 9): April 5th
+ * - Ends in EVEN (0, 2, 4, 6, 8): April 5th  (mois paire → 05 Avril)
+ * - Ends in ODD  (1, 3, 5, 7, 9): March 5th  (mois impaire → 05 Mars)
  */
 function getVignetteRules(licensePlate: string) {
     const digitsOnly = (licensePlate || "").replace(/\D/g, '');
@@ -11,7 +11,7 @@ function getVignetteRules(licensePlate: string) {
     }
     const isEven = lastDigit % 2 === 0;
     return {
-        month: isEven ? 2 : 3, // 0-indexed: 2=March, 3=April
+        month: isEven ? 3 : 2, // 0-indexed: 3=April (paire), 2=March (impaire)
         day: 5
     };
 }
