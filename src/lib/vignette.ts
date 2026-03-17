@@ -4,12 +4,13 @@
  * - Ends in ODD  (1, 3, 5, 7, 9): March 5th  (mois impaire → 05 Mars)
  */
 function getVignetteRules(licensePlate: string) {
-    const digitsOnly = (licensePlate || "").replace(/\D/g, '');
-    let lastDigit = 0;
-    if (digitsOnly.length > 0) {
-        lastDigit = parseInt(digitsOnly.slice(-1), 10);
+    const match = (licensePlate || "").match(/\d+/);
+    let isEven = false;
+    if (match) {
+        const registrationNumber = match[0];
+        const lastDigit = parseInt(registrationNumber.slice(-1), 10);
+        isEven = lastDigit % 2 === 0;
     }
-    const isEven = lastDigit % 2 === 0;
     return {
         month: isEven ? 3 : 2, // 0-indexed: 3=April (paire), 2=March (impaire)
         day: 5
@@ -34,20 +35,8 @@ export function calculateNextVignetteDate(licensePlate: string, lastPaymentDate:
  */
 export function adjustVignetteDate(licensePlate: string, currentDeadline: Date): Date {
     const rules = getVignetteRules(licensePlate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Try current year first (2026)
-    const currentYearDeadline = new Date(today.getFullYear(), rules.month, rules.day);
-
-    // If the 2026 deadline is still in the future, we use it.
-    // This allows fixing the "2027" error.
-    if (currentYearDeadline >= today) {
-        return currentYearDeadline;
-    }
-
-    // Otherwise, use the next year
-    return new Date(today.getFullYear() + 1, rules.month, rules.day);
+    // Fix month and day according to rules, preserve the original year from the database
+    return new Date(currentDeadline.getFullYear(), rules.month, rules.day);
 }
 
 /**

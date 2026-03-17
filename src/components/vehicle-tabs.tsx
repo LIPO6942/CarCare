@@ -40,6 +40,7 @@ import { getSettings } from '@/lib/settings';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
+import { adjustVignetteDate } from '@/lib/vignette';
 
 interface VehicleTabsProps {
     vehicle: Vehicle;
@@ -672,7 +673,7 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                                                 <TableCell>{safeFormatDate(maint.date)}</TableCell>
                                                 <TableCell className="font-medium">{maint.task || 'N/A'}</TableCell>
                                                 <TableCell>{safeFormatNumber(maint.mileage)} km</TableCell>
-                                                <TableCell>{maint.nextDueDate ? safeFormatDate(maint.nextDueDate) : (maint.nextDueMileage ? `${safeFormatNumber(maint.nextDueMileage)} km` : 'N/A')}</TableCell>
+                                                <TableCell>{maint.nextDueDate ? safeFormatDate(maint.task === 'Vignette' ? adjustVignetteDate(vehicle.licensePlate, new Date(maint.nextDueDate)) : maint.nextDueDate) : (maint.nextDueMileage ? `${safeFormatNumber(maint.nextDueMileage)} km` : 'N/A')}</TableCell>
                                                 <TableCell className="text-right">{safeFormatCurrency(maint.cost)}</TableCell>
                                                 <TableCell><ActionMenu onEdit={() => handleEdit(maint)} onDelete={() => setItemToDelete(maint)} /></TableCell>
                                             </TableRow>

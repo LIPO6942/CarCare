@@ -12,7 +12,7 @@ import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { VehicleCard } from '@/components/vehicle-card';
-import { calculateNextVignetteDate, formatDateToLocalISO } from '@/lib/vignette';
+import { calculateNextVignetteDate, formatDateToLocalISO, adjustVignetteDate } from '@/lib/vignette';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
@@ -237,16 +237,25 @@ export function DashboardClient() {
     ].filter(e => e.mileage > 0 && e.date && !isNaN(new Date(e.date).getTime()));
 
     const dateBasedDeadlines: Deadline[] = maintenance
-      .filter(m => m.nextDueDate && new Date(m.nextDueDate) >= today)
-      .map(m => ({
-        type: 'date' as const,
-        name: m.task,
-        date: new Date(m.nextDueDate!),
-        cost: m.cost,
-        vehicleId: m.vehicleId,
-        sortValue: new Date(m.nextDueDate!).getTime(),
-        originalTask: m,
-      }));
+      .filter(m => !!m.nextDueDate)
+      .map(m => {
+        let deadlineDate = new Date(m.nextDueDate!);
+        if (m.task === 'Vignette') {
+            const vehicle = vehicles.find(v => v.id === m.vehicleId);
+            if (vehicle && vehicle.licensePlate) {
+                deadlineDate = adjustVignetteDate(vehicle.licensePlate, deadlineDate);
+            }
+        }
+        return {
+          type: 'date' as const,
+          name: m.task,
+          date: deadlineDate,
+          cost: m.cost,
+          vehicleId: m.vehicleId,
+          sortValue: deadlineDate.getTime(),
+          originalTask: m,
+        };
+      });
 
     // For mileage-based, we still need the latest ones for context
     const latestTasksMap = new Map<string, Maintenance>();
@@ -310,12 +319,6 @@ export function DashboardClient() {
       ...dateBasedDeadlines,
       ...mileageBasedDeadlines
     ]
-      .filter(deadline => {
-        if (deadline.type === 'date') {
-          return deadline.date >= today;
-        }
-        return true;
-      })
       .sort((a, b) => a.sortValue - b.sortValue);
 
     const nextDeadline = upcomingDeadlines[0] || null;
