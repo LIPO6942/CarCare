@@ -14,6 +14,7 @@ import {
   Timestamp,
   updateDoc,
   serverTimestamp,
+  deleteField,
 } from 'firebase/firestore';
 import type { Vehicle, Repair, Maintenance, FuelLog, AiDiagnostic, FcmToken, Place, RoutePattern } from './types';
 import { deleteLocalDocumentsForVehicle, deleteVehicleImage } from './local-db';
@@ -189,8 +190,15 @@ export async function updateRepair(id: string, data: Partial<Omit<Repair, 'id' |
 export async function updateMaintenance(id: string, data: Partial<Omit<Maintenance, 'id' | 'userId' | 'vehicleId'>>): Promise<void> {
   const docRef = doc(db, 'maintenance', id);
   // Firestore's updateDoc throws an error if a field is set to `undefined`.
-  // We must clean the data object to remove any undefined or null values.
-  const cleanData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined && v !== null));
+  // We must convert undefined values to deleteField() to properly remove them.
+  const cleanData: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined) {
+      cleanData[key] = deleteField();
+    } else if (value !== null) {
+      cleanData[key] = value;
+    }
+  }
   await updateDoc(docRef, cleanData);
 }
 

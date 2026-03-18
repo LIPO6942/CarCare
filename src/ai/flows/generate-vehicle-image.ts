@@ -32,7 +32,15 @@ const generateVehicleImageFlow = ai.defineFlow(
     // 1) Try Pollinations (free, no key) and proxy result as data URL
     try {
       const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(basePrompt)}?width=640&height=400&nologo=true&seed=${seed}`;
-      const res = await fetch(pollinationsUrl, { headers: { 'Accept': 'image/*' } });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      const res = await fetch(pollinationsUrl, { 
+        headers: { 'Accept': 'image/*' },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
       if (res.ok && (res.headers.get('content-type') || '').startsWith('image/')) {
         const arrayBuffer = await res.arrayBuffer();
         if (arrayBuffer.byteLength > 0) {
@@ -45,7 +53,11 @@ const generateVehicleImageFlow = ai.defineFlow(
         console.error('Pollinations returned non-image response:', res.status, errText);
       }
     } catch (e) {
-      console.error('Pollinations request failed:', e);
+      if (e instanceof Error && e.name === 'AbortError') {
+        console.error('Pollinations request timed out after 30 seconds');
+      } else {
+        console.error('Pollinations request failed:', e);
+      }
     }
 
     // 2) Try Hugging Face (requires free token, no card)
@@ -70,6 +82,9 @@ const generateVehicleImageFlow = ai.defineFlow(
         });
         for (const modelId of hfModels) {
           try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout for HF
+            
             const res = await fetch(`https://api-inference.huggingface.co/models/${modelId}`, {
               method: 'POST',
               headers: {
@@ -78,7 +93,10 @@ const generateVehicleImageFlow = ai.defineFlow(
                 'Accept': 'image/png',
               },
               body: JSON.stringify(payload(modelId)),
+              signal: controller.signal
             });
+            clearTimeout(timeoutId);
+            
             if (res.ok && (res.headers.get('content-type') || '').startsWith('image/')) {
               const arrayBuffer = await res.arrayBuffer();
               if (arrayBuffer.byteLength > 0) {
@@ -91,7 +109,11 @@ const generateVehicleImageFlow = ai.defineFlow(
               console.error(`HF image gen error ${res.status} for ${modelId}:`, errText);
             }
           } catch (e) {
-            console.error(`HF image gen network error for ${modelId}:`, e);
+            if (e instanceof Error && e.name === 'AbortError') {
+              console.error(`HF image gen timeout for ${modelId}`);
+            } else {
+              console.error(`HF image gen network error for ${modelId}:`, e);
+            }
           }
         }
       }
