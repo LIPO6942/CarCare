@@ -77,7 +77,7 @@ const generateVehicleImageFlow = ai.defineFlow(
             height: 400,
             num_inference_steps: modelId.includes('sd-turbo') ? 4 : 20,
             guidance_scale: 3.5,
-            generator: seed,
+            seed: seed,
           },
         });
         for (const modelId of hfModels) {
@@ -85,7 +85,7 @@ const generateVehicleImageFlow = ai.defineFlow(
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout for HF
             
-            const res = await fetch(`https://api-inference.huggingface.co/models/${modelId}`, {
+            const res = await fetch(`https://router.huggingface.co/hf-inference/models/${modelId}`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${hfToken}`,
@@ -121,7 +121,32 @@ const generateVehicleImageFlow = ai.defineFlow(
       console.error('HF image generation fallback failed:', e);
     }
 
-    // Fallback to a placeholder if HF token missing or generation failed
+    // 3) Try alternative Pollinations with different parameters
+    try {
+      const altPrompt = encodeURIComponent(`${brand} ${model} car vehicle automobile`);
+      const alternativeUrl = `https://image.pollinations.ai/prompt/${altPrompt}?width=512&height=320&seed=${Date.now()}&nologo=true`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
+      
+      const res = await fetch(alternativeUrl, {
+        headers: { 'Accept': 'image/*' },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
+      if (res.ok && (res.headers.get('content-type') || '').startsWith('image/')) {
+        const arrayBuffer = await res.arrayBuffer();
+        if (arrayBuffer.byteLength > 0) {
+          const mime = res.headers.get('content-type') || 'image/png';
+          const base64 = Buffer.from(arrayBuffer).toString('base64');
+          return `data:${mime};base64,${base64}`;
+        }
+      }
+    } catch (e) {
+      console.error('Alternative Pollinations request failed:', e);
+    }
+
+    // Fallback to a placeholder if all generation attempts failed
     const text = encodeURIComponent(`${brand} ${model}`);
     return `https://placehold.co/600x400/png?text=${text}`;
   }
