@@ -31,7 +31,7 @@ const generateVehicleImageFlow = ai.defineFlow(
 
     // 1) Try Pollinations (free, no key) and proxy result as data URL
     try {
-      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(basePrompt)}?width=640&height=400&nologo=true&seed=${seed}`;
+      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(basePrompt)}?width=1024&height=768&nologo=true&seed=${seed}&model=flux`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
@@ -65,20 +65,12 @@ const generateVehicleImageFlow = ai.defineFlow(
       const hfToken = process.env.HUGGINGFACE_API_KEY ?? process.env.HF_API_KEY ?? '';
       if (hfToken) {
         const hfModels = [
-          'black-forest-labs/FLUX.1-dev',
-          'stabilityai/sd-turbo',
-          'runwayml/stable-diffusion-v1-5',
+          'stabilityai/stable-diffusion-xl-base-1.0',
+          'black-forest-labs/FLUX.1-schnell',
+          'prompthero/openjourney-v4',
         ];
         const payload = (modelId: string) => ({
           inputs: basePrompt,
-          parameters: {
-            negative_prompt: 'text, watermark, logo, people, blurry',
-            width: 640,
-            height: 400,
-            num_inference_steps: modelId.includes('sd-turbo') ? 4 : 20,
-            guidance_scale: 3.5,
-            seed: seed,
-          },
         });
         for (const modelId of hfModels) {
           try {
@@ -124,7 +116,7 @@ const generateVehicleImageFlow = ai.defineFlow(
     // 3) Try alternative Pollinations with different parameters
     try {
       const altPrompt = encodeURIComponent(`${brand} ${model} car vehicle automobile`);
-      const alternativeUrl = `https://image.pollinations.ai/prompt/${altPrompt}?width=512&height=320&seed=${Date.now()}&nologo=true`;
+      const alternativeUrl = `https://image.pollinations.ai/prompt/${altPrompt}?width=800&height=600&seed=${Date.now()}&nologo=true&model=flux-anime`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 20000);
       
