@@ -647,8 +647,19 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                                         </div>
                                         <div className="flex justify-between items-end">
                                             <div className="text-sm text-muted-foreground space-y-1">
-                                                <span className="flex items-center gap-1.5"><Calendar size={14} /> {safeFormatDate(maint.date)}</span>
+                                                <span className="flex items-center gap-1.5"><Calendar size={14} /> Fait le: {safeFormatDate(maint.date)}</span>
                                                 <span className="flex items-center gap-1.5"><GaugeCircle size={14} /> {safeFormatNumber(maint.mileage)} km</span>
+                                                {(maint.nextDueDate || maint.nextDueMileage || maint.task === 'Vignette') && (
+                                                    <span className="flex items-center gap-1.5 text-blue-500/80 font-medium">
+                                                        <AlertCircle size={14} /> Échéance: {
+                                                            maint.task === 'Vignette'
+                                                                ? safeFormatDate(calculateNextVignetteDate(vehicle.licensePlate, new Date(maint.date)))
+                                                                : maint.nextDueDate
+                                                                    ? safeFormatDate(maint.nextDueDate)
+                                                                    : `${safeFormatNumber(maint.nextDueMileage)} km`
+                                                        }
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="font-bold text-lg text-foreground">{safeFormatCurrency(maint.cost)}</p>
                                         </div>
