@@ -3,6 +3,7 @@
  * - Ends in EVEN (0, 2, 4, 6, 8): March 5th  (paire → 05 Mars)
  * - Ends in ODD  (1, 3, 5, 7, 9): April 5th  (impaire → 05 Avril)
  */
+export { getVignetteRules };
 function getVignetteRules(licensePlate: string) {
     const match = (licensePlate || "").match(/\d+/);
     let isEven = false;
@@ -15,6 +16,26 @@ function getVignetteRules(licensePlate: string) {
         month: isEven ? 2 : 3, // 0-indexed: 2=March (paire), 3=April (impaire)
         day: 5
     };
+}
+
+/**
+ * Computes the CORRECT upcoming vignette deadline from today's date.
+ * Ignores whatever is stored in the DB — always derives from the plate
+ * category and the current date.
+ *
+ * Rules:
+ *  - If today ≤ this year's fixed vignette date → return this year's date.
+ *  - If today > this year's fixed vignette date → return next year's date.
+ *
+ * This is the source-of-truth for dashboard deadline display.
+ */
+export function getCorrectVignetteDeadline(licensePlate: string, today: Date = new Date()): Date {
+    const rules = getVignetteRules(licensePlate);
+    const thisYearDeadline = new Date(today.getFullYear(), rules.month, rules.day);
+    if (today <= thisYearDeadline) {
+        return thisYearDeadline;
+    }
+    return new Date(today.getFullYear() + 1, rules.month, rules.day);
 }
 
 /**

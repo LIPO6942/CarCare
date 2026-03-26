@@ -12,7 +12,7 @@ import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { VehicleCard } from '@/components/vehicle-card';
-import { calculateNextVignetteDate, formatDateToLocalISO, adjustVignetteDate } from '@/lib/vignette';
+import { calculateNextVignetteDate, formatDateToLocalISO, getCorrectVignetteDeadline } from '@/lib/vignette';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
@@ -236,14 +236,34 @@ export function DashboardClient() {
       ...fuelLogs.map(item => ({ ...item, eventDate: new Date(item.date) }))
     ].filter(e => e.mileage > 0 && e.date && !isNaN(new Date(e.date).getTime()));
 
+    // For vignette tasks, keep only the most recent payment record per vehicle
+    // (prevents duplicates and ensures we compute from the freshest data)
+    const latestVignetteByVehicle = new Map<string, Maintenance>();
+    maintenance.forEach(m => {
+      if (m.task === 'Vignette') {
+        const existing = latestVignetteByVehicle.get(m.vehicleId);
+        if (!existing || new Date(m.date) > new Date(existing.date)) {
+          latestVignetteByVehicle.set(m.vehicleId, m);
+        }
+      }
+    });
+
     const dateBasedDeadlines: Deadline[] = maintenance
       .filter(m => !!m.nextDueDate)
+      .filter(m => {
+        // For vignette, only keep the most recent record per vehicle
+        if (m.task === 'Vignette') {
+          return latestVignetteByVehicle.get(m.vehicleId)?.id === m.id;
+        }
+        return true;
+      })
       .map(m => {
         let deadlineDate = new Date(m.nextDueDate!);
         if (m.task === 'Vignette') {
             const vehicle = vehicles.find(v => v.id === m.vehicleId);
             if (vehicle && vehicle.licensePlate) {
-                deadlineDate = adjustVignetteDate(vehicle.licensePlate, deadlineDate);
+                // Always compute from today — ignores any wrong year stored in DB
+                deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
             }
         }
         return {
@@ -256,6 +276,31 @@ export function DashboardClient() {
           originalTask: m,
         };
       });
+
+    // Vehicles that have NO vignette record at all still need an alert.
+    // Synthesize a deadline for them based purely on plate + today.
+    vehicles.forEach(vehicle => {
+      if (vehicle.licensePlate && !latestVignetteByVehicle.has(vehicle.id)) {
+        const deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
+        const syntheticTask: Maintenance = {
+          id: `synthetic-vignette-${vehicle.id}`,
+          vehicleId: vehicle.id,
+          task: 'Vignette',
+          date: '',
+          mileage: 0,
+          cost: 0,
+          nextDueDate: formatDateToLocalISO(deadlineDate),
+        } as any;
+        dateBasedDeadlines.push({
+          type: 'date' as const,
+          name: 'Vignette',
+          date: deadlineDate,
+          vehicleId: vehicle.id,
+          sortValue: deadlineDate.getTime(),
+          originalTask: syntheticTask,
+        });
+      }
+    });
 
     // For mileage-based, we still need the latest ones for context
     const latestTasksMap = new Map<string, Maintenance>();
@@ -914,7 +959,9 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
       const addedMaintenance = await addMaintenance(newMaintenance, user.uid);
 
       // Now, update the OLD maintenance task to remove its deadline fields
-      if (deadline.originalTask.id) {
+      // (skip if it's a synthetic record with no real Firestore ID)
+      const isSyntheticRecord = deadline.originalTask.id?.startsWith('synthetic-');
+      if (deadline.originalTask.id && !isSyntheticRecord) {
         await updateMaintenance(deadline.originalTask.id, {
           nextDueDate: undefined,
           nextDueMileage: undefined,
