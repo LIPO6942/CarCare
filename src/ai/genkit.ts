@@ -15,6 +15,4 @@ if (!process.env.OPENAI_BASE_URL && process.env.GROQ_API_KEY) {
 
 export const ai = genkit({
   plugins: [],
-  logLevel: 'debug',
-  enableTracing: true,
 });

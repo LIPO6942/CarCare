@@ -150,6 +150,7 @@ export function SettingsClient() {
             const fieldNamePrefix = v.fuelType === 'Diesel' ? 'vignetteDiesel' : 'vignetteEssence';
 
             const powerRangeIndex = table.findIndex(field => {
+                if (v.fiscalPower === undefined) return false;
                 if (field.range.includes('-')) {
                     const [min, max] = field.range.split('-').map(Number);
                     return v.fiscalPower >= min && v.fiscalPower <= max;

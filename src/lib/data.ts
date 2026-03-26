@@ -191,7 +191,7 @@ export async function updateMaintenance(id: string, data: Partial<Omit<Maintenan
   const docRef = doc(db, 'maintenance', id);
   // Firestore's updateDoc throws an error if a field is set to `undefined`.
   // We must convert undefined values to deleteField() to properly remove them.
-  const cleanData: Record<string, unknown> = {};
+  const cleanData: any = {};
   for (const [key, value] of Object.entries(data)) {
     if (value === undefined) {
       cleanData[key] = deleteField();
