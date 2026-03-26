@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-import { getCorrectVignetteDeadline, formatDateToLocalISO } from '@/lib/vignette';
+import { getCorrectVignetteDeadline, formatDateToLocalISO, calculateNextVignetteDate } from '@/lib/vignette';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -31,12 +31,6 @@ export async function GET(request: Request) {
             const data = doc.data();
             const { vehicleId, nextDueDate } = data;
 
-            // Si la vignette n'a pas de date d'échéance (historique ancien), on l'ignore
-            if (!nextDueDate) {
-                skippedCount++;
-                continue;
-            }
-
             // Récupération de la plaque d'immatriculation du véhicule
             let licensePlate = '';
             if (vehicleId) {
@@ -54,11 +48,33 @@ export async function GET(request: Request) {
                 continue;
             }
 
-            // Calcul de la date correcte d'après la date d'AUJOURD'HUI (pas de l'ancienne date)
-            // getCorrectVignetteDeadline: si aujourd'hui <= échéance de l'année en cours → retourne
-            // l'année en cours, sinon l'année suivante. Corrige les "2027" erronés.
-            const today = new Date();
-            const smartNextDate = getCorrectVignetteDeadline(licensePlate, today);
+            let oldDate: Date;
+            if (nextDueDate) {
+                // S'il y avait déjà une valeur, on part d'aujourd'hui pour forcer le recalcul (fix bug 2027)
+                oldDate = new Date();
+            } else if (data.date) {
+                // S'il n'y a AUCUNE prochaine échéance stockée, on la calcule d'après la date du paiement réel
+                oldDate = new Date(data.date);
+            } else {
+                // Cas extrêmement rare: aucune date d'action ni d'échéance
+                skippedCount++;
+                continue;
+            }
+
+            // Calcul de la date correcte
+            // Si c'est un record sans nextDueDate, on utilise calculateNextVignetteDate
+            // Sinon on refait un clean up depuis aujourd'hui via getCorrectVignetteDeadline
+            let smartNextDate: Date;
+            if (!nextDueDate && data.date) {
+               smartNextDate = calculateNextVignetteDate(licensePlate, new Date(data.date));
+               // Safety cap: si le record est hyper vieux (ex: 2023)
+               if (smartNextDate < new Date()) {
+                  smartNextDate = getCorrectVignetteDeadline(licensePlate, new Date());
+               }
+            } else {
+               smartNextDate = getCorrectVignetteDeadline(licensePlate, new Date());
+            }
+
             const newDateString = formatDateToLocalISO(smartNextDate);
 
             // Si la date intelligente est différente, on la met à jour
