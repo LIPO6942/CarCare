@@ -674,13 +674,11 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                                                 <TableCell className="font-medium">{maint.task || 'N/A'}</TableCell>
                                                 <TableCell>{safeFormatNumber(maint.mileage)} km</TableCell>
                                                  <TableCell>
-                                                    {maint.nextDueDate
-                                                        ? safeFormatDate(
-                                                            maint.task === 'Vignette'
-                                                                ? calculateNextVignetteDate(vehicle.licensePlate, new Date(maint.date))
-                                                                : maint.nextDueDate
-                                                        )
-                                                        : (maint.nextDueMileage ? `${safeFormatNumber(maint.nextDueMileage)} km` : 'N/A')
+                                                    {maint.task === 'Vignette' 
+                                                        ? safeFormatDate(calculateNextVignetteDate(vehicle.licensePlate, new Date(maint.date)))
+                                                        : maint.nextDueDate
+                                                            ? safeFormatDate(maint.nextDueDate)
+                                                            : (maint.nextDueMileage ? `${safeFormatNumber(maint.nextDueMileage)} km` : 'N/A')
                                                     }
                                                 </TableCell>
                                                 <TableCell className="text-right">{safeFormatCurrency(maint.cost)}</TableCell>
