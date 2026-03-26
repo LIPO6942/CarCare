@@ -249,35 +249,38 @@ export function DashboardClient() {
     });
 
     const dateBasedDeadlines: Deadline[] = maintenance
-      .filter(m => !!m.nextDueDate)
       .filter(m => {
-        // For vignette, only keep the most recent record per vehicle
+        // Vignette: keep only the most recent record per vehicle, even if nextDueDate is missing
+        // (we can compute the deadline from the payment date itself)
         if (m.task === 'Vignette') {
           return latestVignetteByVehicle.get(m.vehicleId)?.id === m.id;
         }
-        return true;
+        // All other tasks: require nextDueDate to be set
+        return !!m.nextDueDate;
       })
       .map(m => {
-        let deadlineDate = new Date(m.nextDueDate!);
+        let deadlineDate: Date;
         if (m.task === 'Vignette') {
             const vehicle = vehicles.find(v => v.id === m.vehicleId);
             if (vehicle && vehicle.licensePlate) {
                 if (m.date) {
                     // Derive next deadline from the ACTUAL payment date:
+                    //  • paid 10 mars 2026 → next = 2027-04-05
                     //  • paid 2025 → next = 2026-04-05
-                    //  • paid 2026 (today) → next = 2027-04-05
                     deadlineDate = calculateNextVignetteDate(vehicle.licensePlate, new Date(m.date));
-                    // Safety cap: if the computed deadline has already passed without a newer
-                    // payment record (e.g. record from 2024 whose "next" was 2025 and was missed),
-                    // fall back to the correct upcoming deadline based on today.
+                    // Safety cap: if the computed deadline is already in the past
+                    // (e.g. old missed record), fall back to the real upcoming date.
                     if (deadlineDate < today) {
                         deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
                     }
                 } else {
-                    // Synthetic record (no real payment date): compute from today
                     deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
                 }
+            } else {
+                deadlineDate = m.nextDueDate ? new Date(m.nextDueDate) : getCorrectVignetteDeadline('', today);
             }
+        } else {
+            deadlineDate = new Date(m.nextDueDate!);
         }
         return {
           type: 'date' as const,
@@ -290,8 +293,8 @@ export function DashboardClient() {
         };
       });
 
-    // Vehicles that have NO vignette record at all still need an alert.
-    // Synthesize a deadline for them based purely on plate + today.
+    // Vehicles with NO vignette record at all → synthesize a deadline from today + plate.
+    // (Vehicles that HAVE a record, even without nextDueDate, are already handled above.)
     vehicles.forEach(vehicle => {
       if (vehicle.licensePlate && !latestVignetteByVehicle.has(vehicle.id)) {
         const deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);

@@ -2,8 +2,9 @@
 
 import { useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
-import { getAllUserMaintenance, getAllUserRepairs, getAllUserFuelLogs } from '@/lib/data';
+import { getAllUserMaintenance, getAllUserRepairs, getAllUserFuelLogs, getVehicles } from '@/lib/data';
 import type { Maintenance, Repair, FuelLog } from '@/lib/types';
+import { calculateNextVignetteDate, getCorrectVignetteDeadline } from '@/lib/vignette';
 
 const NOTIFICATION_SNOOZE_KEY = 'carcarepro_notified_deadlines';
 const REMINDER_DAYS_THRESHOLD = 7; // Notify 7 days before date-based deadline
@@ -40,10 +41,11 @@ async function checkDeadlinesAndNotify(userId: string) {
         return;
     }
 
-    const [maintenanceTasks, repairs, fuelLogs] = await Promise.all([
+    const [maintenanceTasks, repairs, fuelLogs, vehicles] = await Promise.all([
         getAllUserMaintenance(userId),
         getAllUserRepairs(userId),
         getAllUserFuelLogs(userId),
+        getVehicles(userId)
     ]);
     
     const today = new Date();
@@ -70,8 +72,42 @@ async function checkDeadlinesAndNotify(userId: string) {
         }
     });
 
+    // For vignette tasks, keep only the most recent payment record per vehicle
+    const latestVignetteByVehicle = new Map<string, Maintenance>();
+    maintenanceTasks.forEach(m => {
+      if (m.task === 'Vignette') {
+        const existing = latestVignetteByVehicle.get(m.vehicleId);
+        if (!existing || new Date(m.date) > new Date(existing.date)) {
+          latestVignetteByVehicle.set(m.vehicleId, m);
+        }
+      }
+    });
 
-    for (const task of maintenanceTasks) {
+    // Synthesize missing vignette tasks
+    const allMaintenanceTasks = [...maintenanceTasks];
+    vehicles.forEach(vehicle => {
+      if (vehicle.licensePlate && !latestVignetteByVehicle.has(vehicle.id)) {
+        const deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
+        const syntheticTask: Maintenance = {
+          id: `synthetic-vignette-${vehicle.id}`,
+          vehicleId: vehicle.id,
+          task: 'Vignette',
+          date: '',
+          mileage: 0,
+          cost: 0,
+          nextDueDate: deadlineDate.toISOString().split('T')[0],
+        } as any;
+        allMaintenanceTasks.push(syntheticTask);
+      }
+    });
+
+
+    for (const task of allMaintenanceTasks) {
+        // Skip outdated vignette records (only evaluate the latest per vehicle)
+        if (task.task === 'Vignette' && !task.id.startsWith('synthetic-') && latestVignetteByVehicle.get(task.vehicleId)?.id !== task.id) {
+            continue;
+        }
+
         // Check if a notification was already sent for this task, ever.
         if (notifiedDeadlines[task.id]) {
             continue; // Already notified for this task, skip.
@@ -99,8 +135,29 @@ async function checkDeadlinesAndNotify(userId: string) {
         }
         
         // --- Logic for Date-Based Reminders (Others) ---
-        else if (task.nextDueDate) {
-            const dueDate = new Date(task.nextDueDate);
+        else {
+            let dueDate: Date | null = null;
+
+            if (task.task === 'Vignette') {
+                const vehicle = vehicles.find(v => v.id === task.vehicleId);
+                if (vehicle && vehicle.licensePlate) {
+                    if (task.date) {
+                        dueDate = calculateNextVignetteDate(vehicle.licensePlate, new Date(task.date));
+                        if (dueDate < today) {
+                            dueDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
+                        }
+                    } else {
+                        dueDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
+                    }
+                } else if (task.nextDueDate) {
+                     dueDate = new Date(task.nextDueDate);
+                }
+            } else if (task.nextDueDate) {
+                dueDate = new Date(task.nextDueDate);
+            }
+
+            if (!dueDate) continue;
+
             
             // Check if the due date is within the reminder threshold
             if (dueDate >= today && dueDate <= reminderDateThreshold) {
