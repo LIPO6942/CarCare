@@ -743,6 +743,18 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
     const { toast } = useToast();
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // States for dynamic UI preview
+    const [currentTask, setCurrentTask] = useState<string>(initialData?.task || '');
+    const [currentDate, setCurrentDate] = useState<string>(initialData?.date || new Date().toISOString().split('T')[0]);
+
+    // Update state when modal opens/closes with different data
+    useEffect(() => {
+        if (open) {
+            setCurrentTask(initialData?.task || '');
+            setCurrentDate(initialData?.date || new Date().toISOString().split('T')[0]);
+        }
+    }, [open, initialData]);
 
     const maintenanceTasks = ["Vidange", "Paiement Assurance", "Vignette", "Visite technique", "Autre"];
 
@@ -807,10 +819,16 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <Input name="date" type="date" required defaultValue={initialData?.date || new Date().toISOString().split('T')[0]} />
+                        <Input 
+                            name="date" 
+                            type="date" 
+                            required 
+                            value={currentDate} 
+                            onChange={(e) => setCurrentDate(e.target.value)} 
+                        />
                         <Input name="mileage" type="number" placeholder="Kilométrage (optionnel)" defaultValue={initialData?.mileage} />
                     </div>
-                    <Select name="task" required defaultValue={initialData?.task}>
+                    <Select name="task" required value={currentTask} onValueChange={setCurrentTask}>
                         <SelectTrigger>
                             <SelectValue placeholder="Sélectionnez une tâche" />
                         </SelectTrigger>
@@ -821,9 +839,20 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                     <Input name="cost" type="number" step="0.001" placeholder="Coût (TND)" required defaultValue={initialData?.cost} />
 
                     <fieldset className="border p-4 rounded-md">
-                        <legend className="text-sm font-medium px-1">Prochain entretien (Optionnel)</legend>
+                        <legend className="text-sm font-medium px-1">Prochain entretien {currentTask === 'Vignette' ? '(Calculé)' : '(Optionnel)'}</legend>
                         <div className="grid grid-cols-2 gap-4 pt-2">
-                            <Input name="nextDueDate" type="date" defaultValue={initialData?.nextDueDate?.split('T')[0]} />
+                            {currentTask === 'Vignette' ? (
+                                <Input 
+                                    name="nextDueDate" 
+                                    type="date" 
+                                    value={currentDate ? formatDateToLocalISO(calculateNextVignetteDate(vehicle.licensePlate, new Date(currentDate))) : ''} 
+                                    readOnly 
+                                    className="bg-muted text-muted-foreground flex items-center justify-between"
+                                    title="Calculé automatiquement"
+                                />
+                            ) : (
+                                <Input name="nextDueDate" type="date" defaultValue={initialData?.nextDueDate?.split('T')[0]} />
+                            )}
                             <Input name="nextDueMileage" type="number" placeholder="Prochain kilométrage" defaultValue={initialData?.nextDueMileage} />
                         </div>
                     </fieldset>
