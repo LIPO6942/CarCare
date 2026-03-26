@@ -262,8 +262,21 @@ export function DashboardClient() {
         if (m.task === 'Vignette') {
             const vehicle = vehicles.find(v => v.id === m.vehicleId);
             if (vehicle && vehicle.licensePlate) {
-                // Always compute from today — ignores any wrong year stored in DB
-                deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
+                if (m.date) {
+                    // Derive next deadline from the ACTUAL payment date:
+                    //  • paid 2025 → next = 2026-04-05
+                    //  • paid 2026 (today) → next = 2027-04-05
+                    deadlineDate = calculateNextVignetteDate(vehicle.licensePlate, new Date(m.date));
+                    // Safety cap: if the computed deadline has already passed without a newer
+                    // payment record (e.g. record from 2024 whose "next" was 2025 and was missed),
+                    // fall back to the correct upcoming deadline based on today.
+                    if (deadlineDate < today) {
+                        deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
+                    }
+                } else {
+                    // Synthetic record (no real payment date): compute from today
+                    deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
+                }
             }
         }
         return {
