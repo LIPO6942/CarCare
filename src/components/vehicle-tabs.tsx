@@ -40,7 +40,7 @@ import { getSettings } from '@/lib/settings';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
-import { getCorrectVignetteDeadline, calculateNextVignetteDate } from '@/lib/vignette';
+import { getCorrectVignetteDeadline, calculateNextVignetteDate, formatDateToLocalISO } from '@/lib/vignette';
 
 interface VehicleTabsProps {
     vehicle: Vehicle;
@@ -763,6 +763,14 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
         if (rawData.nextDueDate === '') delete rawData.nextDueDate;
         if (rawData.nextDueMileage === '') delete rawData.nextDueMileage;
         if (rawData.mileage === '') delete rawData.mileage;
+
+        // -- SMART VIGNETTE LOGIC: Always compute and force the Next Due Date for Vignettes --
+        // This ensures saving/editing a Vignette ALWAYS puts the exact right date into Firestore
+        // completely bypassing the manual user input for the "Prochain entretien" date field.
+        if (rawData.task === 'Vignette' && typeof rawData.date === 'string') {
+            const calculatedNext = calculateNextVignetteDate(vehicle.licensePlate, new Date(rawData.date));
+            rawData.nextDueDate = formatDateToLocalISO(calculatedNext);
+        }
 
         const validatedFields = MaintenanceSchema.safeParse(rawData);
 
