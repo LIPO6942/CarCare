@@ -780,7 +780,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
         // This ensures saving/editing a Vignette ALWAYS puts the exact right date into Firestore
         // completely bypassing the manual user input for the "Prochain entretien" date field.
         if (rawData.task === 'Vignette' && typeof rawData.date === 'string') {
-            const calculatedNext = calculateNextVignetteDate(vehicle.licensePlate, new Date(rawData.date));
+            const calculatedNext = calculateNextVignetteDate(vehicle.licensePlate || '', new Date(rawData.date));
             rawData.nextDueDate = formatDateToLocalISO(calculatedNext);
         }
 
@@ -845,7 +845,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                                 <Input 
                                     name="nextDueDate" 
                                     type="date" 
-                                    value={currentDate ? formatDateToLocalISO(calculateNextVignetteDate(vehicle.licensePlate, new Date(currentDate))) : ''} 
+                                    value={currentDate ? formatDateToLocalISO(calculateNextVignetteDate(vehicle.licensePlate || '', new Date(currentDate))) : ''} 
                                     readOnly 
                                     className="bg-muted text-muted-foreground flex items-center justify-between"
                                     title="Calculé automatiquement"
