@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb, adminMessaging } from '@/lib/firebase-admin';
+import { calculateNextVignetteDate, formatDateToLocalISO } from '@/lib/vignette';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -29,18 +30,26 @@ export async function GET(request: Request) {
         const snapshot0 = adminDb.collection('maintenance').where('nextDueDate', '==', dateString0).get();
         const snapshot3 = adminDb.collection('maintenance').where('nextDueDate', '==', dateString3).get();
         const snapshot7 = adminDb.collection('maintenance').where('nextDueDate', '==', dateString7).get();
+        
+        // Also fetch ALL Vignettes to dynamically calculate their deadlines, 
+        // bypassing any corruption or empty fields in the database.
+        const snapshotVignettes = adminDb.collection('maintenance').where('task', '==', 'Vignette').get();
 
-        const [results0, results3, results7] = await Promise.all([snapshot0, snapshot3, snapshot7]);
+        const [results0, results3, results7, resultsVignettes] = await Promise.all([snapshot0, snapshot3, snapshot7, snapshotVignettes]);
 
-        if (results0.empty && results3.empty && results7.empty) {
+        if (results0.empty && results3.empty && results7.empty && resultsVignettes.empty) {
             return NextResponse.json({ message: `Aucun rappel trouvé pour aujourd'hui, J+3 ou J+7.` });
         }
 
         const messages: any[] = [];
+        const processedDocIds = new Set<string>();
 
         // Helper function to process docs and format the notification messages
         const processDocs = async (docs: any[], daysRemaining: number) => {
             for (const doc of docs) {
+                if (processedDocIds.has(doc.id)) continue;
+                processedDocIds.add(doc.id);
+
                 const data = doc.data();
                 const { userId, vehicleId, task } = data;
 
@@ -86,6 +95,35 @@ export async function GET(request: Request) {
         if (!results0.empty) await processDocs(results0.docs, 0);
         if (!results3.empty) await processDocs(results3.docs, 3);
         if (!results7.empty) await processDocs(results7.docs, 7);
+
+        // Smart dynamic detection for Vignettes (catches those missing nextDueDate)
+        if (!resultsVignettes.empty) {
+            const dynamic0: any[] = [];
+            const dynamic3: any[] = [];
+            const dynamic7: any[] = [];
+
+            for (const doc of resultsVignettes.docs) {
+                if (processedDocIds.has(doc.id)) continue;
+                const data = doc.data();
+                if (!data.date || !data.vehicleId) continue;
+                
+                // Fetch vehicle to get license plate
+                const vehicleDoc = await adminDb.collection('vehicles').doc(data.vehicleId).get();
+                if (!vehicleDoc.exists) continue;
+                const licensePlate = vehicleDoc.data()?.licensePlate || '';
+
+                const calculated = calculateNextVignetteDate(licensePlate, new Date(data.date));
+                const calcString = formatDateToLocalISO(calculated);
+
+                if (calcString === dateString0) dynamic0.push(doc);
+                else if (calcString === dateString3) dynamic3.push(doc);
+                else if (calcString === dateString7) dynamic7.push(doc);
+            }
+
+            if (dynamic0.length > 0) await processDocs(dynamic0, 0);
+            if (dynamic3.length > 0) await processDocs(dynamic3, 3);
+            if (dynamic7.length > 0) await processDocs(dynamic7, 7);
+        }
 
 
         let successCount = 0;
