@@ -124,11 +124,17 @@ async function checkDeadlinesAndNotify(userId: string) {
                 const title = 'Rappel de Vidange Proche';
                 const body = `Il reste environ ${kmRemaining.toLocaleString('fr-FR')} km avant votre prochaine vidange.`;
                 
-                new Notification(title, {
-                    body: body,
-                    icon: '/apple-touch-icon.png',
-                    badge: '/apple-touch-icon.png'
-                });
+                // Route through SW to avoid double notification (browser tab + PWA)
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.ready.then((reg) => {
+                        reg.showNotification(title, {
+                            body,
+                            icon: '/android-chrome-192x192.png',
+                            badge: '/android-chrome-192x192.png',
+                            data: { url: '/' },
+                        });
+                    });
+                }
                 addNotifiedDeadline(task.id);
                 continue; // Move to the next task after sending notification
             }
@@ -174,11 +180,17 @@ async function checkDeadlinesAndNotify(userId: string) {
                     body = `C'est aujourd'hui ! N'oubliez pas l'entretien "${task.task}". Pensez à ajouter le document "${task.task}" dans l'onglet "Documents" pour un suivi complet.`;
                 }
                 
-                new Notification(title, {
-                    body: body,
-                    icon: '/apple-touch-icon.png',
-                    badge: '/apple-touch-icon.png'
-                });
+                // Route through SW to avoid double notification (browser tab + PWA)
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.ready.then((reg) => {
+                        reg.showNotification(title, {
+                            body,
+                            icon: '/android-chrome-192x192.png',
+                            badge: '/android-chrome-192x192.png',
+                            data: { url: '/' },
+                        });
+                    });
+                }
                 addNotifiedDeadline(task.id);
             }
         }

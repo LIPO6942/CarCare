@@ -1,4 +1,4 @@
-const CACHE_NAME = 'carcare-pro-v2';
+const CACHE_NAME = 'carcare-pro-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/documents',
@@ -65,6 +65,31 @@ self.addEventListener('fetch', (event) => {
         // If fetch fails (offline) and no cache, maybe return a fallback?
         // For now just fail.
       });
+    })
+  );
+});
+
+// Handle notification clicks — open or focus the CarCare app
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close(); // Dismiss the notification banner
+
+  const targetUrl = (event.notification.data && event.notification.data.url)
+    ? event.notification.data.url
+    : '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      // If a window with our app is already open, focus and navigate it
+      for (const client of clients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      // Otherwise open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
     })
   );
 });
