@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { Vehicle, Document } from '@/lib/types';
 import { getVehicles, updateVehicle } from '@/lib/data';
 import { addLocalDocument, deleteLocalDocument, getLocalDocumentsForVehicle, updateLocalDocument } from '@/lib/local-db';
@@ -68,19 +69,26 @@ export function DocumentsClient() {
     const [isVinCollapsed, setIsVinCollapsed] = useState(false);
     const { toast } = useToast();
 
+    const searchParams = useSearchParams();
+    const vehicleIdParam = searchParams.get('vehicleId');
+
     useEffect(() => {
         async function fetchVehicles() {
             if (!user) return;
             setIsLoadingVehicles(true);
             const vehiclesData = await getVehicles(user.uid);
             setVehicles(vehiclesData);
-            if (vehiclesData.length > 0) {
+            
+            // Priority: URL param > First vehicle in list
+            if (vehicleIdParam && vehiclesData.some(v => v.id === vehicleIdParam)) {
+                setSelectedVehicleId(vehicleIdParam);
+            } else if (vehiclesData.length > 0) {
                 setSelectedVehicleId(vehiclesData[0].id);
             }
             setIsLoadingVehicles(false);
         }
         fetchVehicles();
-    }, [user]);
+    }, [user, vehicleIdParam]);
 
     useEffect(() => {
         async function fetchDocuments() {

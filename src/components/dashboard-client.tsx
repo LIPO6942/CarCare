@@ -1,7 +1,7 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, type ComponentType, type FormEvent, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { Vehicle, Repair, Maintenance, FuelLog } from '@/lib/types';
 import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
@@ -199,11 +199,25 @@ export function DashboardClient() {
     if (showLoadingIndicators) setIsStatsLoading(false);
   }, [user]);
 
+  const searchParams = useSearchParams();
+  const vehicleIdParam = searchParams.get('vehicleId');
+
   useEffect(() => {
     if (user) {
       fetchData();
     }
   }, [user, fetchData]);
+
+  useEffect(() => {
+    if (vehicles.length > 0 && vehicleIdParam) {
+      const vehicle = vehicles.find(v => v.id === vehicleIdParam);
+      if (vehicle) {
+        setVehicleForDetailView(vehicle);
+        // Clear param from URL without refreshing? 
+        // For now just opening it is enough.
+      }
+    }
+  }, [vehicles, vehicleIdParam]);
 
   const handleVehicleAdded = (newVehicle: Vehicle) => {
     fetchData(false); // Refetch data in background

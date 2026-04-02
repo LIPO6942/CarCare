@@ -2,6 +2,7 @@ import { ProtectedRoute } from '@/components/protected-route';
 import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { DocumentsClient } from '@/components/documents-client';
+import { Suspense } from 'react';
 
 export default function DocumentsPage() {
   return (
@@ -12,7 +13,9 @@ export default function DocumentsPage() {
             description="Gérez tous les documents importants de vos véhicules."
         />
         <main className="flex-1 p-4 sm:p-6 lg:p-8 pt-0">
-            <DocumentsClient />
+            <Suspense fallback={null}>
+                <DocumentsClient />
+            </Suspense>
         </main>
         </AppLayout>
     </ProtectedRoute>

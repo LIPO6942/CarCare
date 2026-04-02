@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { getAllUserMaintenance, getAllUserRepairs, getAllUserFuelLogs, getVehicles } from '@/lib/data';
 import type { Maintenance, Repair, FuelLog } from '@/lib/types';
-import { calculateNextVignetteDate, getCorrectVignetteDeadline } from '@/lib/vignette';
+import { calculateNextVignetteDate, getCorrectVignetteDeadline, getVignetteRules } from '@/lib/vignette';
 
 const NOTIFICATION_SNOOZE_KEY = 'carcarepro_notified_deadlines';
 const REMINDER_DAYS_THRESHOLD = 7; // Notify 7 days before date-based deadline
@@ -126,12 +126,14 @@ async function checkDeadlinesAndNotify(userId: string) {
                 
                 // Route through SW to avoid double notification (browser tab + PWA)
                 if ('serviceWorker' in navigator) {
+                    const url = `/?vehicleId=${task.vehicleId}`;
                     navigator.serviceWorker.ready.then((reg) => {
                         reg.showNotification(title, {
                             body,
                             icon: '/android-chrome-192x192.png',
                             badge: '/android-chrome-192x192.png',
-                            data: { url: '/' },
+                            tag: `task-${task.id}`,
+                            data: { url },
                         });
                     });
                 }
@@ -143,15 +145,50 @@ async function checkDeadlinesAndNotify(userId: string) {
         // --- Logic for Date-Based Reminders (Others) ---
         else {
             let dueDate: Date | null = null;
+            const isPaid = !task.id.startsWith('synthetic-');
 
             if (task.task === 'Vignette') {
                 const vehicle = vehicles.find(v => v.id === task.vehicleId);
                 if (vehicle && vehicle.licensePlate) {
                     if (task.date) {
-                        dueDate = calculateNextVignetteDate(vehicle.licensePlate, new Date(task.date));
-                        if (dueDate < today) {
-                            dueDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
+                        // For PAID vignettes, we want to notify on the OFFICIAL deadline day of the payment year
+                        // to remind the user about the document.
+                        const paymentDate = new Date(task.date);
+                        const officialDeadline = new Date(paymentDate.getFullYear(), getVignetteRules(vehicle.licensePlate).month, getVignetteRules(vehicle.licensePlate).day);
+                        
+                        // Also calculate the NEXT deadline for regular reminders
+                        dueDate = calculateNextVignetteDate(vehicle.licensePlate, paymentDate);
+                        
+                        // If we are looking at a PAID record, we ONLY notify on the official deadline day
+                        // of the cycle that was just paid.
+                        const isOfficialDeadlineToday = officialDeadline.getFullYear() === today.getFullYear() &&
+                                                      officialDeadline.getMonth() === today.getMonth() &&
+                                                      officialDeadline.getDate() === today.getDate();
+
+                        if (isOfficialDeadlineToday) {
+                            const title = 'Jour J : Justificatif Vignette';
+                            const body = `C'est aujourd'hui la date limite officielle pour la Vignette. Puisque vous avez déjà effectué le paiement, n'oubliez pas d'ajouter le document dans l'onglet "Documents".`;
+                            const tag = `task-${task.id}-doc-reminder`;
+                            
+                            if (notifiedDeadlines[tag]) continue;
+
+                            if ('serviceWorker' in navigator) {
+                                navigator.serviceWorker.ready.then((reg) => {
+                                    reg.showNotification(title, {
+                                        body,
+                                        icon: '/android-chrome-192x192.png',
+                                        badge: '/android-chrome-192x192.png',
+                                        tag,
+                                        data: { url: `/documents?vehicleId=${task.vehicleId}` },
+                                    });
+                                });
+                            }
+                            addNotifiedDeadline(tag);
                         }
+                        
+                        // For the regular J-X reminders, use the calculated next dueDate
+                        // but if it's in the future, the J-X check below will handle it.
+                        // However, if we JUST paid it, the next dueDate is 1 year away.
                     } else {
                         dueDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
                     }
@@ -164,13 +201,21 @@ async function checkDeadlinesAndNotify(userId: string) {
 
             if (!dueDate) continue;
 
-            
             // Check if the due date is within the reminder threshold
             if (dueDate >= today && dueDate <= reminderDateThreshold) {
                 // Determine if it's today
                 const isToday = dueDate.getFullYear() === today.getFullYear() &&
                                dueDate.getMonth() === today.getMonth() &&
                                dueDate.getDate() === today.getDate();
+
+                // If it's a PAID task (real record), and it's NOT today, we suppress J-7/J-3
+                // as requested: "if paid send only Jour J for doc".
+                // Note: Real records usually have dueDate in the next year, so this block 
+                // won't even execute for them until next year.
+                // The synthetic tasks handle the "unpaid" reminders.
+                if (isPaid && !isToday) {
+                    continue; 
+                }
 
                 let title = 'Rappel d\'Entretien Proche';
                 let body = `N'oubliez pas : "${task.task}" est à faire avant le ${dueDate.toLocaleDateString('fr-FR')}.`;
@@ -182,12 +227,17 @@ async function checkDeadlinesAndNotify(userId: string) {
                 
                 // Route through SW to avoid double notification (browser tab + PWA)
                 if ('serviceWorker' in navigator) {
+                    const url = isToday
+                        ? `/documents?vehicleId=${task.vehicleId}`
+                        : `/?vehicleId=${task.vehicleId}`;
+
                     navigator.serviceWorker.ready.then((reg) => {
                         reg.showNotification(title, {
                             body,
                             icon: '/android-chrome-192x192.png',
                             badge: '/android-chrome-192x192.png',
-                            data: { url: '/' },
+                            tag: `task-${task.id}`,
+                            data: { url },
                         });
                     });
                 }
