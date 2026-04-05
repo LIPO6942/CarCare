@@ -28,23 +28,44 @@ if (!firebase.apps.length) {
 
 const messaging = firebase.messaging();
 
+// Helper: Check if app is already open in any window/PWA
+async function isAppOpen() {
+  const clientsList = await self.clients.matchAll({
+    type: "window",
+    includeUncontrolled: true
+  });
+  return clientsList.some(client =>
+    client.url.includes(self.location.origin)
+  );
+}
+
 // This handler is called when a push message arrives while the app is in the background.
-// The Firebase SDK automatically suppresses this when the app is in the foreground,
-// so there is no risk of double notifications from this handler.
-messaging.onBackgroundMessage((payload) => {
+// If the app is already open, we skip the native notification to avoid duplicates
+// (the foreground handler in the app will display a toast instead).
+messaging.onBackgroundMessage(async (payload) => {
   console.log(
     "[firebase-messaging-sw.js] Received background message ",
     payload
   );
 
+  // Check if app is already open - if yes, don't show native notification
+  if (await isAppOpen()) {
+    console.log('[SW] App already open, skipping native notification');
+    return;
+  }
+
   const notificationTitle = payload.notification?.title || "CarCare Pro";
   const notificationOptions = {
     body: payload.notification?.body || "Vous avez une nouvelle notification.",
     icon: "/android-chrome-192x192.png",
-    badge: "/android-chrome-192x192.png",
+    badge: "/badge-72x72.png",
+    tag: payload.data?.tag || payload.notification?.tag || "carcare-default",
+    renotify: false,
+    requireInteraction: false,
     // Attach the target URL so the click handler can open the app
     data: {
       url: payload.data?.url || "/",
+      tag: payload.data?.tag || payload.notification?.tag || "carcare-default"
     },
   };
 

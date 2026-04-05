@@ -12,7 +12,7 @@ export function PWAHandler() {
     // 1. Service Worker Registration
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').then(
+        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(
           (registration) => {
             console.log('SW registered: ', registration);
           },
