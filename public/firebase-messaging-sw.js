@@ -84,14 +84,23 @@ self.addEventListener("notificationclick", (event) => {
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       // If a window with our app is already open, focus and navigate it
       for (const client of clients) {
-        if (client.url.includes(self.location.origin) && "focus" in client) {
-          client.navigate(targetUrl);
-          return client.focus();
+        if (client.url.includes(self.location.origin)) {
+          // Check if it's a standalone PWA window
+          const isStandalone = client.url.includes('?standalone=true') || 
+                               client.url.includes('&standalone=true') ||
+                               new URL(client.url).searchParams.has('standalone');
+          
+          if ("focus" in client) {
+            client.navigate(targetUrl);
+            return client.focus();
+          }
         }
       }
-      // Otherwise open a new window
+      // Otherwise open a new window - try to open as standalone PWA
       if (self.clients.openWindow) {
-        return self.clients.openWindow(targetUrl);
+        // Add standalone parameter to force PWA mode if supported
+        const pwaUrl = targetUrl.includes('?') ? `${targetUrl}&standalone=true` : `${targetUrl}?standalone=true`;
+        return self.clients.openWindow(pwaUrl);
       }
     })
   );

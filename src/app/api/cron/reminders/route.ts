@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminDb, adminMessaging } from '@/lib/firebase-admin';
 import { calculateNextVignetteDate, formatDateToLocalISO } from '@/lib/vignette';
+import { calculateAverageKmPerDay, estimateVidangeDate, formatDateToFrench } from '@/lib/vidange';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -35,9 +36,14 @@ export async function GET(request: Request) {
         // bypassing any corruption or empty fields in the database.
         const snapshotVignettes = adminDb.collection('maintenance').where('task', '==', 'Vignette').get();
 
-        const [results0, results3, results7, resultsVignettes] = await Promise.all([snapshot0, snapshot3, snapshot7, snapshotVignettes]);
+        // Fetch Vidanges for estimated date calculations
+        const snapshotVidanges = adminDb.collection('maintenance').where('task', '==', 'Vidange').where('nextDueMileage', '>', 0).get();
 
-        if (results0.empty && results3.empty && results7.empty && resultsVignettes.empty) {
+        const [results0, results3, results7, resultsVignettes, resultsVidanges] = await Promise.all([
+            snapshot0, snapshot3, snapshot7, snapshotVignettes, snapshotVidanges
+        ]);
+
+        if (results0.empty && results3.empty && results7.empty && resultsVignettes.empty && resultsVidanges.empty) {
             return NextResponse.json({ message: `Aucun rappel trouvé pour aujourd'hui, J+3 ou J+7.` });
         }
 
@@ -86,6 +92,13 @@ export async function GET(request: Request) {
                     messages.push({
                         notification: { title, body },
                         tokens: tokens,
+                        data: {
+                            url: `/maintenance?vehicleId=${vehicleId}&task=${encodeURIComponent(task)}`,
+                            type: 'maintenance-reminder',
+                            taskId: doc.id,
+                            vehicleId,
+                            priority: daysRemaining === 0 ? 'high' : 'normal'
+                        }
                     });
                 }
             }
@@ -125,6 +138,101 @@ export async function GET(request: Request) {
             if (dynamic7.length > 0) await processDocs(dynamic7, 7);
         }
 
+        // Handle Vidanges with estimated dates based on mileage
+        if (!resultsVidanges.empty) {
+            for (const doc of resultsVidanges.docs) {
+                if (processedDocIds.has(doc.id)) continue;
+                
+                const data = doc.data();
+                const { userId, vehicleId, nextDueMileage } = data;
+                
+                if (!vehicleId || !nextDueMileage) continue;
+
+                // Get vehicle's fuel logs, repairs, and maintenance to calculate average km/day
+                const [fuelLogsSnapshot, repairsSnapshot, maintenanceSnapshot] = await Promise.all([
+                    adminDb.collection('fuelLogs').where('vehicleId', '==', vehicleId).orderBy('date', 'desc').limit(10).get(),
+                    adminDb.collection('repairs').where('vehicleId', '==', vehicleId).orderBy('date', 'desc').limit(5).get(),
+                    adminDb.collection('maintenance').where('vehicleId', '==', vehicleId).orderBy('date', 'desc').limit(5).get()
+                ]);
+
+                // Combine all events to calculate average
+                const allEvents = [
+                    ...fuelLogsSnapshot.docs.map(d => d.data()),
+                    ...repairsSnapshot.docs.map(d => d.data()),
+                    ...maintenanceSnapshot.docs.map(d => d.data())
+                ].filter(e => e.mileage > 0 && e.date);
+
+                const avgKmPerDay = calculateAverageKmPerDay(allEvents);
+                
+                if (avgKmPerDay) {
+                    // Get current mileage (from most recent event)
+                    const latestEvent = allEvents.sort((a, b) => 
+                        new Date(b.date).getTime() - new Date(a.date).getTime()
+                    )[0];
+                    
+                    if (latestEvent) {
+                        const estimatedDate = estimateVidangeDate(latestEvent.mileage, nextDueMileage, avgKmPerDay);
+                        
+                        if (estimatedDate) {
+                            const estimatedString = formatDateToLocalISO(estimatedDate);
+                            const daysRemaining = Math.ceil((estimatedDate.getTime() - date0.getTime()) / (1000 * 60 * 60 * 24));
+                            
+                            // Only process if it's J-7, J-3, or J-0
+                            if ([0, 3, 7].includes(daysRemaining) && estimatedString === (daysRemaining === 0 ? dateString0 : daysRemaining === 3 ? dateString3 : dateString7)) {
+                                processedDocIds.add(doc.id);
+                                
+                                let vehicleName = 'votre véhicule';
+                                const vehicleDoc = await adminDb.collection('vehicles').doc(vehicleId).get();
+                                if (vehicleDoc.exists) {
+                                    const vehicleData = vehicleDoc.data();
+                                    if (vehicleData) {
+                                        vehicleName = `${vehicleData.brand} ${vehicleData.model}`;
+                                    }
+                                }
+
+                                const tokensSnapshot = await adminDb
+                                    .collection('fcmTokens')
+                                    .where('userId', '==', userId)
+                                    .get();
+
+                                if (!tokensSnapshot.empty) {
+                                    let title = '';
+                                    let body = '';
+                                    const kmRemaining = nextDueMileage - latestEvent.mileage;
+                                    
+                                    if (daysRemaining === 0) {
+                                        title = 'Jour J : Vidange Requise';
+                                        body = `Votre vidange est dûe maintenant pour ${vehicleName} ! Kilométrage actuel: ${latestEvent.mileage.toLocaleString('fr-FR')} km. Objectif: ${nextDueMileage.toLocaleString('fr-FR')} km.`;
+                                    } else if (daysRemaining === 3) {
+                                        title = 'Rappel J-3 : Vidange';
+                                        body = `Votre vidange pour ${vehicleName} est estimée dans 3 jours (${formatDateToFrench(estimatedDate)}). Il reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                                    } else if (daysRemaining === 7) {
+                                        title = 'Rappel J-7 : Vidange';
+                                        body = `Votre vidange pour ${vehicleName} est estimée dans 7 jours (${formatDateToFrench(estimatedDate)}). Il reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                                    }
+
+                                    const tokens = tokensSnapshot.docs.map(t => t.data().token);
+
+                                    messages.push({
+                                        notification: { title, body },
+                                        tokens: tokens,
+                                        data: {
+                                            url: `/maintenance?vehicleId=${vehicleId}&highlight=${doc.id}`,
+                                            type: 'vidange-reminder',
+                                            taskId: doc.id,
+                                            vehicleId,
+                                            priority: daysRemaining === 0 ? 'high' : 'normal',
+                                            estimatedDate: estimatedString,
+                                            kmRemaining
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         let successCount = 0;
         let failureCount = 0;
@@ -146,7 +254,7 @@ export async function GET(request: Request) {
         return NextResponse.json({
             success: true,
             targets: { "J0": dateString0, "J-3": dateString3, "J-7": dateString7 },
-            tasksFound: results0.size + results3.size + results7.size,
+            tasksFound: results0.size + results3.size + results7.size + resultsVidanges.size,
             notificationsSent: successCount,
             notificationsFailed: failureCount
         });

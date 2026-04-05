@@ -5,6 +5,7 @@ import { useAuth } from '@/context/auth-context';
 import { getAllUserMaintenance, getAllUserRepairs, getAllUserFuelLogs, getVehicles } from '@/lib/data';
 import type { Maintenance, Repair, FuelLog } from '@/lib/types';
 import { calculateNextVignetteDate, getCorrectVignetteDeadline, getVignetteRules } from '@/lib/vignette';
+import { calculateAverageKmPerDay, estimateVidangeDate, formatDateToFrench, getDaysRemaining } from '@/lib/vidange';
 
 const NOTIFICATION_SNOOZE_KEY = 'carcarepro_notified_deadlines';
 const REMINDER_DAYS_THRESHOLD = 7; // Notify 7 days before date-based deadline
@@ -113,33 +114,109 @@ async function checkDeadlinesAndNotify(userId: string) {
             continue; // Already notified for this task, skip.
         }
 
-        // --- Logic for Mileage-Based Reminders (Vidange) ---
+        // --- Logic for Mileage-Based Reminders (Vidange) with Date Estimation ---
         if (task.task === 'Vidange' && task.nextDueMileage && task.nextDueMileage > 0) {
             const vehicleMileage = latestMileageMap.get(task.vehicleId);
-            if (!vehicleMileage) continue; // Cannot check if we don't know the current mileage
+            if (!vehicleMileage) continue;
 
             const kmRemaining = task.nextDueMileage - vehicleMileage.mileage;
-
-            if (kmRemaining <= REMINDER_KM_THRESHOLD) {
+            
+            // Get all events for this vehicle to calculate average km/day
+            const vehicleEvents = allEvents.filter(e => e.vehicleId === task.vehicleId);
+            const avgKmPerDay = calculateAverageKmPerDay(vehicleEvents);
+            
+            if (avgKmPerDay) {
+                // Estimate the date when vidange will be due
+                const estimatedDate = estimateVidangeDate(vehicleMileage.mileage, task.nextDueMileage, avgKmPerDay);
+                
+                if (estimatedDate) {
+                    const daysRemaining = getDaysRemaining(estimatedDate, today);
+                    
+                    // Check if we should notify (J-7, J-3, or J-0)
+                    const shouldNotify = daysRemaining <= 7 && daysRemaining >= 0;
+                    const isJ7 = daysRemaining === 7;
+                    const isJ3 = daysRemaining === 3;
+                    const isJ0 = daysRemaining <= 0;
+                    
+                    // Create specific notification tags for each reminder type
+                    const j7Tag = `${task.id}-j7`;
+                    const j3Tag = `${task.id}-j3`;
+                    const j0Tag = `${task.id}-j0`;
+                    
+                    if (shouldNotify) {
+                        let title = '';
+                        let body = '';
+                        let tag = '';
+                        let notificationId = '';
+                        
+                        if (isJ0 && !notifiedDeadlines[j0Tag]) {
+                            title = 'Jour J : Vidange Requise';
+                            body = `Votre vidange est dûe maintenant ! Kilométrage actuel: ${vehicleMileage.mileage.toLocaleString('fr-FR')} km. Objectif: ${task.nextDueMileage.toLocaleString('fr-FR')} km.`;
+                            tag = j0Tag;
+                            notificationId = j0Tag;
+                        } else if (isJ3 && !notifiedDeadlines[j3Tag]) {
+                            title = 'Rappel J-3 : Vidange';
+                            body = `Votre vidange est estimée dans 3 jours (${formatDateToFrench(estimatedDate)}). Préparez-vous ! Il reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                            tag = j3Tag;
+                            notificationId = j3Tag;
+                        } else if (isJ7 && !notifiedDeadlines[j7Tag]) {
+                            title = 'Rappel J-7 : Vidange';
+                            body = `Votre vidange est estimée dans 7 jours (${formatDateToFrench(estimatedDate)}). Pensez-y ! Il reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                            tag = j7Tag;
+                            notificationId = j7Tag;
+                        }
+                        
+                        if (title && tag && notificationId) {
+                            // Route through SW to avoid double notification and ensure PWA opens
+                            if ('serviceWorker' in navigator) {
+                                const url = `/maintenance?vehicleId=${task.vehicleId}&highlight=${task.id}`;
+                                navigator.serviceWorker.ready.then((reg) => {
+                                    reg.showNotification(title, {
+                                        body,
+                                        icon: '/android-chrome-192x192.png',
+                                        badge: '/badge-72x72.png',
+                                        tag,
+                                        renotify: true,
+                                        requireInteraction: isJ0, // Require interaction for J0
+                                        data: { 
+                                            url,
+                                            taskId: task.id,
+                                            vehicleId: task.vehicleId,
+                                            type: 'vidange-reminder',
+                                            priority: isJ0 ? 'high' : 'normal'
+                                        },
+                                    });
+                                });
+                            }
+                            addNotifiedDeadline(notificationId);
+                        }
+                    }
+                }
+            } else if (kmRemaining <= REMINDER_KM_THRESHOLD) {
+                // Fallback: if we can't calculate average, use the old km-based notification
                 const title = 'Rappel de Vidange Proche';
                 const body = `Il reste environ ${kmRemaining.toLocaleString('fr-FR')} km avant votre prochaine vidange.`;
                 
-                // Route through SW to avoid double notification (browser tab + PWA)
                 if ('serviceWorker' in navigator) {
-                    const url = `/?vehicleId=${task.vehicleId}`;
+                    const url = `/maintenance?vehicleId=${task.vehicleId}&highlight=${task.id}`;
                     navigator.serviceWorker.ready.then((reg) => {
                         reg.showNotification(title, {
                             body,
                             icon: '/android-chrome-192x192.png',
-                            badge: '/android-chrome-192x192.png',
+                            badge: '/badge-72x72.png',
                             tag: `task-${task.id}`,
-                            data: { url },
+                            data: { 
+                                url,
+                                taskId: task.id,
+                                vehicleId: task.vehicleId,
+                                type: 'vidange-reminder'
+                            },
                         });
                     });
                 }
                 addNotifiedDeadline(task.id);
-                continue; // Move to the next task after sending notification
             }
+            continue;
         }
         
         // --- Logic for Date-Based Reminders (Others) ---
