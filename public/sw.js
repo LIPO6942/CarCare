@@ -36,13 +36,33 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only cache GET requests
+  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
-  // Skip chrome-extension and firebase calls
   const url = new URL(event.request.url);
+
+  // 1. Navigation requests (HTML pages) - ALWAYS Network-First
+  // This ensures users get the latest version if online, 
+  // and fixes "Client-side Exception" caused by old HTML versions.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // 2. Skip chrome-extension and firebase calls
   if (url.origin.includes('extension') || url.origin.includes('firebase')) return;
 
+  // 3. Static assets and other GET requests - Cache-First with Network fallback
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -50,7 +70,7 @@ self.addEventListener('fetch', (event) => {
       }
 
       return fetch(event.request).then((response) => {
-        // Only cache successful dynamic requests from our origin
+        // Only cache successful requests
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
@@ -61,9 +81,6 @@ self.addEventListener('fetch', (event) => {
         });
 
         return response;
-      }).catch(() => {
-        // If fetch fails (offline) and no cache, maybe return a fallback?
-        // For now just fail.
       });
     })
   );

@@ -161,6 +161,11 @@ function StatCard({
 }
 
 export function DashboardClient() {
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [repairs, setRepairs] = useState<Repair[]>([]);
@@ -653,7 +658,7 @@ export function DashboardClient() {
     return "Aucun véhicule";
   }, [vehicles]);
 
-  if (isVehiclesLoading) {
+  if (!hasMounted || isVehiclesLoading) {
     return (
       <AppLayout>
         <DashboardHeader title="Tableau de Bord" description="Chargement de vos données..." showLogo={true} />

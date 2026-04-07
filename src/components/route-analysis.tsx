@@ -9,6 +9,11 @@ import { Loader2, ArrowRight, TrendingUp, TrendingDown, Minus, Gauge, Info } fro
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie, Legend } from 'recharts';
 
 export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
+    const [hasMounted, setHasMounted] = useState(false);
+    useEffect(() => {
+        setHasMounted(true);
+    }, []);
+
     const { user } = useAuth();
     const [patterns, setPatterns] = useState<RoutePattern[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -71,7 +76,7 @@ export function RouteAnalysis({ vehicleId }: { vehicleId: string }) {
         return { chartData, totalWorkKm, totalLeisureKm, totalWorkCost, totalLeisureCost };
     }, [patterns]);
 
-    if (isLoading) {
+    if (!hasMounted || isLoading) {
         return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
 

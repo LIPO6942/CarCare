@@ -25,6 +25,11 @@ const safeFormatDate = (dateInput: any, formatString: string = 'd MMM yyyy') => 
 
 
 export function ReportsClient() {
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
   const { user } = useAuth();
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
@@ -114,7 +119,7 @@ export function ReportsClient() {
   }, [vehicles, maintenance]);
 
 
-  if (isLoading) {
+  if (!hasMounted || isLoading) {
     return (
       <div className="grid gap-6">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">

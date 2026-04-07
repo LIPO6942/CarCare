@@ -6,9 +6,11 @@ import { Wifi, WifiOff } from 'lucide-react';
 
 export function PWAHandler() {
   const { toast } = useToast();
-  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
+    // Set initial status on client
+    setIsOnline(navigator.onLine);
     // 1. Service Worker Registration
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
