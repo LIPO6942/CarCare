@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -17,12 +17,15 @@ const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))'];
 export function MonthlyFuelChartModal({ open, onOpenChange, monthlyFuelLogs, vehicleName }: MonthlyFuelChartModalProps) {
   const chartData = useMemo(() => {
     // We reverse it to show chronological order from left to right on the chart
-    return [...monthlyFuelLogs].reverse().map(log => ({
-      month: format(log.date, 'MMM yy', { locale: fr }),
-      quantite: parseFloat(log.totalQuantity.toFixed(2)),
-      cout: parseFloat(log.totalCost.toFixed(2)),
-      fullDate: format(log.date, 'MMMM yyyy', { locale: fr })
-    }));
+    return [...monthlyFuelLogs].reverse().map(log => {
+      let m = format(log.date, 'MMM', { locale: fr }).replace('.', '');
+      m = m.charAt(0).toUpperCase() + m.slice(1);
+      return {
+        month: m,
+        cout: parseFloat(log.totalCost.toFixed(2)),
+        fullDate: format(log.date, 'MMMM yyyy', { locale: fr })
+      };
+    });
   }, [monthlyFuelLogs]);
 
   if (chartData.length === 0) {
@@ -56,7 +59,7 @@ export function MonthlyFuelChartModal({ open, onOpenChange, monthlyFuelLogs, veh
           <CardContent className="p-0 sm:pt-4">
             <div className="h-[250px] sm:h-[350px] w-full mt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                <LineChart data={chartData} margin={{ top: 20, right: 20, left: -10, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis
                     dataKey="month"
@@ -67,24 +70,14 @@ export function MonthlyFuelChartModal({ open, onOpenChange, monthlyFuelLogs, veh
                     dy={10}
                   />
                   <YAxis
-                    yAxisId="left"
-                    stroke="hsl(var(--chart-1))"
-                    tick={{ fill: 'hsl(var(--chart-1))', fontSize: 12 }}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => `${value}L`}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    stroke="hsl(var(--chart-2))"
-                    tick={{ fill: 'hsl(var(--chart-2))', fontSize: 12 }}
+                    stroke="hsl(var(--primary))"
+                    tick={{ fill: 'hsl(var(--primary))', fontSize: 12 }}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(value) => `${value}Dt`}
                   />
                   <Tooltip
-                    cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
+                    cursor={{ stroke: 'hsl(var(--muted))', strokeWidth: 2 }}
                     contentStyle={{
                       background: 'hsl(var(--background))',
                       border: '1px solid hsl(var(--border))',
@@ -93,7 +86,6 @@ export function MonthlyFuelChartModal({ open, onOpenChange, monthlyFuelLogs, veh
                       fontSize: '12px'
                     }}
                     formatter={(value: number, name: string) => {
-                      if (name === 'quantite') return [`${value} L`, 'Quantité'];
                       if (name === 'cout') return [`${value} Dt`, 'Coût Total'];
                       return [value, name];
                     }}
@@ -104,10 +96,16 @@ export function MonthlyFuelChartModal({ open, onOpenChange, monthlyFuelLogs, veh
                       return label;
                     }}
                   />
-                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                  <Bar yAxisId="left" dataKey="quantite" name="Quantité (L)" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                  <Bar yAxisId="right" dataKey="cout" name="Coût (Dt)" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                </BarChart>
+                  <Line 
+                    type="monotone" 
+                    dataKey="cout" 
+                    name="Tendance" 
+                    stroke="hsl(var(--primary))" 
+                    strokeWidth={4} 
+                    dot={{ fill: 'hsl(var(--background))', stroke: 'hsl(var(--primary))', strokeWidth: 2, r: 5 }} 
+                    activeDot={{ fill: 'hsl(var(--primary))', stroke: 'hsl(var(--background))', strokeWidth: 2, r: 8 }} 
+                  />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
