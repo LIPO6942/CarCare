@@ -41,6 +41,7 @@ import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { getCorrectVignetteDeadline, calculateNextVignetteDate, formatDateToLocalISO } from '@/lib/vignette';
+import { MonthlyFuelChartModal } from '@/components/monthly-fuel-chart-modal';
 
 interface VehicleTabsProps {
     vehicle: Vehicle;
@@ -112,6 +113,22 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataCha
         return Object.values(monthlyData).sort((a, b) => b.date.getTime() - a.date.getTime());
     }, [fuelLogs]);
 
+    const [isChartModalOpen, setIsChartModalOpen] = useState(false);
+    const pressTimer = useRef<NodeJS.Timeout | null>(null);
+
+    const handlePointerDown = () => {
+        pressTimer.current = setTimeout(() => {
+            setIsChartModalOpen(true);
+        }, 600);
+    };
+
+    const handlePointerCancel = () => {
+        if (pressTimer.current) {
+            clearTimeout(pressTimer.current);
+            pressTimer.current = null;
+        }
+    };
+
     return (
         <Tabs defaultValue={initialTab || 'history'} className="w-full">
             <div className="w-full overflow-x-auto pb-1 no-scrollbar">
@@ -119,7 +136,19 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataCha
                     <TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Historique</TabsTrigger>
                     <TabsTrigger value="repairs"><Wrench className="mr-2 h-4 w-4" />Réparations</TabsTrigger>
                     <TabsTrigger value="maintenance"><Calendar className="mr-2 h-4 w-4" />Entretien</TabsTrigger>
-                    <TabsTrigger value="fuel"><Fuel className="mr-2 h-4 w-4" />Carburant</TabsTrigger>
+                    <TabsTrigger 
+                        value="fuel"
+                        onPointerDown={handlePointerDown}
+                        onPointerUp={handlePointerCancel}
+                        onPointerLeave={handlePointerCancel}
+                        onPointerCancel={handlePointerCancel}
+                        onContextMenu={(e) => {
+                            // Prevent native context menu on long press so our modal can show smoothly
+                            if (isChartModalOpen) e.preventDefault();
+                        }}
+                    >
+                        <Fuel className="mr-2 h-4 w-4" />Carburant
+                    </TabsTrigger>
                 </TabsList>
             </div>
             <TabsContent value="history">
@@ -134,6 +163,13 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataCha
             <TabsContent value="fuel">
                 <FuelTab vehicle={vehicle} fuelLogs={fuelLogs} onDataChange={onDataChange} />
             </TabsContent>
+            
+            <MonthlyFuelChartModal 
+                open={isChartModalOpen} 
+                onOpenChange={setIsChartModalOpen} 
+                monthlyFuelLogs={monthlyFuelLogs}
+                vehicleName={`${vehicle.brand} ${vehicle.model} - ${vehicle.licensePlate}`}
+            />
         </Tabs>
     );
 }
