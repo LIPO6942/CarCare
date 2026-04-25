@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Fuel, Loader2 } from 'lucide-react';
+import { Fuel, Loader2, LineChart } from 'lucide-react';
 import { useRef } from 'react';
 import { MonthlyFuelChartModal } from '@/components/monthly-fuel-chart-modal';
 import { getSettings } from '@/lib/settings';
@@ -40,20 +40,6 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
   const [currentMileage, setCurrentMileage] = useState<string>('');
   const [gaugeLevelBefore, setGaugeLevelBefore] = useState<number>(12.5);
   const [isChartModalOpen, setIsChartModalOpen] = useState(false);
-  const pressTimer = useRef<NodeJS.Timeout | null>(null);
-
-  const handlePointerDown = () => {
-    pressTimer.current = setTimeout(() => {
-        setIsChartModalOpen(true);
-    }, 600);
-  };
-
-  const handlePointerCancel = () => {
-    if (pressTimer.current) {
-        clearTimeout(pressTimer.current);
-        pressTimer.current = null;
-    }
-  };
 
   const handleOpenFuelTracking = () => {
     if (selectedVehicleId && onOpenVehicleFuel) {
@@ -242,21 +228,25 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
     <Card className="shadow-sm">
       <CardHeader className="pb-4 pt-6 px-6">
         <div className="flex justify-between items-center flex-wrap gap-2">
-          <CardTitle className="text-xl whitespace-nowrap">
-            Ajout rapide <button
+          <CardTitle className="text-xl flex items-center gap-1 flex-wrap">
+            <span>Ajout rapide</span>
+            <button
               type="button"
               onClick={handleOpenFuelTracking}
-              onPointerDown={handlePointerDown}
-              onPointerUp={handlePointerCancel}
-              onPointerLeave={handlePointerCancel}
-              onPointerCancel={handlePointerCancel}
-              onContextMenu={(e) => {
-                if (isChartModalOpen) e.preventDefault();
-              }}
-              className="text-primary hover:underline decoration-primary/30 underline-offset-4 transition-all hover:text-primary/80 active:scale-95 px-1 rounded hover:bg-primary/5 -mx-1"
+              className="text-primary hover:underline decoration-primary/30 underline-offset-4 transition-all hover:text-primary/80 active:scale-95 px-1 rounded hover:bg-primary/5"
             >
               carburant
             </button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10 ml-1"
+              onClick={() => setIsChartModalOpen(true)}
+              title="Voir l'évolution mensuelle"
+            >
+              <LineChart className="h-5 w-5" />
+            </Button>
           </CardTitle>
           <span className="text-xs text-muted-foreground">{lastFuelLogInfo}</span>
         </div>
