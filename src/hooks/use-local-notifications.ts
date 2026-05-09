@@ -132,13 +132,15 @@ async function checkDeadlinesAndNotify(userId: string) {
                 if (estimatedDate) {
                     const daysRemaining = getDaysRemaining(estimatedDate, today);
                     
-                    // Check if we should notify (J-7, J-3, or J-0)
-                    const shouldNotify = daysRemaining <= 7 && daysRemaining >= 0;
+                    // Check if we should notify (J-15, J-7, J-3, or J-0)
+                    const shouldNotify = daysRemaining <= 15 && daysRemaining >= 0;
+                    const isJ15 = daysRemaining === 15;
                     const isJ7 = daysRemaining === 7;
                     const isJ3 = daysRemaining === 3;
                     const isJ0 = daysRemaining <= 0;
                     
                     // Create specific notification tags for each reminder type
+                    const j15Tag = `${task.id}-j15`;
                     const j7Tag = `${task.id}-j7`;
                     const j3Tag = `${task.id}-j3`;
                     const j0Tag = `${task.id}-j0`;
@@ -154,6 +156,11 @@ async function checkDeadlinesAndNotify(userId: string) {
                             body = `Votre vidange est dûe maintenant ! Kilométrage actuel: ${vehicleMileage.mileage.toLocaleString('fr-FR')} km. Objectif: ${task.nextDueMileage.toLocaleString('fr-FR')} km.`;
                             tag = j0Tag;
                             notificationId = j0Tag;
+                        } else if (isJ15 && !notifiedDeadlines[j15Tag]) {
+                            title = 'Rappel J-15 : Vidange';
+                            body = `Votre vidange est estimée dans 15 jours (${formatDateToFrench(estimatedDate)}). Il reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                            tag = j15Tag;
+                            notificationId = j15Tag;
                         } else if (isJ3 && !notifiedDeadlines[j3Tag]) {
                             title = 'Rappel J-3 : Vidange';
                             body = `Votre vidange est estimée dans 3 jours (${formatDateToFrench(estimatedDate)}). Préparez-vous ! Il reste ${kmRemaining.toLocaleString('fr-FR')} km.`;

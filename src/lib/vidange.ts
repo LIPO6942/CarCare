@@ -17,8 +17,16 @@ export function calculateAverageKmPerDay(
 
   if (sortedEvents.length < 2) return null;
 
-  const firstEvent = sortedEvents[0];
-  const lastEvent = sortedEvents[sortedEvents.length - 1];
+  // Prefer recent usage (last 30 days from the latest event) to better match current driving habits.
+  const lastEventDate = new Date(sortedEvents[sortedEvents.length - 1].date);
+  const recentCutoff = new Date(lastEventDate);
+  recentCutoff.setDate(recentCutoff.getDate() - 30);
+
+  const recentEvents = sortedEvents.filter(e => new Date(e.date) >= recentCutoff);
+  const windowEvents = recentEvents.length >= 2 ? recentEvents : sortedEvents;
+
+  const firstEvent = windowEvents[0];
+  const lastEvent = windowEvents[windowEvents.length - 1];
 
   const firstDate = new Date(firstEvent.date);
   const lastDate = new Date(lastEvent.date);
@@ -68,10 +76,16 @@ export function formatDateToFrench(date: Date): string {
   });
 }
 
+function toLocalStartOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 /**
  * Calcule les jours restants avant une date
  */
 export function getDaysRemaining(targetDate: Date, fromDate: Date = new Date()): number {
-  const diffTime = targetDate.getTime() - fromDate.getTime();
+  const startTarget = toLocalStartOfDay(targetDate);
+  const startFrom = toLocalStartOfDay(fromDate);
+  const diffTime = startTarget.getTime() - startFrom.getTime();
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
