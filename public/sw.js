@@ -9,6 +9,7 @@ const ASSETS_TO_CACHE = [
   '/android-chrome-512x512.png',
   '/apple-touch-icon.png',
   '/favicon.ico',
+  '/badge-72x72.png',
 ];
 
 self.addEventListener('install', (event) => {

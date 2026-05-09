@@ -261,7 +261,7 @@ async function checkDeadlinesAndNotify(userId: string) {
                                     reg.showNotification(title, {
                                         body,
                                         icon: '/android-chrome-192x192.png',
-                                        badge: '/android-chrome-192x192.png',
+                                        badge: '/badge-72x72.png',
                                         tag,
                                         data: { url: `/documents?vehicleId=${task.vehicleId}` },
                                     });
@@ -319,7 +319,7 @@ async function checkDeadlinesAndNotify(userId: string) {
                         reg.showNotification(title, {
                             body,
                             icon: '/android-chrome-192x192.png',
-                            badge: '/android-chrome-192x192.png',
+                            badge: '/badge-72x72.png',
                             tag: `task-${task.id}`,
                             data: { url },
                         });
