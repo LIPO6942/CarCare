@@ -171,12 +171,64 @@ export async function GET(request: Request) {
                 const avgKmPerDay = calculateAverageKmPerDay(allEvents);
 
                 if (!avgKmPerDay) {
-                    console.log('[cron][vidange] avgKmPerDay not available', {
+                    console.log('[cron][vidange] avgKmPerDay not available, using fallback', {
                         maintenanceId: doc.id,
                         vehicleId,
                         userId,
                         eventsCount: allEvents.length,
                     });
+
+                    const latestEvent = allEvents.sort((a, b) => 
+                        new Date(b.date).getTime() - new Date(a.date).getTime()
+                    )[0];
+
+                    if (latestEvent) {
+                        const kmRemaining = nextDueMileage - latestEvent.mileage;
+                        // Fallback trigger: Notify if overdue or within 500km
+                        const isOverdue = kmRemaining <= 0;
+                        const isClose = kmRemaining > 0 && kmRemaining <= 500;
+
+                        if (isOverdue || isClose) {
+                            processedDocIds.add(doc.id);
+                            
+                            let vehicleName = 'votre véhicule';
+                            const vehicleDoc = await adminDb.collection('vehicles').doc(vehicleId).get();
+                            if (vehicleDoc.exists) {
+                                const vehicleData = vehicleDoc.data();
+                                if (vehicleData) {
+                                    vehicleName = `${vehicleData.brand} ${vehicleData.model}`;
+                                }
+                            }
+
+                            const tokensSnapshot = await adminDb
+                                .collection('fcmTokens')
+                                .where('userId', '==', userId)
+                                .get();
+
+                            if (!tokensSnapshot.empty) {
+                                let title = isOverdue ? 'Jour J : Vidange Requise' : 'Vidange Proche !';
+                                let body = isOverdue 
+                                    ? `Votre vidange est dûe maintenant pour ${vehicleName} ! Kilométrage: ${latestEvent.mileage.toLocaleString('fr-FR')} km. Objectif: ${nextDueMileage.toLocaleString('fr-FR')} km.`
+                                    : `Votre vidange pour ${vehicleName} approche. Il ne reste que ${kmRemaining.toLocaleString('fr-FR')} km avant l'objectif de ${nextDueMileage.toLocaleString('fr-FR')} km.`;
+
+                                const tokens = tokensSnapshot.docs.map(t => t.data().token);
+
+                                messages.push({
+                                    notification: { title, body },
+                                    tokens: tokens,
+                                    data: {
+                                        url: `/maintenance?vehicleId=${vehicleId}&highlight=${doc.id}`,
+                                        type: 'vidange-reminder',
+                                        taskId: doc.id,
+                                        vehicleId,
+                                        priority: isOverdue ? 'high' : 'normal',
+                                        kmRemaining: kmRemaining.toString(),
+                                        tag: `vidange-${doc.id}-fallback`
+                                    }
+                                });
+                            }
+                        }
+                    }
                 }
                 
                 if (avgKmPerDay) {

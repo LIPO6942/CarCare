@@ -783,14 +783,28 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
     // States for dynamic UI preview
     const [currentTask, setCurrentTask] = useState<string>(initialData?.task || '');
     const [currentDate, setCurrentDate] = useState<string>(initialData?.date || new Date().toISOString().split('T')[0]);
+    const [currentMileage, setCurrentMileage] = useState<string>(initialData?.mileage?.toString() || '');
+    const [nextDueMileage, setNextDueMileage] = useState<string>(initialData?.nextDueMileage?.toString() || '');
 
     // Update state when modal opens/closes with different data
     useEffect(() => {
         if (open) {
             setCurrentTask(initialData?.task || '');
             setCurrentDate(initialData?.date || new Date().toISOString().split('T')[0]);
+            setCurrentMileage(initialData?.mileage?.toString() || '');
+            setNextDueMileage(initialData?.nextDueMileage?.toString() || '');
         }
     }, [open, initialData]);
+
+    // Auto-suggest next mileage for Vidange
+    useEffect(() => {
+        if (currentTask === 'Vidange' && currentMileage && !nextDueMileage) {
+            const mileage = parseInt(currentMileage);
+            if (!isNaN(mileage)) {
+                setNextDueMileage((mileage + 10000).toString());
+            }
+        }
+    }, [currentTask, currentMileage]);
 
     const maintenanceTasks = ["Vidange", "Paiement Assurance", "Vignette", "Visite technique", "Autre"];
 
@@ -862,7 +876,13 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                             value={currentDate} 
                             onChange={(e) => setCurrentDate(e.target.value)} 
                         />
-                        <Input name="mileage" type="number" placeholder="Kilométrage (optionnel)" defaultValue={initialData?.mileage} />
+                        <Input 
+                            name="mileage" 
+                            type="number" 
+                            placeholder="Kilométrage (optionnel)" 
+                            value={currentMileage}
+                            onChange={(e) => setCurrentMileage(e.target.value)}
+                        />
                     </div>
                     <Select name="task" required value={currentTask} onValueChange={setCurrentTask}>
                         <SelectTrigger>
@@ -889,7 +909,13 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                             ) : (
                                 <Input name="nextDueDate" type="date" defaultValue={initialData?.nextDueDate?.split('T')[0]} />
                             )}
-                            <Input name="nextDueMileage" type="number" placeholder="Prochain kilométrage" defaultValue={initialData?.nextDueMileage} />
+                            <Input 
+                                name="nextDueMileage" 
+                                type="number" 
+                                placeholder="Prochain kilométrage" 
+                                value={nextDueMileage}
+                                onChange={(e) => setNextDueMileage(e.target.value)}
+                            />
                         </div>
                     </fieldset>
 
