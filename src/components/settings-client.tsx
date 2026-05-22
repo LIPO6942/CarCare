@@ -10,10 +10,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Bell, BellOff, Loader2 } from 'lucide-react';
+import { Bell, BellOff, Loader2, LogIn, UserPlus, LogOut, ShieldCheck } from 'lucide-react';
 import type { Vehicle } from '@/lib/types';
 import { getVehicles } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
+import { auth } from '@/lib/firebase';
+import { EmailAuthProvider, linkWithCredential, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { Skeleton } from './ui/skeleton';
 import { useNotifications } from '@/hooks/use-notifications';
 import { PlacesManager } from './places-manager';
@@ -86,6 +88,174 @@ function NotificationSettingsCard() {
                     </Button>
                 </CardFooter>
             )}
+        </Card>
+    );
+}
+
+function AccountSettingsCard() {
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+    const [mode, setMode] = useState<'view' | 'login' | 'register'>('view');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleAction = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user) return;
+        
+        setIsLoading(true);
+        try {
+            if (mode === 'register') {
+                // Link current anonymous account to email/password
+                const credential = EmailAuthProvider.credential(email, password);
+                await linkWithCredential(user, credential);
+                toast({
+                    title: 'Compte sécurisé !',
+                    description: 'Vos données sont maintenant sauvegardées sur ce compte.',
+                });
+                setMode('view');
+            } else if (mode === 'login') {
+                // Sign in to an existing account (replaces anonymous account)
+                await signInWithEmailAndPassword(auth, email, password);
+                toast({
+                    title: 'Connexion réussie',
+                    description: 'Vos données ont été synchronisées.',
+                });
+                setMode('view');
+            }
+        } catch (error: any) {
+            console.error(error);
+            let message = "Une erreur est survenue.";
+            if (error.code === 'auth/email-already-in-use') message = "Cet email est déjà utilisé.";
+            if (error.code === 'auth/invalid-credential') message = "Email ou mot de passe incorrect.";
+            if (error.code === 'auth/weak-password') message = "Le mot de passe doit faire au moins 6 caractères.";
+            
+            toast({
+                title: 'Erreur',
+                description: message,
+                variant: 'destructive',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSignOut = async () => {
+        try {
+            await signOut(auth);
+            toast({
+                title: 'Déconnexion',
+                description: 'Vous êtes maintenant en mode visiteur.',
+            });
+        } catch (error) {
+            toast({
+                title: 'Erreur',
+                description: "Impossible de se déconnecter.",
+                variant: 'destructive',
+            });
+        }
+    };
+
+    if (!user) return null;
+
+    if (!user.isAnonymous) {
+        return (
+            <Card className="max-w-4xl mx-auto">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <ShieldCheck className="h-5 w-5 text-primary" />
+                        Compte Sécurisé
+                    </CardTitle>
+                    <CardDescription>
+                        Vos données sont sauvegardées et synchronisées en toute sécurité.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-lg bg-primary/5 border border-primary/20">
+                        <div>
+                            <p className="text-sm font-medium text-muted-foreground">Connecté en tant que :</p>
+                            <p className="font-semibold text-primary">{user.email}</p>
+                        </div>
+                        <Button variant="outline" onClick={handleSignOut}>
+                            <LogOut className="mr-2 h-4 w-4" />
+                            Se déconnecter
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    if (mode === 'view') {
+        return (
+            <Card className="max-w-4xl mx-auto border-amber-200 dark:border-amber-900/50">
+                <CardHeader className="bg-amber-50/50 dark:bg-amber-950/20 rounded-t-xl">
+                    <CardTitle className="text-amber-800 dark:text-amber-500">Sécurisez vos données</CardTitle>
+                    <CardDescription className="text-amber-700/80 dark:text-amber-400/80">
+                        Vous utilisez actuellement un compte visiteur temporaire. Si vous changez d'appareil ou videz votre cache, vous perdrez vos données.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6 flex flex-col sm:flex-row gap-4">
+                    <Button onClick={() => setMode('register')} className="flex-1">
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Créer un compte (Sauvegarder mes données)
+                    </Button>
+                    <Button variant="outline" onClick={() => setMode('login')} className="flex-1">
+                        <LogIn className="mr-2 h-4 w-4" />
+                        J'ai déjà un compte (Me connecter)
+                    </Button>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    return (
+        <Card className="max-w-4xl mx-auto">
+            <CardHeader>
+                <CardTitle>
+                    {mode === 'register' ? 'Créer un compte' : 'Se connecter'}
+                </CardTitle>
+                <CardDescription>
+                    {mode === 'register' 
+                        ? 'Liez une adresse email à vos données actuelles pour les sécuriser.' 
+                        : 'Connectez-vous pour retrouver vos données. (Vos données temporaires actuelles seront remplacées).'}
+                </CardDescription>
+            </CardHeader>
+            <form onSubmit={handleAction}>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="email">Adresse Email</Label>
+                        <Input 
+                            id="email" 
+                            type="email" 
+                            required 
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="password">Mot de passe</Label>
+                        <Input 
+                            id="password" 
+                            type="password" 
+                            required 
+                            minLength={6}
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                        />
+                    </div>
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                    <Button variant="ghost" type="button" onClick={() => setMode('view')}>
+                        Annuler
+                    </Button>
+                    <Button type="submit" disabled={isLoading}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {mode === 'register' ? "Enregistrer mon compte" : "Me connecter"}
+                    </Button>
+                </CardFooter>
+            </form>
         </Card>
     );
 }
@@ -209,6 +379,7 @@ export function SettingsClient() {
 
     return (
         <div className="space-y-6">
+            <AccountSettingsCard />
             <NotificationSettingsCard />
             <PlacesManager />
             <Card className="max-w-4xl mx-auto">
