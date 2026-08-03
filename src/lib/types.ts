@@ -9,6 +9,7 @@ export type Vehicle = {
   fiscalPower?: number;
   estimatedTankCapacity?: number | null;
   vin?: string;
+  imageUrl?: string;
 };
 
 export type Repair = {

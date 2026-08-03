@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { deleteVehicleById } from '@/lib/data';
+import { deleteVehicleById, saveVehicleImageUrlToAccount } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Loader2 } from 'lucide-react';
 import { getVehicleImage, saveVehicleImage } from '@/lib/local-db';
@@ -52,24 +52,32 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
   const loadImage = async () => {
     const imageBlob = await getVehicleImage(vehicle.id);
     if (imageBlob) {
-      // Revoke the old URL if it exists to prevent memory leaks
-      if (imageUrl) {
+      if (imageUrl && imageUrl.startsWith('blob:')) {
         URL.revokeObjectURL(imageUrl);
       }
       setImageUrl(URL.createObjectURL(imageBlob));
+    } else if (vehicle.imageUrl) {
+      setImageUrl(vehicle.imageUrl);
+      // Cache blob locally from cloud data URL
+      try {
+        const response = await fetch(vehicle.imageUrl);
+        const blob = await response.blob();
+        await saveVehicleImage(vehicle.id, blob);
+      } catch (e) {
+        // Ignore caching error
+      }
     }
   }
 
   useEffect(() => {
     loadImage();
 
-    // Cleanup the object URL when the component unmounts
     return () => {
-      if (imageUrl) {
+      if (imageUrl && imageUrl.startsWith('blob:')) {
         URL.revokeObjectURL(imageUrl);
       }
     }
-  }, [vehicle.id]);
+  }, [vehicle.id, vehicle.imageUrl]);
 
 
   async function handleDelete() {
@@ -119,11 +127,12 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
       const response = await fetch(generatedDataUrl);
       const blob = await response.blob();
       await saveVehicleImage(vehicle.id, blob);
+      await saveVehicleImageUrlToAccount(vehicle.id, generatedDataUrl);
 
       // Refresh the image displayed on the card
       await loadImage();
 
-      toast({ title: "Succès!", description: "La nouvelle image a été générée et enregistrée." });
+      toast({ title: "Succès!", description: "La nouvelle image a été enregistrée sur votre compte." });
 
     } catch (error) {
       console.error("Error regenerating vehicle image:", error);
@@ -174,10 +183,13 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
                 </div>
               )}
               <img
-                src={imageUrl || 'https://placehold.co/600x400.png'}
+                src={imageUrl || `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><rect width="600" height="400" rx="12" fill="#1e293b"/><text x="300" y="190" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="700">${(vehicle.brand || 'VÉHICULE').toUpperCase()}</text><text x="300" y="230" text-anchor="middle" fill="#60a5fa" font-family="sans-serif" font-size="20">${vehicle.model || ''}</text></svg>`)}`}
                 alt={`Photo de ${vehicle.brand || ''} ${vehicle.model || ''}`}
                 className="h-full w-full object-contain"
-                onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x100.png'; e.currentTarget.onerror = null; }}
+                onError={(e) => { 
+                  e.currentTarget.src = `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><rect width="600" height="400" rx="12" fill="#1e293b"/><text x="300" y="200" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-size="24">${(vehicle.brand || 'VÉHICULE').toUpperCase()} ${vehicle.model || ''}</text></svg>`)}`;
+                  e.currentTarget.onerror = null; 
+                }}
               />
             </div>
           </div>

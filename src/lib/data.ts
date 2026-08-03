@@ -212,6 +212,10 @@ export async function updateVehicle(id: string, data: Partial<Omit<Vehicle, 'id'
   await updateDoc(docRef, cleanData);
 }
 
+export async function saveVehicleImageUrlToAccount(vehicleId: string, imageUrl: string): Promise<void> {
+  await updateVehicle(vehicleId, { imageUrl });
+}
+
 
 // --- Delete Functions ---
 export async function deleteRepair(id: string): Promise<void> {

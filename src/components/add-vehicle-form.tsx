@@ -12,41 +12,69 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { addVehicle } from '@/lib/data';
+import { addVehicle, updateVehicle } from '@/lib/data';
 import type { Vehicle } from '@/lib/types';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
-import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 import { saveVehicleImage } from '@/lib/local-db';
-
+import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 
 const VehicleSchema = z.object({
-  brand: z.string().min(1, 'La marque est requise.'),
-  model: z.string().min(1, 'Le modèle est requis.'),
-  year: z.coerce.number().min(1900, 'Année invalide.').max(new Date().getFullYear() + 1, 'Année invalide.'),
-  licensePlate: z.string().min(1, 'La plaque d\'immatriculation est requise.'),
+  brand: z.string().min(1, { message: "La marque est requise" }),
+  model: z.string().min(1, { message: "Le modèle est requis" }),
+  year: z.coerce.number().min(1900, { message: "Année invalide" }).max(new Date().getFullYear() + 1, { message: "Année invalide" }),
+  licensePlate: z.string().min(1, { message: "La immatriculation est requise" }),
   fuelType: z.enum(['Essence', 'Diesel', 'Électrique', 'Hybride']),
-  fiscalPower: z.coerce.number().min(1, 'Puissance invalide.').max(50, 'Puissance invalide.'),
+  fiscalPower: z.coerce.number().min(1, { message: "Puissance fiscale invalide" }).optional(),
+  vin: z.string().optional(),
 });
 
+type VehicleFormData = z.infer<typeof VehicleSchema>;
 
-export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: (vehicle: Vehicle) => void }) {
+interface AddVehicleFormProps {
+  onFormSubmit: (newVehicle: Vehicle) => void;
+  onCancel: () => void;
+}
+
+export function AddVehicleForm({ onFormSubmit, onCancel }: AddVehicleFormProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const [formData, setFormData] = useState<Partial<VehicleFormData>>({
+    brand: '',
+    model: '',
+    year: new Date().getFullYear(),
+    licensePlate: '',
+    fuelType: 'Essence',
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsSubmitting(true);
 
     if (!user) {
-        toast({ title: 'Erreur', description: 'Vous devez être connecté.', variant: 'destructive'});
-        setIsSubmitting(false);
-        return;
+      toast({
+        title: 'Erreur',
+        description: 'Utilisateur non connecté.',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+      return;
     }
-    
-    const formData = new FormData(event.currentTarget);
-    const vehicleData = Object.fromEntries(formData.entries());
+
+    const vehicleData = {
+      ...formData,
+      fiscalPower: formData.fiscalPower ? Number(formData.fiscalPower) : undefined,
+    };
 
     const validatedFields = VehicleSchema.safeParse(vehicleData);
 
@@ -69,11 +97,11 @@ export function AddVehicleForm({ onFormSubmit }: { onFormSubmit: (vehicle: Vehic
                 brand: validatedFields.data.brand, 
                 model: validatedFields.data.model 
             });
-            // Convert data URI to Blob and save to IndexedDB
             const response = await fetch(imageUrl);
             const blob = await response.blob();
             await saveVehicleImage(newVehicle.id, blob);
-
+            await updateVehicle(newVehicle.id, { imageUrl });
+            newVehicle.imageUrl = imageUrl;
         } catch (aiError) {
             console.warn("AI image generation/saving failed, skipping.", aiError);
         }
