@@ -335,5 +335,3 @@ export function useLocalNotifications() {
         return () => clearInterval(intervalId);
     }, [user, toast]);
 }
-[user]);
-}
