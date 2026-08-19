@@ -6,6 +6,7 @@ import { auth } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle } from 'lucide-react';
 import { useLocalNotifications } from '@/hooks/use-local-notifications';
+import { useNotifications } from '@/hooks/use-notifications';
 import Image from 'next/image';
 
 interface AuthContextType {
@@ -23,8 +24,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [configError, setConfigError] = useState<string | null>(null);
 
-  // The local notifications hook will only activate its logic when the user is authenticated.
+  // Synchronise automatiquement les tokens FCM et les rappels locaux dès que l'utilisateur est authentifié
   useLocalNotifications();
+  useNotifications();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {

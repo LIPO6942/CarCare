@@ -6,9 +6,14 @@ import { calculateAverageKmPerDay, estimateVidangeDate, formatDateToFrench, getD
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');
+    const authHeader = request.headers.get('authorization');
 
-    // Sécurité: s'assurer que seul le service de cron puisse déclencher cette API
-    if (key !== process.env.CRON_SECRET) {
+    // Sécurité: s'assurer que seul Vercel Cron (via Authorization header) ou un appel autorisé (via ?key=) puisse déclencher cette API
+    const isAuthorized =
+        (Boolean(process.env.CRON_SECRET) && key === process.env.CRON_SECRET) ||
+        (Boolean(process.env.CRON_SECRET) && authHeader === `Bearer ${process.env.CRON_SECRET}`);
+
+    if (!isAuthorized) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

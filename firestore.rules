@@ -1,40 +1,60 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check ownership
+
+    // Vérifie si l'utilisateur connecté est bien le propriétaire de la donnée
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // Vehicles can only be accessed by their owner
+    // 1. Véhicules
     match /vehicles/{vehicleId} {
-      allow read, create, update, delete: if isOwner(resource.data.userId);
-    }
-
-    // Sub-collections data can only be accessed if the user owns the parent vehicle.
-    match /repairs/{repairId} {
-      allow read, create, update, delete: if isOwner(get(/databases/$(database)/documents/vehicles/$(request.resource.data.vehicleId)).data.userId);
-    }
-
-    match /maintenance/{maintenanceId} {
-      allow read, create, update, delete: if isOwner(get(/databases/$(database)/documents/vehicles/$(request.resource.data.vehicleId)).data.userId);
-    }
-
-    match /fuelLogs/{fuelLogId} {
-      allow read, create, update, delete: if isOwner(get(/databases/$(database)/documents/vehicles/$(request.resource.data.vehicleId)).data.userId);
-    }
-    
-    match /aiDiagnostics/{diagId} {
-      allow read, create, update, delete: if isOwner(get(/databases/$(database)/documents/vehicles/$(request.resource.data.vehicleId)).data.userId);
-    }
-
-    // FCM Tokens can be created by any authenticated user for themselves,
-    // but cannot be read or modified by others.
-    match /fcmTokens/{tokenId} {
+      allow read, delete: if isOwner(resource.data.userId);
       allow create: if isOwner(request.resource.data.userId);
-      allow read, update, delete: if false; // Disallow reading/modifying tokens for security
+      allow update: if isOwner(resource.data.userId) && isOwner(request.resource.data.userId);
+    }
+
+    // 2. Entretiens (Maintenance)
+    match /maintenance/{maintenanceId} {
+      allow read, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId) && isOwner(request.resource.data.userId);
+    }
+
+    // 3. Réparations
+    match /repairs/{repairId} {
+      allow read, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId) && isOwner(request.resource.data.userId);
+    }
+
+    // 4. Pleins de carburant
+    match /fuelLogs/{fuelLogId} {
+      allow read, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId) && isOwner(request.resource.data.userId);
+    }
+
+    // 5. Diagnostics IA
+    match /aiDiagnostics/{diagId} {
+      allow read, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId) && isOwner(request.resource.data.userId);
+    }
+
+    // 6. Lieux enregistrés
+    match /places/{placeId} {
+      allow read, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId) && isOwner(request.resource.data.userId);
+    }
+
+    // 7. Tokens de notification FCM (ESSENTIEL pour débloquer les rappels)
+    match /fcmTokens/{tokenId} {
+      allow read, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId) && isOwner(request.resource.data.userId);
     }
   }
 }
