@@ -14,12 +14,12 @@ export function PWAHandler() {
     // 1. Service Worker Registration
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(
+        navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/', updateViaCache: 'none' }).then(
           (registration) => {
-            console.log('SW registered: ', registration);
+            console.log('Unified SW registered: ', registration);
           },
           (registrationError) => {
-            console.log('SW registration failed: ', registrationError);
+            console.log('Unified SW registration failed: ', registrationError);
           }
         );
       });

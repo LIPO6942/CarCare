@@ -30,7 +30,7 @@ export function AddVehicleSheet({ children, onVehicleAdded }: { children: ReactN
             Remplissez les détails de votre véhicule pour l'ajouter à votre flotte.
           </SheetDescription>
         </SheetHeader>
-        <AddVehicleForm onFormSubmit={handleFormSubmit} />
+        <AddVehicleForm onFormSubmit={handleFormSubmit} onCancel={() => setOpen(false)} />
       </SheetContent>
     </Sheet>
   );

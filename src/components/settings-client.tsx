@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Bell, BellOff, Loader2, LogIn, UserPlus, LogOut, ShieldCheck } from 'lucide-react';
+import { Bell, BellOff, Loader2, LogIn, UserPlus, LogOut, ShieldCheck, Send, BellRing, RefreshCw } from 'lucide-react';
 import type { Vehicle } from '@/lib/types';
 import { getVehicles } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
@@ -37,7 +37,7 @@ const SettingsSchema = z.object({
 type SettingsFormData = z.infer<typeof SettingsSchema>;
 
 function NotificationSettingsCard() {
-    const { requestPermission, isPermissionGranted, isRequesting, permissionStatus } = useNotifications();
+    const { requestPermission, testNotification, isPermissionGranted, isRequesting, isTesting, permissionStatus } = useNotifications();
 
     if (isPermissionGranted === null) {
         return null; // Don't render until we know the permission status
@@ -46,48 +46,78 @@ function NotificationSettingsCard() {
     const isBlocked = permissionStatus === 'denied';
 
     return (
-        <Card className="max-w-4xl mx-auto">
+        <Card className="max-w-4xl mx-auto shadow-sm">
             <CardHeader>
-                <CardTitle>Notifications</CardTitle>
+                <div className="flex items-center gap-2">
+                    <BellRing className="h-5 w-5 text-primary" />
+                    <CardTitle>Notifications Push & Rappels d'Entretien</CardTitle>
+                </div>
                 <CardDescription>
-                    Recevez des rappels pour les échéances importantes directement sur votre appareil.
+                    Recevez des alertes automatiques à l'avance (J-15, J-7, J-3, Jour J) pour vos vignettes, vidanges, contrôles techniques et assurances.
                 </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
                 {isPermissionGranted ? (
-                    <div className="flex items-center gap-4 p-4 rounded-lg bg-green-50 text-green-800 border border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
-                        <Bell className="h-6 w-6 text-green-600" />
-                        <div>
-                            <h4 className="font-semibold">Les notifications sont activées.</h4>
-                            <p className="text-sm">Vous recevrez des rappels pour les entretiens à venir.</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg bg-green-50 text-green-800 border border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-green-100 dark:bg-green-900 rounded-full">
+                                <Bell className="h-5 w-5 text-green-600 dark:text-green-400" />
+                            </div>
+                            <div>
+                                <h4 className="font-semibold text-sm sm:text-base">Les notifications push sont actives</h4>
+                                <p className="text-xs sm:text-sm text-green-700 dark:text-green-400">Votre appareil est enregistré pour recevoir les rappels d'échéances en temps voulu.</p>
+                            </div>
                         </div>
                     </div>
                 ) : isBlocked ? (
                     <div className="flex items-center gap-4 p-4 rounded-lg bg-destructive/10 text-destructive border border-destructive/20">
-                        <BellOff className="h-6 w-6" />
+                        <BellOff className="h-6 w-6 shrink-0" />
                         <div>
-                            <h4 className="font-semibold">Les notifications sont bloquées.</h4>
-                            <p className="text-sm">Pour les réactiver, vous devez modifier les permissions directement dans les paramètres de votre navigateur pour ce site.</p>
+                            <h4 className="font-semibold">Les notifications sont bloquées par votre navigateur.</h4>
+                            <p className="text-sm">Pour les réactiver, veuillez autoriser les notifications dans les paramètres de votre navigateur pour ce site.</p>
                         </div>
                     </div>
                 ) : (
                     <div className="flex items-center gap-4 p-4 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
-                        <BellOff className="h-6 w-6 text-amber-600" />
+                        <BellOff className="h-6 w-6 text-amber-600 shrink-0" />
                         <div>
                             <h4 className="font-semibold">Les notifications ne sont pas activées.</h4>
-                            <p className="text-sm">Cliquez sur le bouton pour autoriser les notifications.</p>
+                            <p className="text-sm">Autorisez les notifications pour recevoir les alertes d'entretien même lorsque l'application est fermée.</p>
                         </div>
                     </div>
                 )}
             </CardContent>
-            {!isPermissionGranted && !isBlocked && (
-                <CardFooter>
-                    <Button onClick={requestPermission} disabled={isRequesting}>
-                        {isRequesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bell className="mr-2 h-4 w-4" />}
-                        {isRequesting ? 'En cours...' : 'Activer les notifications'}
+            <CardFooter className="flex flex-wrap items-center gap-3 border-t bg-muted/20 px-6 py-4">
+                {isPermissionGranted ? (
+                    <>
+                        <Button 
+                            variant="default" 
+                            onClick={testNotification} 
+                            disabled={isTesting}
+                            className="gap-2"
+                        >
+                            {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                            {isTesting ? 'Envoi du test...' : 'Tester la notification push'}
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={requestPermission} 
+                            disabled={isRequesting}
+                            className="gap-2 text-muted-foreground"
+                            title="Resynchroniser le token de notification de cet appareil"
+                        >
+                            {isRequesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                            Resynchroniser le token
+                        </Button>
+                    </>
+                ) : !isBlocked ? (
+                    <Button onClick={requestPermission} disabled={isRequesting} className="gap-2">
+                        {isRequesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                        {isRequesting ? 'Activation en cours...' : 'Activer les notifications push'}
                     </Button>
-                </CardFooter>
-            )}
+                ) : null}
+            </CardFooter>
         </Card>
     );
 }

@@ -33,7 +33,7 @@ type VehicleFormData = z.infer<typeof VehicleSchema>;
 
 interface AddVehicleFormProps {
   onFormSubmit: (newVehicle: Vehicle) => void;
-  onCancel: () => void;
+  onCancel?: () => void;
 }
 
 export function AddVehicleForm({ onFormSubmit, onCancel }: AddVehicleFormProps) {

@@ -8,16 +8,32 @@ import { useAuth } from '@/context/auth-context';
 import { saveFcmToken } from '@/lib/data';
 import { useToast } from './use-toast';
 
+async function getOrRegisterServiceWorker(): Promise<ServiceWorkerRegistration | undefined> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return undefined;
+  }
+  try {
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+      scope: '/',
+      updateViaCache: 'none'
+    });
+    await navigator.serviceWorker.ready;
+    return registration;
+  } catch (error) {
+    console.error('Failed to register firebase-messaging-sw.js:', error);
+    return undefined;
+  }
+}
+
 export function useNotifications() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isPermissionGranted, setIsPermissionGranted] = useState<boolean | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | null>(null);
 
-
-  // This function attempts to get and save the FCM token.
-  // It's the core logic for ensuring notifications are truly "active".
+  // This function attempts to get and save the FCM token with the unified Service Worker.
   const syncFcmToken = useCallback(async () => {
     if (!user || typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') {
       setIsPermissionGranted(false);
@@ -26,21 +42,21 @@ export function useNotifications() {
     
     try {
         if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) {
-            console.error("VAPID key is missing.");
+            console.error("VAPID key is missing from environment variables.");
             throw new Error("La configuration des notifications est incomplète.");
         }
+
+        const registration = await getOrRegisterServiceWorker();
         const messaging = getMessaging(app);
         const currentToken = await getToken(messaging, {
             vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+            serviceWorkerRegistration: registration,
         });
 
         if (currentToken) {
             await saveFcmToken({ userId: user.uid, token: currentToken });
             setIsPermissionGranted(true);
         } else {
-            // This case is important. Permission is granted, but we can't get a token.
-            // This means something is wrong (e.g. service worker issue).
-            // By setting permission to false, we prompt the user to re-initiate.
             console.warn("Permission granted, but no FCM token received.");
             setIsPermissionGranted(false);
         }
@@ -51,7 +67,6 @@ export function useNotifications() {
     }
   }, [user]);
 
-
   // Function to check and update permission status
   const checkPermission = useCallback(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -59,8 +74,6 @@ export function useNotifications() {
       setPermissionStatus(currentPermission);
 
       if (currentPermission === 'granted') {
-        // If permission is granted, always try to sync the token
-        // to ensure we have the latest valid one.
         syncFcmToken();
       } else {
         setIsPermissionGranted(false);
@@ -70,11 +83,11 @@ export function useNotifications() {
 
   // Check initial permission status on mount and when tab becomes visible
   useEffect(() => {
-    checkPermission(); // Check on initial load
+    checkPermission();
 
     const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
-            checkPermission(); // Re-check when tab is focused
+            checkPermission();
         }
     };
 
@@ -90,10 +103,10 @@ export function useNotifications() {
       try {
         const messaging = getMessaging(app);
         const unsubscribe = onMessage(messaging, (payload) => {
-          console.log('Foreground message received.', payload);
+          console.log('Foreground message received in app.', payload);
           toast({
-              title: payload.notification?.title || 'Nouvelle Notification',
-              description: payload.notification?.body,
+              title: payload.notification?.title || payload.data?.title || 'Nouvelle Notification',
+              description: payload.notification?.body || payload.data?.body,
           });
         });
         return () => unsubscribe();
@@ -105,7 +118,7 @@ export function useNotifications() {
 
   const requestPermission = useCallback(async () => {
     if (typeof window === 'undefined' || !('Notification' in window) || !user) {
-      toast({ title: "Erreur", description: "Les notifications ne peuvent pas être activées.", variant: "destructive" });
+      toast({ title: "Erreur", description: "Les notifications ne peuvent pas être activées sur cet appareil.", variant: "destructive" });
       return;
     }
     
@@ -123,32 +136,32 @@ export function useNotifications() {
 
     try {
       const permission = await Notification.requestPermission();
-      setPermissionStatus(permission); // Update status after request
+      setPermissionStatus(permission);
       
       if (permission === 'granted') {
-        setIsPermissionGranted(true);
-        
         if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) {
             console.error("VAPID key is missing from environment variables.");
-            throw new Error("La configuration des notifications est incomplète côté serveur.");
+            throw new Error("La clé VAPID des notifications est manquante.");
         }
 
+        const registration = await getOrRegisterServiceWorker();
         const messaging = getMessaging(app);
         const currentToken = await getToken(messaging, {
           vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+          serviceWorkerRegistration: registration,
         });
 
         if (currentToken) {
           const { isNew } = await saveFcmToken({ userId: user.uid, token: currentToken });
-          console.log('FCM Token saved:', currentToken);
+          setIsPermissionGranted(true);
+          console.log('FCM Token enregistré avec succès:', currentToken);
           if (isNew) {
-            toast({ title: "Succès", description: "Notifications activées et token enregistré." });
+            toast({ title: "Succès 🎉", description: "Notifications activées ! Votre appareil recevra désormais les rappels d'entretien." });
           } else {
-            // Toast not needed if token is just being refreshed.
-            console.log("Notification token refreshed.");
+            toast({ title: "Notifications actives", description: "Token synchronisé et opérationnel." });
           }
         } else {
-          throw new Error("Impossible d'obtenir le token. Le Service Worker est peut-être mal configuré ou l'enregistrement a échoué.");
+          throw new Error("Impossible d'obtenir le token FCM. Vérifiez la configuration du navigateur.");
         }
 
       } else {
@@ -162,9 +175,41 @@ export function useNotifications() {
       toast({ title: "Erreur de Notification", description: errorMessage, variant: "destructive" });
       setIsPermissionGranted(false);
     } finally {
-        setIsRequesting(false);
+      setIsRequesting(false);
     }
   }, [user, toast]);
 
-  return { requestPermission, isPermissionGranted, isRequesting, permissionStatus };
+  // Permet de tester l'envoi d'une notification push réelle vers l'appareil
+  const testNotification = useCallback(async () => {
+    if (!user) return;
+    setIsTesting(true);
+    try {
+      const response = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid }),
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        toast({
+          title: "Notification envoyée !",
+          description: `Test réussi (${data.notificationsSent} appareil(s) notifié(s)). Vous devriez recevoir la notification push d'ici quelques secondes.`,
+        });
+      } else {
+        throw new Error(data.message || data.error || "Échec de l'envoi de la notification de test.");
+      }
+    } catch (error: any) {
+      console.error("Test notification error:", error);
+      toast({
+        title: "Échec du test",
+        description: error.message || "Impossible d'envoyer la notification de test. Vérifiez que votre token est bien enregistré.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  }, [user, toast]);
+
+  return { requestPermission, testNotification, isPermissionGranted, isRequesting, isTesting, permissionStatus };
 }

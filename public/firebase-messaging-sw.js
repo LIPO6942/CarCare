@@ -1,16 +1,11 @@
-// This file must be in the public folder.
-// It is a service worker that will be registered by the browser.
+// Service Worker unifié CarCare Pro (PWA Caching + Firebase Cloud Messaging)
+// Ne pas utiliser de modules ES6 (import/export) dans ce fichier.
 
-// IMPORTANT: Do not use ES6 modules (import/export) in this file.
-// Service workers run in a different context than the rest of the app.
-// Use importScripts to load the Firebase SDK.
+// 1. Chargement des SDK Firebase Compat pour Service Worker
 importScripts("https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/9.15.0/firebase-messaging-compat.js");
 
-// --- IMPORTANT: REPLACE WITH YOUR FIREBASE CONFIG ---
-// This object is NOT secret and is safe to be publicly exposed.
-// It's the configuration for your Firebase app, which is necessary for the
-// client-side SDK to connect to your Firebase project.
+// Configuration Firebase Client
 const firebaseConfig = {
   apiKey: "AIzaSyDw9nRE2KLboTwoEUZqSYNGLKnYg7lNWH4",
   authDomain: "car-care-3bc4d.firebaseapp.com",
@@ -21,62 +16,158 @@ const firebaseConfig = {
   appId: "1:1077651378480:web:03f8bc830a077e4ad878f5",
   measurementId: "G-6G87X85CJK"
 };
-// ----------------------------------------------------
 
-// Initialize the Firebase app in the service worker with the configuration
+// Initialisation de Firebase dans le Service Worker
 if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
+  firebase.initializeApp(firebaseConfig);
 }
 
 const messaging = firebase.messaging();
 
-// Helper: Check if app is already open in any window/PWA
-async function isAppOpen() {
+// -------------------------------------------------------------
+// GESTION DU CACHE PWA (Offline & Performance)
+// -------------------------------------------------------------
+const CACHE_NAME = 'carcare-pro-v4';
+const ASSETS_TO_CACHE = [
+  '/',
+  '/documents',
+  '/reports',
+  '/settings',
+  '/manifest.json',
+  '/android-chrome-192x192.png',
+  '/android-chrome-512x512.png',
+  '/apple-touch-icon.png',
+  '/favicon.ico',
+  '/badge-72x72.png',
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', (event) => {
+  // Ignorer les requêtes non-GET
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+
+  // Requêtes de navigation (pages HTML) - Network-First avec fallback cache
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Ignorer les extensions chrome et les appels Firestore/Firebase
+  if (url.origin.includes('extension') || url.origin.includes('firebase') || url.origin.includes('googleapis')) return;
+
+  // Fichiers statiques - Cache-First avec fallback réseau
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+
+      return fetch(event.request).then((response) => {
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
+        }
+
+        const responseToCache = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseToCache);
+        });
+
+        return response;
+      });
+    })
+  );
+});
+
+// -------------------------------------------------------------
+// GESTION DES NOTIFICATIONS PUSH FIREBASE (FCM)
+// -------------------------------------------------------------
+
+// Vérifie si une fenêtre de l'application est actuellement ACTIVE et FOCALISÉE
+async function isAppFocused() {
   const clientsList = await self.clients.matchAll({
     type: "window",
     includeUncontrolled: true
   });
   return clientsList.some(client =>
-    client.url.includes(self.location.origin)
+    client.url.includes(self.location.origin) &&
+    client.focused &&
+    client.visibilityState === 'visible'
   );
 }
 
-// This handler is called when a push message arrives while the app is in the background.
-// If the app is already open, we skip the native notification to avoid duplicates
-// (the foreground handler in the app will display a toast instead).
+// Réception des messages FCM en arrière-plan
 messaging.onBackgroundMessage(async (payload) => {
-  console.log(
-    "[firebase-messaging-sw.js] Received background message ",
-    payload
-  );
+  console.log("[firebase-messaging-sw.js] Message d'arrière-plan reçu :", payload);
 
-  // Check if app is already open - if yes, don't show native notification
-  if (await isAppOpen()) {
-    console.log('[SW] App already open, skipping native notification');
+  // Si l'utilisateur regarde activement l'application en plein écran, le composant client affichera un Toast.
+  // En revanche, si l'application est en arrière-plan, minimisée ou écran éteint, on affiche toujours la notification native.
+  const appFocused = await isAppFocused();
+  if (appFocused) {
+    console.log('[firebase-messaging-sw.js] Application activement focalisée, notification native ignorée pour éviter les doublons');
     return;
   }
 
-  const notificationTitle = payload.notification?.title || "CarCare Pro";
+  const title = payload.notification?.title || payload.data?.title || "CarCare Pro";
+  const body = payload.notification?.body || payload.data?.body || "Rappel d'entretien important";
+  const icon = payload.notification?.icon || payload.data?.icon || "/android-chrome-192x192.png";
+  const badge = payload.notification?.badge || payload.data?.badge || "/badge-72x72.png";
+  const tag = payload.data?.tag || payload.notification?.tag || `carcare-${Date.now()}`;
+  const targetUrl = payload.data?.url || payload.notification?.click_action || "/";
+  const isHighPriority = payload.data?.priority === 'high';
+
   const notificationOptions = {
-    body: payload.notification?.body || "Vous avez une nouvelle notification.",
-    icon: "/android-chrome-192x192.png",
-    badge: "/badge-72x72.png",
-    tag: payload.data?.tag || payload.notification?.tag || "carcare-default",
-    renotify: false,
-    requireInteraction: false,
-    // Attach the target URL so the click handler can open the app
+    body: body,
+    icon: icon,
+    badge: badge,
+    tag: tag,
+    renotify: true,
+    requireInteraction: isHighPriority,
+    vibrate: [200, 100, 200],
     data: {
-      url: payload.data?.url || "/",
-      tag: payload.data?.tag || payload.notification?.tag || "carcare-default"
-    },
+      url: targetUrl,
+      tag: tag
+    }
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  return self.registration.showNotification(title, notificationOptions);
 });
 
-// Handle notification clicks — open or focus the CarCare app
+// Gestion du clic sur la notification push
 self.addEventListener("notificationclick", (event) => {
-  event.notification.close(); // Dismiss the notification banner
+  event.notification.close();
 
   const targetUrl = (event.notification.data && event.notification.data.url)
     ? event.notification.data.url
@@ -84,25 +175,19 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      // If a window with our app is already open, focus and navigate it
+      // Si une fenêtre CarCare est déjà ouverte, la focaliser et naviguer
       for (const client of clients) {
         if (client.url.includes(self.location.origin)) {
-          // Check if it's a standalone PWA window
-          const isStandalone = client.url.includes('?standalone=true') || 
-                               client.url.includes('&standalone=true') ||
-                               new URL(client.url).searchParams.has('standalone');
-          
           if ("focus" in client) {
             client.navigate(targetUrl);
             return client.focus();
           }
         }
       }
-      // Otherwise open a new window - try to open as standalone PWA
+      // Sinon ouvrir une nouvelle fenêtre (avec mode standalone PWA si applicable)
       if (self.clients.openWindow) {
-        // Add standalone parameter to force PWA mode if supported
-        const pwaUrl = targetUrl.includes('?') ? `${targetUrl}&standalone=true` : `${targetUrl}?standalone=true`;
-        return self.clients.openWindow(pwaUrl);
+        const fullUrl = targetUrl.startsWith('http') ? targetUrl : new URL(targetUrl, self.location.origin).href;
+        return self.clients.openWindow(fullUrl);
       }
     })
   );
