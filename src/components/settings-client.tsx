@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Bell, BellOff, Loader2, LogIn, UserPlus, LogOut, ShieldCheck, Send, BellRing, RefreshCw } from 'lucide-react';
+import { Bell, BellOff, Loader2, LogIn, UserPlus, LogOut, ShieldCheck, Send, BellRing, RefreshCw, Clock, Smartphone } from 'lucide-react';
 import type { Vehicle } from '@/lib/types';
 import { getVehicles } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
@@ -92,12 +92,22 @@ function NotificationSettingsCard() {
                     <>
                         <Button 
                             variant="default" 
-                            onClick={testNotification} 
+                            onClick={() => testNotification(0)} 
                             disabled={isTesting}
                             className="gap-2"
                         >
                             {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                            {isTesting ? 'Envoi du test...' : 'Tester la notification push'}
+                            Tester la notification (immédiat)
+                        </Button>
+                        <Button 
+                            variant="secondary" 
+                            onClick={() => testNotification(5)} 
+                            disabled={isTesting}
+                            className="gap-2"
+                            title="Envoie un push après 5 secondes pour vous laisser le temps de verrouiller l'écran ou de réduire l'application"
+                        >
+                            {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+                            Tester en arrière-plan (dans 5s)
                         </Button>
                         <Button 
                             variant="outline" 
@@ -108,7 +118,7 @@ function NotificationSettingsCard() {
                             title="Resynchroniser le token de notification de cet appareil"
                         >
                             {isRequesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                            Resynchroniser le token
+                            Resynchroniser
                         </Button>
                     </>
                 ) : !isBlocked ? (

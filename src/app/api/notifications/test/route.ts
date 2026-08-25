@@ -4,13 +4,19 @@ import { adminDb, adminMessaging } from '@/lib/firebase-admin';
 export async function POST(request: Request) {
     try {
         const body = await request.json().catch(() => ({}));
-        const { userId, token } = body;
+        const { userId, token, delaySeconds } = body;
 
         if (!userId && !token) {
             return NextResponse.json(
                 { error: 'userId ou token requis pour tester les notifications.' },
                 { status: 400 }
             );
+        }
+
+        // Si un délai est demandé (ex: 5s), attendre pour laisser le temps à l'utilisateur de fermer/minimiser l'application
+        if (delaySeconds && typeof delaySeconds === 'number' && delaySeconds > 0) {
+            const safeDelay = Math.min(delaySeconds, 15);
+            await new Promise(resolve => setTimeout(resolve, safeDelay * 1000));
         }
 
         let targetTokens: string[] = [];

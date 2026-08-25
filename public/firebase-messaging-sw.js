@@ -27,7 +27,7 @@ const messaging = firebase.messaging();
 // -------------------------------------------------------------
 // GESTION DU CACHE PWA (Offline & Performance)
 // -------------------------------------------------------------
-const CACHE_NAME = 'carcare-pro-v4';
+const CACHE_NAME = 'carcare-pro-v5';
 const ASSETS_TO_CACHE = [
   '/',
   '/documents',
@@ -115,37 +115,16 @@ self.addEventListener('fetch', (event) => {
 // GESTION DES NOTIFICATIONS PUSH FIREBASE (FCM)
 // -------------------------------------------------------------
 
-// Vérifie si une fenêtre de l'application est actuellement ACTIVE et FOCALISÉE
-async function isAppFocused() {
-  const clientsList = await self.clients.matchAll({
-    type: "window",
-    includeUncontrolled: true
-  });
-  return clientsList.some(client =>
-    client.url.includes(self.location.origin) &&
-    client.focused &&
-    client.visibilityState === 'visible'
-  );
-}
-
-// Réception des messages FCM en arrière-plan
-messaging.onBackgroundMessage(async (payload) => {
-  console.log("[firebase-messaging-sw.js] Message d'arrière-plan reçu :", payload);
-
-  // Si l'utilisateur regarde activement l'application en plein écran, le composant client affichera un Toast.
-  // En revanche, si l'application est en arrière-plan, minimisée ou écran éteint, on affiche toujours la notification native.
-  const appFocused = await isAppFocused();
-  if (appFocused) {
-    console.log('[firebase-messaging-sw.js] Application activement focalisée, notification native ignorée pour éviter les doublons');
-    return;
-  }
+// Fonction utilitaire pour afficher la notification native sur l'appareil
+function displayNotification(payload) {
+  console.log("[SW] Affichage de la notification système :", payload);
 
   const title = payload.notification?.title || payload.data?.title || "CarCare Pro";
   const body = payload.notification?.body || payload.data?.body || "Rappel d'entretien important";
   const icon = payload.notification?.icon || payload.data?.icon || "/android-chrome-192x192.png";
   const badge = payload.notification?.badge || payload.data?.badge || "/badge-72x72.png";
   const tag = payload.data?.tag || payload.notification?.tag || `carcare-${Date.now()}`;
-  const targetUrl = payload.data?.url || payload.notification?.click_action || "/";
+  const targetUrl = payload.data?.url || payload.notification?.click_action || "/settings";
   const isHighPriority = payload.data?.priority === 'high';
 
   const notificationOptions = {
@@ -155,7 +134,7 @@ messaging.onBackgroundMessage(async (payload) => {
     tag: tag,
     renotify: true,
     requireInteraction: isHighPriority,
-    vibrate: [200, 100, 200],
+    vibrate: [200, 100, 200, 100, 200],
     data: {
       url: targetUrl,
       tag: tag
@@ -163,6 +142,27 @@ messaging.onBackgroundMessage(async (payload) => {
   };
 
   return self.registration.showNotification(title, notificationOptions);
+}
+
+// Réception des messages FCM en arrière-plan
+messaging.onBackgroundMessage((payload) => {
+  console.log("[firebase-messaging-sw.js] onBackgroundMessage :", payload);
+  return displayNotification(payload);
+});
+
+// Fallback natif d'événement push (au cas où le push n'est pas intercepté par FCM compat)
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  try {
+    const raw = event.data.json();
+    console.log("[firebase-messaging-sw.js] Événement push brut reçu :", raw);
+    // Si c'est un push qui n'a pas été affiché par Firebase SDK
+    if (raw && (raw.notification || raw.data)) {
+      event.waitUntil(displayNotification(raw));
+    }
+  } catch (e) {
+    console.log("[firebase-messaging-sw.js] Push texte brut :", event.data.text());
+  }
 });
 
 // Gestion du clic sur la notification push
@@ -171,7 +171,7 @@ self.addEventListener("notificationclick", (event) => {
 
   const targetUrl = (event.notification.data && event.notification.data.url)
     ? event.notification.data.url
-    : "/";
+    : "/settings";
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
@@ -184,7 +184,7 @@ self.addEventListener("notificationclick", (event) => {
           }
         }
       }
-      // Sinon ouvrir une nouvelle fenêtre (avec mode standalone PWA si applicable)
+      // Sinon ouvrir une nouvelle fenêtre
       if (self.clients.openWindow) {
         const fullUrl = targetUrl.startsWith('http') ? targetUrl : new URL(targetUrl, self.location.origin).href;
         return self.clients.openWindow(fullUrl);

@@ -97,17 +97,60 @@ export function useNotifications() {
     };
   }, [checkPermission]);
   
-  // Effect for handling foreground messages
+  // Effect for handling foreground messages (both Toast and native OS Notification)
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && isPermissionGranted) {
       try {
         const messaging = getMessaging(app);
         const unsubscribe = onMessage(messaging, (payload) => {
           console.log('Foreground message received in app.', payload);
+
+          const title = payload.notification?.title || payload.data?.title || 'Nouvelle Notification';
+          const body = payload.notification?.body || payload.data?.body;
+
+          // 1. Toast dans l'interface
           toast({
-              title: payload.notification?.title || payload.data?.title || 'Nouvelle Notification',
-              description: payload.notification?.body || payload.data?.body,
+              title,
+              description: body,
           });
+
+          // 2. Notification système OS native (bannière / centre de notifications)
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.ready.then(reg => {
+                reg.showNotification(title, {
+                  body: body,
+                  icon: payload.notification?.icon || '/android-chrome-192x192.png',
+                  badge: '/badge-72x72.png',
+                  tag: payload.data?.tag || `carcare-${Date.now()}`,
+                  renotify: true,
+                  data: { url: payload.data?.url || '/settings' }
+                } as any);
+              }).catch(() => {
+                try {
+                  new Notification(title, {
+                    body: body,
+                    icon: '/android-chrome-192x192.png',
+                    badge: '/badge-72x72.png',
+                    tag: payload.data?.tag || `carcare-${Date.now()}`,
+                  });
+                } catch (e) {
+                  console.warn("Direct Notification error:", e);
+                }
+              });
+            } else {
+              try {
+                new Notification(title, {
+                  body: body,
+                  icon: '/android-chrome-192x192.png',
+                  badge: '/badge-72x72.png',
+                  tag: payload.data?.tag || `carcare-${Date.now()}`,
+                });
+              } catch (e) {
+                console.warn("Direct Notification error:", e);
+              }
+            }
+          }
         });
         return () => unsubscribe();
       } catch (error) {
@@ -179,23 +222,34 @@ export function useNotifications() {
     }
   }, [user, toast]);
 
-  // Permet de tester l'envoi d'une notification push réelle vers l'appareil
-  const testNotification = useCallback(async () => {
+  // Permet de tester l'envoi d'une notification push réelle (immédiate ou différée en arrière-plan)
+  const testNotification = useCallback(async (delaySeconds: number = 0) => {
     if (!user) return;
     setIsTesting(true);
+
+    if (delaySeconds > 0) {
+      toast({
+        title: "Test en arrière-plan démarré ⏳",
+        description: `Réduisez l'application ou verrouillez votre écran maintenant ! Le push arrivera dans ${delaySeconds} secondes.`,
+        duration: 6000,
+      });
+    }
+
     try {
       const response = await fetch('/api/notifications/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.uid }),
+        body: JSON.stringify({ userId: user.uid, delaySeconds }),
       });
 
       const data = await response.json();
       if (response.ok && data.success) {
-        toast({
-          title: "Notification envoyée !",
-          description: `Test réussi (${data.notificationsSent} appareil(s) notifié(s)). Vous devriez recevoir la notification push d'ici quelques secondes.`,
-        });
+        if (delaySeconds === 0) {
+          toast({
+            title: "Notification envoyée !",
+            description: `Test réussi (${data.notificationsSent} appareil(s) notifié(s)). La notification système apparaît sur votre appareil.`,
+          });
+        }
       } else {
         throw new Error(data.message || data.error || "Échec de l'envoi de la notification de test.");
       }
