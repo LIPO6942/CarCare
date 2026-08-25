@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import type { Vehicle, Repair, Maintenance, FuelLog, AiDiagnostic, FcmToken, Place, RoutePattern } from './types';
 import { deleteLocalDocumentsForVehicle, deleteVehicleImage } from './local-db';
+import { getVehicleTankCapacity, calculateAverageFuelConsumption, calculateIntervalConsumption } from './fuel-utils';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function docToType<T>(document: any): T {
@@ -400,37 +401,11 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
 
   // Calculate global average consumption for the vehicle to use for weighting
   // Re-sort fuel logs by mileage ascending
-  // Step A: Estimate Tank Capacity (Same logic as dashboard for consistency)
-  let estimatedCapacity = vehicle?.estimatedTankCapacity || 0;
-
-  if (!estimatedCapacity) {
-    const capacityEstimates: number[] = [];
-    fuelLogs.forEach(log => {
-      if (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore < 1) {
-        const estimate = log.quantity / (1 - log.gaugeLevelBefore);
-        if (estimate > 0 && estimate < 200) { // Sanity check: tank < 200L
-          capacityEstimates.push(estimate);
-        }
-      }
-    });
-
-    if (capacityEstimates.length > 0) {
-      // Use MAX instead of median for better results with partial refills
-      estimatedCapacity = Math.max(...capacityEstimates);
-    }
-  }
+  // Step A: Determine Tank Capacity
+  const estimatedCapacity = getVehicleTankCapacity(vehicle, fuelLogs);
 
   // Calculate global average consumption
-  const totalKm = fuelLogs[fuelLogs.length - 1].mileage - fuelLogs[0].mileage;
-  let totalFuel = fuelLogs.slice(1).reduce((sum, log) => sum + log.quantity, 0);
-
-  // If we have gauge data and estimated capacity, we can refine the global average too
-  if (estimatedCapacity > 0 && fuelLogs[0].gaugeLevelBefore !== undefined && fuelLogs[fuelLogs.length - 1].gaugeLevelBefore !== undefined) {
-    totalFuel = fuelLogs.slice(0, -1).reduce((sum, log) => sum + log.quantity, 0) +
-      (estimatedCapacity * (fuelLogs[0].gaugeLevelBefore - fuelLogs[fuelLogs.length - 1].gaugeLevelBefore));
-  }
-
-  const globalAvgConsumption = totalKm > 0 ? (totalFuel / totalKm) * 100 : 0;
+  const globalAvgConsumption = calculateAverageFuelConsumption(fuelLogs, estimatedCapacity) || 0;
 
   const patterns: RoutePattern[] = [];
 
@@ -443,16 +418,8 @@ export async function analyzeRoutes(userId: string, vehicleId: string): Promise<
 
     if (distance <= 0) continue;
 
-    let consumption = 0;
-    if (estimatedCapacity > 0 && previousLog.gaugeLevelBefore !== undefined && currentLog.gaugeLevelBefore !== undefined) {
-      // Step B: Use Precise Formula for Interval [i-1, i]
-      // Consumed = Q_{i-1} + (G_{i-1} - G_i) * Cap
-      const deltaV = previousLog.quantity + (estimatedCapacity * (previousLog.gaugeLevelBefore - currentLog.gaugeLevelBefore));
-      consumption = (deltaV / distance) * 100;
-    } else {
-      // Fallback: Use current refill quantity (currentLog.quantity)
-      consumption = (currentLog.quantity / distance) * 100;
-    }
+    const intervalResult = calculateIntervalConsumption(previousLog, currentLog, estimatedCapacity);
+    const consumption = intervalResult ? intervalResult.consumption : (currentLog.quantity / distance) * 100;
 
     const currDate = new Date(currentLog.date);
     const prevDate = new Date(previousLog.date);

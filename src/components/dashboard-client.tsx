@@ -13,6 +13,7 @@ import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { VehicleCard } from '@/components/vehicle-card';
 import { calculateNextVignetteDate, formatDateToLocalISO, getCorrectVignetteDeadline } from '@/lib/vignette';
+import { getVehicleTankCapacity, calculateAverageFuelConsumption, calculateIntervalConsumption, calculateSmartAutonomie, calculateAverageRefillGaugeLevel } from '@/lib/fuel-utils';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
@@ -430,9 +431,9 @@ export function DashboardClient() {
 
   const fuelStats = useMemo(() => {
     const stats = new Map<string, {
-      consumption: number;
-      latestConsumption: number;
-      cost: number;
+      consumption: number | null;
+      latestConsumption: number | null;
+      cost: number | null;
       lastLogQuantity: number;
       lastLogTotalCost: number;
       kmPerDay: number;
@@ -440,6 +441,7 @@ export function DashboardClient() {
       drivingStyle: string;
       daysUntilEmpty?: number;
       remainingRangeKm?: number;
+      avgRefillGauge?: number | null;
     } | null>();
 
     vehicles.forEach(vehicle => {
@@ -447,202 +449,101 @@ export function DashboardClient() {
         .filter(log => log.vehicleId === vehicle.id && log.mileage > 0)
         .sort((a, b) => a.mileage - b.mileage);
 
-      if (vehicleFuelLogs.length < 2) {
+      if (vehicleFuelLogs.length === 0) {
         stats.set(vehicle.id, null);
         return;
       }
 
-      // Step A: Estimate Tank Capacity
-      let estimatedCapacity = vehicle.estimatedTankCapacity || 0;
+      // Step A: Determine Tank Capacity (using vehicle setting, detected logs, or vehicle baseline)
+      const estimatedCapacity = getVehicleTankCapacity(vehicle, vehicleFuelLogs);
 
-      if (!estimatedCapacity) {
-        const capacityEstimates: number[] = [];
-        vehicleFuelLogs.forEach(log => {
-          if (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore < 1) {
-            const estimate = log.quantity / (1 - log.gaugeLevelBefore);
-            if (estimate > 0 && estimate < 200) { // Sanity check: tank < 200L
-              capacityEstimates.push(estimate);
-            }
-          }
-        });
+      // Step B: Calculate Lifetime Average & Latest Interval Consumption
+      const averageConsumption = calculateAverageFuelConsumption(vehicleFuelLogs, estimatedCapacity);
+      const avgRefillGauge = calculateAverageRefillGaugeLevel(vehicleFuelLogs);
 
-        if (capacityEstimates.length > 0) {
-          // Use MAX instead of median because partial refills underestimate, 
-          // but a full refill gives the true capacity.
-          estimatedCapacity = Math.max(...capacityEstimates);
-        }
-      }
-
-      // 1. Lifetime Average Consumption (L/100km)
-      const firstLog = vehicleFuelLogs[0];
       const lastLog = vehicleFuelLogs[vehicleFuelLogs.length - 1];
-      const totalDistance = lastLog.mileage - firstLog.mileage;
+      let latestConsumption: number | null = null;
+      let lastIntervalDistance = 0;
+      let previousLog: FuelLog | null = null;
 
-      // Correct approach for average: Sum all quantities from Log 0 to Log n-2
-      // because Q_i is the fuel that was used for the interval [i, i+1].
-      let totalFuel = 0;
-      for (let i = 0; i < vehicleFuelLogs.length - 1; i++) {
-        totalFuel += vehicleFuelLogs[i].quantity;
-      }
-
-      let averageConsumption = 0;
-      if (totalDistance > 0 && totalFuel > 0) {
-        if (estimatedCapacity > 0 && firstLog.gaugeLevelBefore !== undefined && lastLog.gaugeLevelBefore !== undefined) {
-          // Precise Formula: Total Consumed = Sum(Qi) + (G_start - G_end) * Cap
-          const fuelLevelDifference = (firstLog.gaugeLevelBefore - lastLog.gaugeLevelBefore) * estimatedCapacity;
-          averageConsumption = ((totalFuel + fuelLevelDifference) / totalDistance) * 100;
-        } else {
-          // Fallback: Standard average logic
-          // (Wait, standard fallback is actually sum(Q1..Q_last) / distance if you assume fill-to-full)
-          // To be safe and consistent with non-gauge users, we'll keep the standard fallback
-          let fallbackFuel = 0;
-          for (let i = 1; i < vehicleFuelLogs.length; i++) {
-            fallbackFuel += vehicleFuelLogs[i].quantity;
-          }
-          averageConsumption = (fallbackFuel / totalDistance) * 100;
+      if (vehicleFuelLogs.length >= 2) {
+        previousLog = vehicleFuelLogs[vehicleFuelLogs.length - 2];
+        lastIntervalDistance = lastLog.mileage - previousLog.mileage;
+        const intervalResult = calculateIntervalConsumption(previousLog, lastLog, estimatedCapacity);
+        if (intervalResult) {
+          latestConsumption = intervalResult.consumption;
         }
       }
 
-      // 2. Latest Interval Stats (Gauge-Based if capacity known)
-      const previousLog = vehicleFuelLogs[vehicleFuelLogs.length - 2];
-      const lastIntervalDistance = lastLog.mileage - previousLog.mileage;
-      let latestCost = 0;
-      let latestConsumption = 0;
+      const latestCost = (latestConsumption && lastLog.pricePerLiter)
+        ? (latestConsumption * lastLog.pricePerLiter)
+        : null;
 
-      if (lastIntervalDistance > 0) {
-        if (estimatedCapacity > 0 && previousLog.gaugeLevelBefore !== undefined && lastLog.gaugeLevelBefore !== undefined) {
-          // Precise Formula for Interval [n-2, n-1]:
-          // Consumed = Q_{n-2} + (G_{n-2} - G_{n-1}) * Cap
-          const deltaV = previousLog.quantity + (estimatedCapacity * previousLog.gaugeLevelBefore) - (estimatedCapacity * lastLog.gaugeLevelBefore);
-          latestConsumption = (deltaV / lastIntervalDistance) * 100;
-        } else {
-          // Fallback: Use the last refill quantity (lastLog.quantity)
-          // Because it's what was refilled AFTER driving the interval distance.
-          latestConsumption = (lastLog.quantity / lastIntervalDistance) * 100;
-        }
+      // Calculate speed & driving style
+      let estimatedSpeed = lastLog.averageSpeed;
+      let drivingStyle = 'Mixte';
+      let kmPerDay = 0;
 
-        latestCost = (latestConsumption * lastLog.pricePerLiter);
-      }
-
-      if (averageConsumption > 0 || latestCost > 0 || latestConsumption > 0) {
-        // Estimate Average Speed based on consumption if not provided
-        let estimatedSpeed = lastLog.averageSpeed;
-        let drivingStyle = 'Mixte';
-        let kmPerDay = 0;
-
+      if (previousLog && lastIntervalDistance > 0) {
         const timeDiff = new Date(lastLog.date).getTime() - new Date(previousLog.date).getTime();
         const daysDiff = Math.max(1, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)));
-        if (lastIntervalDistance > 0) {
-          kmPerDay = lastIntervalDistance / daysDiff;
-        }
-
-        if (kmPerDay < 30) {
-          drivingStyle = 'Urbain';
-        } else if (kmPerDay >= 60 && kmPerDay < 90) {
-          drivingStyle = 'Semi-Sport';
-        } else if (kmPerDay >= 90) {
-          drivingStyle = 'Sport/Route';
-        }
-
-        if (!estimatedSpeed && latestConsumption > 0) {
-          // --- RECALIBRATED SPEED ESTIMATION (Version 2.1) ---
-          // Targeting ~29 km/h for normal urban/mixed usage as reported by the user
-          const fiscalPower = vehicle.fiscalPower || 6;
-          const isDiesel = vehicle.fuelType === 'Diesel';
-
-          // Realistic consumption baseline for Tunis-like traffic
-          const baseReference = isDiesel ? 5.2 + (fiscalPower - 4) * 0.4 : 7.0 + (fiscalPower - 4) * 0.5;
-          const carAvg = averageConsumption > 0 ? averageConsumption : baseReference;
-          const stressFactor = latestConsumption / carAvg;
-
-          // Use a base speed of 29 km/h for "normal" usage, with more aggressive decay (1.6)
-          let baseSpeed = 0;
-          if (stressFactor >= 1) {
-            // Stronger impact of consumption on speed prediction
-            baseSpeed = (29 / Math.pow(stressFactor, 1.6));
-            if (baseSpeed < 10) baseSpeed = 10;
-          } else {
-            // Highway efficiency
-            baseSpeed = 29 + (1 - stressFactor) * 100;
-            if (baseSpeed > 130) baseSpeed = 130;
-          }
-
-          // Smaller intensity adjustment to avoid overestimating on longer trips
-          let intensityAdjustment = 0;
-          if (kmPerDay < 15) intensityAdjustment = -3;
-          else if (kmPerDay > 100) intensityAdjustment = 15;
-
-          estimatedSpeed = baseSpeed + intensityAdjustment;
-        }
-
-        // --- SMART RANGE PREDICTOR (Adaptive Logic) ---
-        let daysUntilEmpty = undefined;
-        let remainingRangeKm = undefined;
-
-        if (estimatedCapacity > 0 && latestConsumption > 0 && kmPerDay > 0) {
-          // 1. Calculate historical behavior context
-          const timeStats = [];
-          for (let i = 1; i < vehicleFuelLogs.length; i++) {
-            const dPrev = new Date(vehicleFuelLogs[i - 1].date);
-            const dCurr = new Date(vehicleFuelLogs[i].date);
-            const diff = (dCurr.getTime() - dPrev.getTime()) / (1000 * 60 * 60 * 24);
-            if (diff > 0) timeStats.push(diff);
-          }
-
-          // Typical period between refills (average days)
-          const avgDaysBetweenLogs = timeStats.length > 0
-            ? timeStats.reduce((a, b) => a + b, 0) / timeStats.length
-            : 14; // Fallback 14 days
-
-          // 2. Calculate time passed since last log
-          const now = new Date();
-          const lastLogDate = new Date(lastLog.date);
-          const hoursPassed = Math.max(0, (now.getTime() - lastLogDate.getTime()) / (1000 * 60 * 60));
-          const daysPassed = hoursPassed / 24;
-
-          // 3. ADAPTIVE LOGIC: Brake the consumption if user exceeds their typical refill period
-          // If daysPassed > avgDaysBetweenLogs, it's likely the car is stationary or used less
-          let adaptiveKmPerDay = kmPerDay;
-          const latencyThreshold = avgDaysBetweenLogs * 1.1; // 10% margin
-
-          if (daysPassed > latencyThreshold) {
-            // Apply a decay factor: the longer it stays without a log, the less we assume it drives
-            // This is a "damping" effect. 
-            const overtime = daysPassed - latencyThreshold;
-            const dampingFactor = 1 / (1 + (overtime / (avgDaysBetweenLogs * 0.5)));
-            adaptiveKmPerDay = kmPerDay * dampingFactor;
-          }
-
-          // 4. Fuel level calculations
-          const initialFuelAfterLog = (estimatedCapacity * lastLog.gaugeLevelBefore!) + lastLog.quantity;
-          const cappedFuel = Math.min(initialFuelAfterLog, estimatedCapacity);
-
-          // Calculate estimated distance using integration-like logic for better accuracy over time changes
-          // For simplicity here, we use the damped adaptiveKmPerDay for the whole period if in overtime
-          const estimatedDistanceDrivenSinceLog = daysPassed * adaptiveKmPerDay;
-          const fuelConsumedSinceLog = (estimatedDistanceDrivenSinceLog * latestConsumption) / 100;
-
-          const currentFuelInTank = Math.max(0, cappedFuel - fuelConsumedSinceLog);
-
-          remainingRangeKm = (currentFuelInTank / latestConsumption) * 100;
-          daysUntilEmpty = adaptiveKmPerDay > 0 ? (remainingRangeKm / adaptiveKmPerDay) : 99;
-        }
-
-        stats.set(vehicle.id, {
-          consumption: averageConsumption,
-          latestConsumption,
-          cost: latestCost,
-          lastLogQuantity: lastLog.quantity,
-          lastLogTotalCost: lastLog.totalCost,
-          kmPerDay,
-          averageSpeed: estimatedSpeed,
-          drivingStyle,
-          daysUntilEmpty,
-          remainingRangeKm
-        });
-      } else {
-        stats.set(vehicle.id, null);
+        kmPerDay = lastIntervalDistance / daysDiff;
       }
+
+      if (kmPerDay < 30) {
+        drivingStyle = 'Urbain';
+      } else if (kmPerDay >= 60 && kmPerDay < 90) {
+        drivingStyle = 'Semi-Sport';
+      } else if (kmPerDay >= 90) {
+        drivingStyle = 'Sport/Route';
+      }
+
+      const activeConsumption = latestConsumption || averageConsumption || 0;
+      if (!estimatedSpeed && activeConsumption > 0) {
+        const fiscalPower = vehicle.fiscalPower || 6;
+        const isDiesel = vehicle.fuelType === 'Diesel';
+        const baseReference = isDiesel ? 5.2 + (fiscalPower - 4) * 0.4 : 7.0 + (fiscalPower - 4) * 0.5;
+        const carAvg = averageConsumption || baseReference;
+        const stressFactor = activeConsumption / carAvg;
+
+        let baseSpeed = 0;
+        if (stressFactor >= 1) {
+          baseSpeed = (29 / Math.pow(stressFactor, 1.6));
+          if (baseSpeed < 10) baseSpeed = 10;
+        } else {
+          baseSpeed = 29 + (1 - stressFactor) * 100;
+          if (baseSpeed > 130) baseSpeed = 130;
+        }
+
+        let intensityAdjustment = 0;
+        if (kmPerDay > 0 && kmPerDay < 15) intensityAdjustment = -3;
+        else if (kmPerDay > 100) intensityAdjustment = 15;
+
+        estimatedSpeed = baseSpeed + intensityAdjustment;
+      }
+
+      // Step C: Calculate Smart Autonomie (taking gaugeLevelBefore + added fuel + days passed into account)
+      const smartAutonomie = calculateSmartAutonomie(
+        vehicle,
+        vehicleFuelLogs,
+        estimatedCapacity,
+        latestConsumption,
+        averageConsumption
+      );
+
+      stats.set(vehicle.id, {
+        consumption: averageConsumption,
+        latestConsumption,
+        cost: latestCost,
+        lastLogQuantity: lastLog.quantity,
+        lastLogTotalCost: lastLog.totalCost,
+        kmPerDay: smartAutonomie?.kmPerDay ?? kmPerDay,
+        averageSpeed: estimatedSpeed,
+        drivingStyle,
+        daysUntilEmpty: smartAutonomie?.daysUntilEmpty,
+        remainingRangeKm: smartAutonomie?.remainingRangeKm,
+        avgRefillGauge
+      });
     });
 
     return stats;
@@ -853,6 +754,7 @@ export function DashboardClient() {
                       drivingStyle={stats?.drivingStyle}
                       daysUntilEmpty={stats?.daysUntilEmpty}
                       remainingRangeKm={stats?.remainingRangeKm}
+                      avgRefillGauge={stats?.avgRefillGauge}
                     />
                   );
                 })}

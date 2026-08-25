@@ -29,7 +29,7 @@ import { getVehicleImage, saveVehicleImage } from '@/lib/local-db';
 import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 import { FuelConsumptionHistoryModal } from '@/components/fuel-consumption-history-modal';
 
-export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost, fuelLogs = [], kmPerDay, averageSpeed, drivingStyle, daysUntilEmpty, remainingRangeKm }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null; fuelLogs?: FuelLog[]; kmPerDay?: number | null; averageSpeed?: number | null; drivingStyle?: string; daysUntilEmpty?: number; remainingRangeKm?: number }) {
+export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost, fuelLogs = [], kmPerDay, averageSpeed, drivingStyle, daysUntilEmpty, remainingRangeKm, avgRefillGauge }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null; fuelLogs?: FuelLog[]; kmPerDay?: number | null; averageSpeed?: number | null; drivingStyle?: string; daysUntilEmpty?: number; remainingRangeKm?: number; avgRefillGauge?: number | null }) {
   const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -232,6 +232,25 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
               </div>
             )}
 
+            {remainingRangeKm != null && remainingRangeKm > 0 && (
+              <div className={`flex items-center justify-between p-2 rounded-md border text-xs font-medium ${
+                daysUntilEmpty != null && daysUntilEmpty < 3
+                  ? 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
+                  : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+              }`}>
+                <div className="flex items-center gap-1.5">
+                  <Gauge className="h-3.5 w-3.5 shrink-0" />
+                  <span>Autonomie :</span>
+                  <span className="font-bold">≈ {Math.round(remainingRangeKm)} km</span>
+                </div>
+                {daysUntilEmpty != null && (
+                  <span className="text-[10px] font-semibold opacity-90">
+                    {daysUntilEmpty < 2 ? "Plein urgent" : `~${Math.ceil(daysUntilEmpty)}j restants`}
+                  </span>
+                )}
+              </div>
+            )}
+
             {(latestConsumption != null || fuelCost != null) && (
               <div
                 className="mt-2 p-3 bg-primary/10 rounded-md border border-primary/20 space-y-2 cursor-pointer transition-all hover:bg-primary/20 hover:shadow-md"
@@ -299,8 +318,17 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
                         </div>
                       )}
                     </div>
-
-
+                    {avgRefillGauge != null && (
+                      <div className="mt-2 flex items-center justify-between text-[11px] bg-background/60 px-2 py-1 rounded border border-primary/15 text-primary">
+                        <span className="flex items-center gap-1 font-medium">
+                          <Fuel className="h-3 w-3" />
+                          <span>Plein fait moyennement à :</span>
+                        </span>
+                        <span className="font-bold">
+                          ~{avgRefillGauge}% {avgRefillGauge < 15 ? '🔴' : avgRefillGauge < 35 ? '🟡' : avgRefillGauge < 60 ? '🟢' : '✅'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="pt-1 border-t border-primary/10 text-center">

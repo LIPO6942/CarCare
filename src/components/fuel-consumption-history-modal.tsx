@@ -5,6 +5,8 @@ import type { Vehicle, FuelLog } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ComposedChart } from 'recharts';
 import { Card, CardContent } from '@/components/ui/card';
+import { getVehicleTankCapacity, calculateIntervalConsumption, calculateAverageRefillGaugeLevel, getRefillHabitDescription } from '@/lib/fuel-utils';
+import { Fuel, Gauge, Droplets } from 'lucide-react';
 
 interface FuelConsumptionHistoryModalProps {
   vehicle: Vehicle;
@@ -20,33 +22,17 @@ const COLORS = [
 ];
 
 export function FuelConsumptionHistoryModal({ vehicle, fuelLogs, open, onOpenChange }: FuelConsumptionHistoryModalProps) {
-  const consumptionHistory = useMemo(() => {
+  const { consumptionHistory, avgRefillGauge, refillHabit, estimatedCapacity } = useMemo(() => {
     const vehicleFuelLogs = fuelLogs
       .filter(log => log.vehicleId === vehicle.id && log.mileage > 0)
       .sort((a, b) => a.mileage - b.mileage);
 
+    const estimatedCapacity = getVehicleTankCapacity(vehicle, vehicleFuelLogs);
+    const avgRefillGauge = calculateAverageRefillGaugeLevel(vehicleFuelLogs);
+    const refillHabit = avgRefillGauge !== null ? getRefillHabitDescription(avgRefillGauge) : null;
+
     if (vehicleFuelLogs.length < 2) {
-      return [];
-    }
-
-    // Step A: Estimate Tank Capacity
-    let estimatedCapacity = vehicle.estimatedTankCapacity || 0;
-
-    if (!estimatedCapacity) {
-      const capacityEstimates: number[] = [];
-      vehicleFuelLogs.forEach(log => {
-        if (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore < 1) {
-          const estimate = log.quantity / (1 - log.gaugeLevelBefore);
-          if (estimate > 0 && estimate < 200) {
-            capacityEstimates.push(estimate);
-          }
-        }
-      });
-
-      if (capacityEstimates.length > 0) {
-        // Use MAX because partial strokes underestimate, but a full stroke gives the real capacity.
-        estimatedCapacity = Math.max(...capacityEstimates);
-      }
+      return { consumptionHistory: [], avgRefillGauge, refillHabit, estimatedCapacity };
     }
 
     // Calculate consumption for each interval
@@ -54,39 +40,30 @@ export function FuelConsumptionHistoryModal({ vehicle, fuelLogs, open, onOpenCha
     for (let i = 1; i < vehicleFuelLogs.length; i++) {
       const previousLog = vehicleFuelLogs[i - 1];
       const currentLog = vehicleFuelLogs[i];
-      const distance = currentLog.mileage - previousLog.mileage;
+      const intervalResult = calculateIntervalConsumption(previousLog, currentLog, estimatedCapacity);
 
-      if (distance > 0) {
-        let consumption = 0;
+      if (intervalResult) {
+        const { consumption, distance } = intervalResult;
+        const costPer100km = consumption * currentLog.pricePerLiter;
 
-        if (estimatedCapacity > 0 && previousLog.gaugeLevelBefore !== undefined && currentLog.gaugeLevelBefore !== undefined) {
-          // Use Delta V formula
-          const deltaV = previousLog.quantity + (estimatedCapacity * previousLog.gaugeLevelBefore) - (estimatedCapacity * currentLog.gaugeLevelBefore);
-          consumption = (deltaV / distance) * 100;
-        } else {
-          // Fallback method: refill at the end of interval
-          consumption = (currentLog.quantity / distance) * 100;
-        }
-
-        if (consumption > 0 && consumption < 50) { // Sanity check
-          // Calculate cost per 100km using the current log's price per liter
-          const costPer100km = consumption * currentLog.pricePerLiter;
-
-          intervals.push({
-            date: new Date(currentLog.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
-            fullDate: currentLog.date,
-            consumption: parseFloat(consumption.toFixed(2)),
-            costPer100km: parseFloat(costPer100km.toFixed(2)),
-            distance: distance,
-            pricePerLiter: currentLog.pricePerLiter,
-          });
-        }
+        intervals.push({
+          date: new Date(currentLog.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+          fullDate: currentLog.date,
+          consumption: parseFloat(consumption.toFixed(2)),
+          costPer100km: parseFloat(costPer100km.toFixed(2)),
+          distance: distance,
+          pricePerLiter: currentLog.pricePerLiter,
+        });
       }
     }
 
-    // Return the last 3 intervals
-    return intervals.slice(-3);
-  }, [vehicle.id, fuelLogs]);
+    return {
+      consumptionHistory: intervals.slice(-3),
+      avgRefillGauge,
+      refillHabit,
+      estimatedCapacity
+    };
+  }, [vehicle, fuelLogs]);
 
   if (consumptionHistory.length === 0) {
     return (
@@ -119,9 +96,49 @@ export function FuelConsumptionHistoryModal({ vehicle, fuelLogs, open, onOpenCha
             {vehicle.brand} {vehicle.model} - {vehicle.licensePlate}
           </DialogDescription>
         </DialogHeader>
+
+        {avgRefillGauge !== null && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 my-1">
+            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 flex flex-col justify-between">
+              <div className="flex items-center gap-1.5 text-primary text-xs font-medium">
+                <Fuel className="h-3.5 w-3.5 shrink-0" />
+                <span>Niveau moyen avant plein</span>
+              </div>
+              <div className="mt-1">
+                <span className="text-lg font-bold text-primary">~{avgRefillGauge}%</span>
+                <span className="ml-1 text-xs text-muted-foreground">{refillHabit?.icon} {refillHabit?.label}</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground mt-0.5">{refillHabit?.text}</span>
+            </div>
+
+            <div className="p-3 rounded-lg bg-muted/40 border flex flex-col justify-between">
+              <div className="flex items-center gap-1.5 text-muted-foreground text-xs font-medium">
+                <Gauge className="h-3.5 w-3.5 shrink-0" />
+                <span>Capacité réservoir</span>
+              </div>
+              <div className="mt-1">
+                <span className="text-lg font-bold text-foreground">{estimatedCapacity} Litres</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground mt-0.5">Calibrée avec la jauge</span>
+            </div>
+
+            <div className="p-3 rounded-lg bg-muted/40 border flex flex-col justify-between col-span-2 sm:col-span-1">
+              <div className="flex items-center gap-1.5 text-muted-foreground text-xs font-medium">
+                <Droplets className="h-3.5 w-3.5 shrink-0" />
+                <span>Derniers trajets</span>
+              </div>
+              <div className="mt-1">
+                <span className="text-lg font-bold text-foreground">{consumptionHistory.length}</span>
+                <span className="text-xs text-muted-foreground ml-1">intervalles analysés</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground mt-0.5">Calcul précis jauge + plein</span>
+            </div>
+          </div>
+        )}
+
         <Card>
           <CardContent className="pt-6">
-            <div className="h-[350px] w-full">
+            <div className="h-[320px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={consumptionHistory} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />

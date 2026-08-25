@@ -29,6 +29,7 @@ import {
     addMaintenance, updateMaintenance, deleteMaintenance,
     addFuelLog, updateFuelLog, deleteFuelLog,
 } from '@/lib/data';
+import { calculateAverageRefillGaugeLevel, getRefillHabitDescription } from '@/lib/fuel-utils';
 import { categorizeRepair } from '@/ai/flows/repair-categorization';
 import { useAuth } from '@/context/auth-context';
 import {
@@ -1010,6 +1011,9 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
         return data;
     }, [fuelLogs]);
 
+    const avgRefillGauge = useMemo(() => calculateAverageRefillGaugeLevel(fuelLogs), [fuelLogs]);
+    const refillHabit = useMemo(() => avgRefillGauge !== null ? getRefillHabitDescription(avgRefillGauge) : null, [avgRefillGauge]);
+
     const handleEdit = (item: FuelLog) => {
         setItemToEdit(item);
         setIsDialogOpen(true);
@@ -1045,6 +1049,12 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                             <CardDescription>
                                 Consultez l'historique de vos pleins de carburant.
                             </CardDescription>
+                            {avgRefillGauge !== null && (
+                                <div className="mt-2 inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20">
+                                    <Fuel className="h-3.5 w-3.5" />
+                                    <span>Niveau moyen avant plein : <strong>~{avgRefillGauge}%</strong> {refillHabit?.icon} ({refillHabit?.label})</span>
+                                </div>
+                            )}
                         </div>
                         <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
                             <PlusCircle className="h-6 w-6" />
@@ -1078,6 +1088,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                                                                     <TableRow>
                                                                         <TableHead>Date</TableHead>
                                                                         <TableHead>Kilométrage</TableHead>
+                                                                        <TableHead>Jauge (Avant)</TableHead>
                                                                         <TableHead>Quantité</TableHead>
                                                                         <TableHead>Prix/L</TableHead>
                                                                         <TableHead className="text-right">Coût Total</TableHead>
@@ -1089,6 +1100,11 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                                                                         <TableRow key={log.id}>
                                                                             <TableCell>{safeFormatDate(log.date)}</TableCell>
                                                                             <TableCell>{safeFormatNumber(log.mileage)} km</TableCell>
+                                                                            <TableCell>
+                                                                                <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-muted/60 text-foreground">
+                                                                                    {log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore !== null ? `${Math.round(log.gaugeLevelBefore * 100)}%` : '-'}
+                                                                                </span>
+                                                                            </TableCell>
                                                                             <TableCell>{safeFormatNumber(log.quantity)} L</TableCell>
                                                                             <TableCell>{safeFormatCurrency(log.pricePerLiter)}</TableCell>
                                                                             <TableCell className="text-right">{safeFormatCurrency(log.totalCost)}</TableCell>
@@ -1098,7 +1114,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                                                                 </TableBody>
                                                                 <TableFooter>
                                                                     <TableRow>
-                                                                        <TableCell colSpan={2} className="font-semibold">Total {month}</TableCell>
+                                                                        <TableCell colSpan={3} className="font-semibold">Total {month}</TableCell>
                                                                         <TableCell className="font-semibold">{data.totalQuantity.toFixed(2)} L</TableCell>
                                                                         <TableCell colSpan={2} className="text-right font-semibold">{safeFormatCurrency(data.totalCost)}</TableCell>
                                                                         <TableCell></TableCell>

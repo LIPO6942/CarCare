@@ -298,11 +298,14 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
               value={[gaugeLevelBefore]}
               onValueChange={(value) => setGaugeLevelBefore(value[0])}
               min={0}
-              max={75}
+              max={100}
               step={1}
               className="w-full py-2"
               rangeClassName={gaugeLevelBefore < 13 ? "bg-red-600" : undefined}
             />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              {gaugeLevelBefore < 15 ? '🔴 Réserve / Très bas' : gaugeLevelBefore < 40 ? '🟡 Quart de réservoir' : gaugeLevelBefore < 70 ? '🟢 Moitié de réservoir' : '✅ Presque plein'}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-5 items-end">
