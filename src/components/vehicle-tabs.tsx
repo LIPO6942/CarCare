@@ -1052,9 +1052,9 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                             </CardDescription>
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                                 {avgRefillGauge !== null && (
-                                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20">
-                                        <Fuel className="h-3.5 w-3.5" />
-                                        <span>Niveau moyen avant plein : <strong>~{avgRefillGauge}%</strong> {refillHabit?.icon} ({refillHabit?.label})</span>
+                                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20 whitespace-nowrap">
+                                        <Fuel className="h-3.5 w-3.5 shrink-0" />
+                                        <span>Ajout carburant moyen à : <strong>~{avgRefillGauge}%</strong> {refillHabit?.icon} ({refillHabit?.label})</span>
                                     </div>
                                 )}
                                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/60 text-muted-foreground text-xs font-medium border">

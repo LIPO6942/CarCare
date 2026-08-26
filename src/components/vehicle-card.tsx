@@ -300,12 +300,12 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
                       )}
                     </div>
                     {avgRefillGauge != null && (
-                      <div className="mt-2 flex items-center justify-between text-[11px] bg-background/60 px-2 py-1 rounded border border-primary/15 text-primary">
-                        <span className="flex items-center gap-1 font-medium">
-                          <Fuel className="h-3 w-3" />
-                          <span>Plein fait moyennement à :</span>
+                      <div className="mt-2 flex items-center justify-between text-[11px] bg-background/60 px-2 py-1 rounded border border-primary/15 text-primary whitespace-nowrap overflow-hidden">
+                        <span className="flex items-center gap-1 font-medium min-w-0">
+                          <Fuel className="h-3 w-3 shrink-0" />
+                          <span className="truncate">Ajout carburant fait moy. à :</span>
                         </span>
-                        <span className="font-bold">
+                        <span className="font-bold shrink-0 ml-1.5">
                           ~{avgRefillGauge}% {avgRefillGauge < 15 ? '🔴' : avgRefillGauge < 35 ? '🟡' : avgRefillGauge < 60 ? '🟢' : '✅'}
                         </span>
                       </div>
