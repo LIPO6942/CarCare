@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ComposedChart, Line } from 'recharts';
 import { Card, CardContent } from '@/components/ui/card';
 import { getVehicleTankCapacity, calculateIntervalConsumption } from '@/lib/fuel-utils';
+import { Fuel } from 'lucide-react';
 
 interface FuelConsumptionHistoryModalProps {
   vehicle: Vehicle;
@@ -21,16 +22,16 @@ const COLORS = [
 ];
 
 export function FuelConsumptionHistoryModal({ vehicle, fuelLogs, open, onOpenChange }: FuelConsumptionHistoryModalProps) {
-  const consumptionHistory = useMemo(() => {
+  const { consumptionHistory, estimatedCapacity } = useMemo(() => {
     const vehicleFuelLogs = fuelLogs
       .filter(log => log.vehicleId === vehicle.id && log.mileage > 0)
       .sort((a, b) => a.mileage - b.mileage);
 
-    if (vehicleFuelLogs.length < 2) {
-      return [];
-    }
-
     const estimatedCapacity = getVehicleTankCapacity(vehicle, vehicleFuelLogs);
+
+    if (vehicleFuelLogs.length < 2) {
+      return { consumptionHistory: [], estimatedCapacity };
+    }
 
     // Calculate consumption for each interval
     const intervals = [];
@@ -54,7 +55,7 @@ export function FuelConsumptionHistoryModal({ vehicle, fuelLogs, open, onOpenCha
       }
     }
 
-    return intervals.slice(-3);
+    return { consumptionHistory: intervals.slice(-3), estimatedCapacity };
   }, [vehicle, fuelLogs]);
 
   if (consumptionHistory.length === 0) {
@@ -83,15 +84,21 @@ export function FuelConsumptionHistoryModal({ vehicle, fuelLogs, open, onOpenCha
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-4 sm:p-6 overflow-hidden">
         <DialogHeader className="pb-2">
-          <DialogTitle>Historique de Consommation - 3 Derniers Trajets</DialogTitle>
-          <DialogDescription>
+          <div className="flex items-center justify-between gap-2 flex-wrap pr-6">
+            <DialogTitle className="text-base sm:text-lg">3 Derniers Pleins & Consommations</DialogTitle>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted/80 text-muted-foreground border">
+              <Fuel className="h-3 w-3 text-primary shrink-0" />
+              Réservoir : <strong className="text-foreground font-semibold">{estimatedCapacity} L</strong>
+            </span>
+          </div>
+          <DialogDescription className="text-xs">
             {vehicle.brand} {vehicle.model} - {vehicle.licensePlate}
           </DialogDescription>
         </DialogHeader>
 
         <Card className="flex-1 border overflow-hidden">
           <CardContent className="p-3 sm:p-4 space-y-3">
-            <div className="h-[220px] sm:h-[250px] w-full">
+            <div className="h-[220px] sm:h-[240px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={consumptionHistory} margin={{ top: 15, right: 20, left: 10, bottom: 25 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
