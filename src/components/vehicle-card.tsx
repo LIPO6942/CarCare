@@ -232,25 +232,6 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
               </div>
             )}
 
-            {remainingRangeKm != null && remainingRangeKm > 0 && (
-              <div className={`flex items-center justify-between p-2 rounded-md border text-xs font-medium ${
-                daysUntilEmpty != null && daysUntilEmpty < 3
-                  ? 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
-                  : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300'
-              }`}>
-                <div className="flex items-center gap-1.5">
-                  <Gauge className="h-3.5 w-3.5 shrink-0" />
-                  <span>Autonomie :</span>
-                  <span className="font-bold">≈ {Math.round(remainingRangeKm)} km</span>
-                </div>
-                {daysUntilEmpty != null && (
-                  <span className="text-[10px] font-semibold opacity-90">
-                    {daysUntilEmpty < 2 ? "Plein urgent" : `~${Math.ceil(daysUntilEmpty)}j restants`}
-                  </span>
-                )}
-              </div>
-            )}
-
             {(latestConsumption != null || fuelCost != null) && (
               <div
                 className="mt-2 p-3 bg-primary/10 rounded-md border border-primary/20 space-y-2 cursor-pointer transition-all hover:bg-primary/20 hover:shadow-md"

@@ -26,6 +26,7 @@ const VehicleSchema = z.object({
   licensePlate: z.string().min(1, { message: "La immatriculation est requise" }),
   fuelType: z.enum(['Essence', 'Diesel', 'Électrique', 'Hybride']),
   fiscalPower: z.coerce.number().min(1, { message: "Puissance fiscale invalide" }).optional(),
+  estimatedTankCapacity: z.coerce.number().min(20, { message: "Capacité invalide" }).max(200, { message: "Capacité trop élevée" }).optional(),
   vin: z.string().optional(),
 });
 
@@ -74,6 +75,7 @@ export function AddVehicleForm({ onFormSubmit, onCancel }: AddVehicleFormProps) 
     const vehicleData = {
       ...formData,
       fiscalPower: formData.fiscalPower ? Number(formData.fiscalPower) : undefined,
+      estimatedTankCapacity: formData.estimatedTankCapacity ? Number(formData.estimatedTankCapacity) : undefined,
     };
 
     const validatedFields = VehicleSchema.safeParse(vehicleData);
@@ -155,19 +157,25 @@ export function AddVehicleForm({ onFormSubmit, onCancel }: AddVehicleFormProps) 
             <label htmlFor="licensePlate">Plaque d'immatriculation</label>
             <Input id="licensePlate" name="licensePlate" placeholder="ex: 1234 TU 200" required />
         </div>
-        <div className="space-y-2">
-            <label htmlFor="fuelType">Type de carburant</label>
-            <Select name="fuelType" defaultValue='Essence' required>
-                <SelectTrigger>
-                    <SelectValue placeholder="Sélectionnez un type" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="Essence">Essence</SelectItem>
-                    <SelectItem value="Diesel">Diesel</SelectItem>
-                    <SelectItem value="Électrique">Électrique</SelectItem>
-                    <SelectItem value="Hybride">Hybride</SelectItem>
-                </SelectContent>
-            </Select>
+        <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <label htmlFor="fuelType">Type de carburant</label>
+                <Select name="fuelType" defaultValue='Essence' required>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Sélectionnez un type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="Essence">Essence</SelectItem>
+                        <SelectItem value="Diesel">Diesel</SelectItem>
+                        <SelectItem value="Électrique">Électrique</SelectItem>
+                        <SelectItem value="Hybride">Hybride</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-2">
+                <label htmlFor="estimatedTankCapacity">Réservoir (L) <span className="text-xs text-muted-foreground font-normal">(Optionnel)</span></label>
+                <Input id="estimatedTankCapacity" name="estimatedTankCapacity" type="number" placeholder="ex: 50" min="20" max="150" />
+            </div>
         </div>
       </div>
       <Button type="submit" disabled={isSubmitting} className="w-full">

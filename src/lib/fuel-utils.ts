@@ -1,51 +1,91 @@
 import type { Vehicle, FuelLog } from '@/lib/types';
 
 /**
+ * Dictionnaire de référence des capacités de réservoir constructeurs par modèle/catégorie
+ */
+const KNOWN_MODEL_CAPACITIES: Array<{ keywords: string[]; capacity: number }> = [
+  // Mini-citadines (35L - 40L)
+  { keywords: ['picanto', 'i10', 'c1', '107', '108', 'aygo', 'panda', '500', 'twingo', 'matiz', 'spark', 'alto'], capacity: 38 },
+  
+  // Citadines polyvalentes (45L - 50L)
+  { keywords: ['clio', '208', '207', '206', 'rio', 'polo', 'fiesta', 'c3', 'i20', 'yaris', 'swift', 'punto', 'sandero', 'symbol', 'fabia', 'corsa', 'ibiza', 'micra'], capacity: 48 },
+  
+  // Compactes et berlines moyennes (50L - 55L)
+  { keywords: ['golf', 'megane', '308', '307', 'focus', 'astra', 'leon', 'ceed', 'tipo', 'i30', 'corolla', 'auris', 'civic', 'c4', 'octavia', 'a3', 'serie 1', 'classe a'], capacity: 52 },
+  
+  // Berlines familiales et routières (60L - 70L)
+  { keywords: ['passat', 'talisman', 'laguna', '508', '407', 'mondeo', 'insignia', 'superb', 'serie 3', 'serie 5', 'classe c', 'classe e', 'a4', 'a6', 'camry', 'avensis', 'accord'], capacity: 62 },
+  
+  // Crossover & SUV compacts (50L - 60L)
+  { keywords: ['qashqai', 'tucson', 'sportage', 'tiguan', '3008', '2008', 'kadjar', 'captur', 'duster', 'ateca', 'kuga', 'rav4', 'cr-v', 'karoq', 'x1', 'x3', 'gla', 'glc'], capacity: 56 },
+  
+  // Grands SUV et 4x4 / Pickups (70L - 85L)
+  { keywords: ['touareg', 'prado', 'land cruiser', 'patrol', 'hilux', 'd-max', 'ranger', 'navara', 'l200', 'santa fe', 'sorento', 'pajero', 'x5', 'gle', 'q7'], capacity: 75 },
+];
+
+/**
  * Calcule ou estime la capacité du réservoir d'un véhicule (en Litres).
  * Priorité :
  * 1. Valeur explicitement configurée sur le véhicule (estimatedTankCapacity)
- * 2. Détection intelligente basée sur les pleins historiques avec jauge
- * 3. Estimation réaliste basée sur la puissance fiscale et le type de carburant
- * 4. Valeur par défaut standard (50L)
+ * 2. Reconnaissance de la marque / modèle dans la base de données constructeurs
+ * 3. Estimation technique réaliste selon la puissance fiscale (CV)
+ * 4. Détection dynamique à partir des pleins réels (comme borne inférieure)
  */
 export function getVehicleTankCapacity(vehicle?: Partial<Vehicle> | null, fuelLogs?: FuelLog[]): number {
+  // 1. Valeur utilisateur prioritaire
   if (vehicle?.estimatedTankCapacity && vehicle.estimatedTankCapacity > 0) {
-    return vehicle.estimatedTankCapacity;
+    return Math.round(vehicle.estimatedTankCapacity);
   }
 
-  // Détection à partir des pleins avec jauge si un plein important a été effectué
-  if (fuelLogs && fuelLogs.length > 0) {
-    const capacityEstimates: number[] = [];
-    fuelLogs.forEach(log => {
-      if (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore !== null && log.gaugeLevelBefore < 0.95 && log.quantity > 0) {
-        // Estimation théorique : si le plein remplissait jusqu'à 100%
-        const estimate = log.quantity / (1 - log.gaugeLevelBefore);
-        if (estimate >= 35 && estimate <= 120) {
-          capacityEstimates.push(estimate);
-        }
-      }
-    });
+  let baseline = 50; // Valeur par défaut standard
 
-    if (capacityEstimates.length > 0) {
-      // On prend la valeur maximale observée
-      const detected = Math.max(...capacityEstimates);
-      if (detected >= 35 && detected <= 120) {
-        return Math.round(detected);
-      }
+  // 2. Reconnaissance automatique du modèle / marque
+  const modelStr = `${vehicle?.brand || ''} ${vehicle?.model || ''}`.toLowerCase();
+  const matched = KNOWN_MODEL_CAPACITIES.find(entry =>
+    entry.keywords.some(kw => modelStr.includes(kw))
+  );
+
+  if (matched) {
+    baseline = matched.capacity;
+  } else {
+    // 3. Estimation selon la puissance fiscale (CV)
+    const fiscalPower = vehicle?.fiscalPower || 6;
+    if (fiscalPower <= 4) {
+      baseline = 40;
+    } else if (fiscalPower <= 5) {
+      baseline = 45;
+    } else if (fiscalPower <= 7) {
+      baseline = 50;
+    } else if (fiscalPower <= 9) {
+      baseline = 58;
+    } else {
+      baseline = 65;
     }
   }
 
-  // Estimation basée sur la puissance fiscale (marché tunisien / européen standard)
-  const fiscalPower = vehicle?.fiscalPower || 6;
-  if (fiscalPower <= 4) {
-    return 42; // Petites citadines (Picanto, i10, C1, 108, etc.)
-  } else if (fiscalPower <= 6) {
-    return 48; // Citadines polyvalentes (Clio, 208, Rio, Polo, Fiesta, etc.)
-  } else if (fiscalPower <= 8) {
-    return 55; // Compactes et berlines moyennes (Megane, Golf, 308, Focus, Astra, etc.)
-  } else {
-    return 62; // Grandes berlines, SUV et routières
+  // 4. Détection dynamique si des pleins très volumineux ont été observés
+  if (fuelLogs && fuelLogs.length > 0) {
+    fuelLogs.forEach(log => {
+      if (log.quantity > 0) {
+        const gauge = (log.gaugeLevelBefore !== undefined && log.gaugeLevelBefore !== null)
+          ? log.gaugeLevelBefore
+          : 0.1;
+
+        // Le réservoir contient au moins la quantité ajoutée + le résiduel
+        const lowerBound = log.quantity / Math.max(0.1, (1 - gauge));
+
+        // Si l'utilisateur a fait un très gros plein (>= 35L) avec jauge basse (<= 25%), c'est un plein complet
+        if (log.quantity >= 35 && gauge <= 0.25 && lowerBound > baseline && lowerBound <= 120) {
+          baseline = Math.max(baseline, Math.round(lowerBound));
+        } else if (log.quantity >= baseline) {
+          // Si une seule recharge dépasse la capacité estimée, ajuster la capacité
+          baseline = Math.max(baseline, Math.round(log.quantity * 1.1));
+        }
+      }
+    });
   }
+
+  return Math.min(120, Math.max(35, baseline));
 }
 
 /**
