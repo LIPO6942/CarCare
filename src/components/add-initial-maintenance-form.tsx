@@ -13,7 +13,7 @@ import { Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getSettings } from '@/lib/settings';
-import { calculateNextVignetteDate } from '@/lib/vignette';
+import { calculateNextVignetteDate, formatDateToLocalISO } from '@/lib/vignette';
 
 interface AddInitialMaintenanceFormProps {
     vehicle: Vehicle | null;
@@ -97,28 +97,31 @@ export function AddInitialMaintenanceForm({ vehicle, open, onOpenChange, onFinis
             const settings = getSettings();
 
             if (lastTechnicalInspectionDate) {
-                const nextDueDate = new Date(lastTechnicalInspectionDate);
-                nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
+                // Parse date as local (split into parts to avoid UTC shift)
+                const [y1, m1, d1] = lastTechnicalInspectionDate.split('-').map(Number);
+                const nextDueDate = new Date(y1 + 1, m1 - 1, d1);
                 maintenancePromises.push(addMaintenance({
                     vehicleId: vehicle.id,
                     date: lastTechnicalInspectionDate,
                     mileage: currentMileage || 0,
                     task: 'Visite technique',
                     cost: settings.costVisiteTechnique || 0,
-                    nextDueDate: nextDueDate.toISOString().split('T')[0],
+                    nextDueDate: formatDateToLocalISO(nextDueDate),
                 }, user.uid));
             }
 
             if (lastInsurancePaymentDate && insuranceType) {
-                const nextDueDate = new Date(lastInsurancePaymentDate);
-                nextDueDate.setMonth(nextDueDate.getMonth() + (insuranceType === 'annuelle' ? 12 : 6));
+                // Parse as local date parts to avoid UTC midnight shift
+                const [y2, m2, d2] = lastInsurancePaymentDate.split('-').map(Number);
+                const monthsToAdd = insuranceType === 'annuelle' ? 12 : 6;
+                const nextDueDate = new Date(y2, m2 - 1 + monthsToAdd, d2);
                 maintenancePromises.push(addMaintenance({
                     vehicleId: vehicle.id,
                     date: lastInsurancePaymentDate,
                     mileage: currentMileage || 0,
                     task: 'Paiement Assurance',
                     cost: 0, // Insurance cost is manually entered
-                    nextDueDate: nextDueDate.toISOString().split('T')[0],
+                    nextDueDate: formatDateToLocalISO(nextDueDate),
                 }, user.uid));
             }
 
@@ -148,7 +151,7 @@ export function AddInitialMaintenanceForm({ vehicle, open, onOpenChange, onFinis
                     mileage: currentMileage || 0,
                     task: 'Vignette',
                     cost: vignetteCost,
-                    nextDueDate: nextDueDate.toISOString().split('T')[0],
+                    nextDueDate: formatDateToLocalISO(nextDueDate),
                 }, user.uid));
             }
 

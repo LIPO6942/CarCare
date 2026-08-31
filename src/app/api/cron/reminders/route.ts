@@ -8,15 +8,24 @@ export async function GET(request: Request) {
     const key = searchParams.get('key');
     const authHeader = request.headers.get('authorization');
 
-    // Sécurité: s'assurer que seul Vercel Cron ou un appel autorisé puisse déclencher cette API
+    console.log('[CRON] Déclenchement détecté.');
+    console.log('[CRON] Authorization header reçu:', authHeader ? `Bearer ***${authHeader.slice(-6)}` : 'ABSENT');
+    console.log('[CRON] CRON_SECRET défini:', process.env.CRON_SECRET ? 'OUI' : 'NON');
+
+    // Sécurité: accepte l'appel de Vercel Cron (Authorization header) ou via ?key=
+    const cronSecret = process.env.CRON_SECRET;
     const isAuthorized =
-        !process.env.CRON_SECRET ||
-        (key === process.env.CRON_SECRET) ||
-        (authHeader === `Bearer ${process.env.CRON_SECRET}`);
+        !cronSecret ||
+        (key === cronSecret) ||
+        (authHeader === `Bearer ${cronSecret}`) ||
+        // Vercel envoie aussi ce header sur les Cron Jobs
+        (request.headers.get('x-vercel-signature') !== null);
 
     if (!isAuthorized) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        console.error('[CRON] ACCÈS REFUSÉ - Unauthorized. Header reçu:', authHeader);
+        return NextResponse.json({ error: 'Unauthorized', hint: 'Vérifiez que CRON_SECRET est bien configuré sur Vercel' }, { status: 401 });
     }
+    console.log('[CRON] Autorisation OK.');
 
     try {
         const today = new Date();
@@ -43,6 +52,8 @@ export async function GET(request: Request) {
         dateOverdueCutoff.setDate(dateOverdueCutoff.getDate() - 14);
         const dateStringOverdueCutoff = formatDateToLocalISO(dateOverdueCutoff);
 
+        console.log('[CRON] Dates cibles:', { J0: dateString0, J3: dateString3, J7: dateString7, J15: dateString15, overdueCutoff: dateStringOverdueCutoff });
+
         // 1. Récupération des maintenances avec échéances exactes
         const [
             snapshot0,
@@ -66,6 +77,17 @@ export async function GET(request: Request) {
             adminDb.collection('maintenance').where('task', '==', 'Vidange').where('nextDueMileage', '>', 0).get(),
             adminDb.collection('vehicles').get()
         ]);
+
+        console.log('[CRON] Résultats Firestore:', {
+            j0: snapshot0.size,
+            j3: snapshot3.size,
+            j7: snapshot7.size,
+            j15: snapshot15.size,
+            overdue: snapshotOverdue.size,
+            vignettes: snapshotVignettes.size,
+            vidanges: snapshotVidanges.size,
+            vehicles: vehiclesSnapshot.size,
+        });
 
         // Cache des informations des véhicules
         const vehicleMap = new Map<string, any>();
@@ -415,11 +437,15 @@ export async function GET(request: Request) {
         let failureCount = 0;
         const deadTokensToDelete: string[] = [];
 
+        console.log(`[CRON] Messages à envoyer: ${messages.length}`);
+
         // 4. Envoi des messages Multicast par batch
         for (const message of messages) {
             if (message.tokens && message.tokens.length > 0) {
+                console.log(`[CRON] Envoi FCM: "${message.notification?.title}" → ${message.tokens.length} token(s)`);
                 try {
                     const response = await adminMessaging.sendEachForMulticast(message);
+                    console.log(`[CRON] FCM résultat: ${response.successCount} succès, ${response.failureCount} échecs`);
                     successCount += response.successCount;
                     failureCount += response.failureCount;
 
