@@ -74,7 +74,8 @@ export async function GET(request: Request) {
                 .where('nextDueDate', '>=', dateStringOverdueCutoff)
                 .get(),
             adminDb.collection('maintenance').where('task', '==', 'Vignette').get(),
-            adminDb.collection('maintenance').where('task', '==', 'Vidange').where('nextDueMileage', '>', 0).get(),
+            // Pas de filtre nextDueMileage ici pour éviter l'index composite Firestore (filtré en JS ensuite)
+            adminDb.collection('maintenance').where('task', '==', 'Vidange').get(),
             adminDb.collection('vehicles').get()
         ]);
 
@@ -317,17 +318,20 @@ export async function GET(request: Request) {
         }
 
         // 3. Traitement dynamique des Vidanges selon le kilométrage estimé
-        if (!snapshotVidanges.empty) {
-            for (const doc of snapshotVidanges.docs) {
+        // Filtrer les vidanges avec nextDueMileage > 0 en JavaScript (évite l'index composite Firestore)
+        const vidangesAvecMileage = snapshotVidanges.docs.filter(doc => (doc.data().nextDueMileage || 0) > 0);
+        if (vidangesAvecMileage.length > 0) {
+            for (const doc of vidangesAvecMileage) {
                 const data = doc.data();
                 const { userId, vehicleId, nextDueMileage } = data;
                 if (!userId || !vehicleId || !nextDueMileage) continue;
 
                 // Récupération des derniers pleins, réparations et entretiens pour calculer la moyenne journalière
+                // Note: pas d'orderBy pour éviter les index composites Firestore (tri fait en JS)
                 const [fuelLogsSnapshot, repairsSnapshot, maintenanceSnapshot] = await Promise.all([
-                    adminDb.collection('fuelLogs').where('vehicleId', '==', vehicleId).orderBy('date', 'desc').limit(10).get(),
-                    adminDb.collection('repairs').where('vehicleId', '==', vehicleId).orderBy('date', 'desc').limit(5).get(),
-                    adminDb.collection('maintenance').where('vehicleId', '==', vehicleId).orderBy('date', 'desc').limit(5).get()
+                    adminDb.collection('fuelLogs').where('vehicleId', '==', vehicleId).get(),
+                    adminDb.collection('repairs').where('vehicleId', '==', vehicleId).get(),
+                    adminDb.collection('maintenance').where('vehicleId', '==', vehicleId).get()
                 ]);
 
                 const allEvents: { date: string; mileage: number }[] = [
@@ -336,8 +340,11 @@ export async function GET(request: Request) {
                     ...maintenanceSnapshot.docs.map(d => d.data() as { date: string; mileage: number })
                 ].filter(e => typeof e.mileage === 'number' && e.mileage > 0 && Boolean(e.date));
 
+                // Tri en JavaScript (remplace le orderBy Firestore qui nécessitait un index composite)
+                allEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
                 const avgKmPerDay = calculateAverageKmPerDay(allEvents);
-                const latestEvent = allEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                const latestEvent = allEvents[0];
 
                 if (!latestEvent) continue;
 
@@ -431,7 +438,7 @@ export async function GET(request: Request) {
                     }
                 }
             }
-        }
+        } // fin if vidangesAvecMileage
 
         let successCount = 0;
         let failureCount = 0;
