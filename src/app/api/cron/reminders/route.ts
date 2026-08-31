@@ -47,12 +47,7 @@ export async function GET(request: Request) {
         date15.setDate(date15.getDate() + 15);
         const dateString15 = formatDateToLocalISO(date15);
 
-        // Limite pour les échéances dépassées (jusqu'à 14 jours en arrière)
-        const dateOverdueCutoff = new Date(today);
-        dateOverdueCutoff.setDate(dateOverdueCutoff.getDate() - 14);
-        const dateStringOverdueCutoff = formatDateToLocalISO(dateOverdueCutoff);
-
-        console.log('[CRON] Dates cibles:', { J0: dateString0, J3: dateString3, J7: dateString7, J15: dateString15, overdueCutoff: dateStringOverdueCutoff });
+        console.log('[CRON] Dates cibles:', { J0: dateString0, J3: dateString3, J7: dateString7, J15: dateString15 });
 
         // 1. Récupération des maintenances avec échéances exactes
         const [
@@ -63,20 +58,25 @@ export async function GET(request: Request) {
             snapshotOverdue,
             snapshotVignettes,
             snapshotVidanges,
-            vehiclesSnapshot
+            vehiclesSnapshot,
+            snapshotFutureScheduled
         ] = await Promise.all([
             adminDb.collection('maintenance').where('nextDueDate', '==', dateString0).get(),
             adminDb.collection('maintenance').where('nextDueDate', '==', dateString3).get(),
             adminDb.collection('maintenance').where('nextDueDate', '==', dateString7).get(),
             adminDb.collection('maintenance').where('nextDueDate', '==', dateString15).get(),
+            // Pas de borne inférieure : on veut notifier indéfiniment jusqu'à ce que l'utilisateur enregistre l'entretien.
+            // La déduplication par (vehicleId, task) en JS garantit qu'on ne traite que le plus récent.
             adminDb.collection('maintenance')
                 .where('nextDueDate', '<', dateString0)
-                .where('nextDueDate', '>=', dateStringOverdueCutoff)
                 .get(),
             adminDb.collection('maintenance').where('task', '==', 'Vignette').get(),
             // Pas de filtre nextDueMileage ici pour éviter l'index composite Firestore (filtré en JS ensuite)
             adminDb.collection('maintenance').where('task', '==', 'Vidange').get(),
-            adminDb.collection('vehicles').get()
+            adminDb.collection('vehicles').get(),
+            // Enregistrements déjà replanifiés (l'utilisateur a enregistré l'entretien avant l'échéance)
+            // nextDueDate > today => cycle suivant déjà prévu => on ne doit plus notifier l'ancien
+            adminDb.collection('maintenance').where('nextDueDate', '>', dateString0).get()
         ]);
 
         console.log('[CRON] Résultats Firestore:', {
@@ -88,6 +88,7 @@ export async function GET(request: Request) {
             vignettes: snapshotVignettes.size,
             vidanges: snapshotVidanges.size,
             vehicles: vehiclesSnapshot.size,
+            futureScheduled: snapshotFutureScheduled.size,
         });
 
         // Cache des informations des véhicules
@@ -114,6 +115,46 @@ export async function GET(request: Request) {
         const messages: any[] = [];
         const processedDocIds = new Set<string>();
 
+        // Set des paires (vehicleId_task) pour lesquelles l'utilisateur a déjà enregistré un nouvel entretien
+        // avec une nextDueDate future. Cela signifie que l'entretien a été fait (avant ou à l'échéance) et
+        // qu'un nouveau cycle a déjà été planifié → on NE notifie PLUS l'ancien enregistrement.
+        const alreadyScheduledKeys = new Set<string>();
+        snapshotFutureScheduled.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.vehicleId && data.task) {
+                alreadyScheduledKeys.add(`${data.vehicleId}_${data.task}`);
+            }
+        });
+        console.log(`[CRON] Pères (vehicleId+task) déjà replanifiés : ${alreadyScheduledKeys.size}`);
+
+        // Tâches qui exigent un justificatif à ajouter dans l'application après paiement.
+        // Pour ces tâches, les notifications incluent un rappel d'ajout de document
+        // et redirigent vers la page /documents au lieu de /maintenance.
+        const DOCUMENT_TASKS = new Set([
+            'Vignette',
+            'Paiement Assurance',
+            'Assurance',
+            'Visite Technique',
+            'Contrôle Technique',
+            'Carte Grise',
+        ]);
+
+        // Déduplique une liste de docs Firestore par (vehicleId, task) en gardant le plus récent (par date).
+        // Cela évite les fausses alertes sur d'anciens enregistrements quand une entrée plus récente existe.
+        const deduplicateByVehicleTask = (docs: any[]): any[] => {
+            const latest = new Map<string, any>();
+            for (const doc of docs) {
+                const data = doc.data();
+                if (!data.vehicleId || !data.task) continue;
+                const key = `${data.vehicleId}_${data.task}`;
+                const existing = latest.get(key);
+                if (!existing || new Date(data.date).getTime() > new Date(existing.data().date).getTime()) {
+                    latest.set(key, doc);
+                }
+            }
+            return Array.from(latest.values());
+        };
+
         // Fonction d'aide pour générer et formater les messages de rappel
         const processDocs = async (docs: any[], stage: 'j0' | 'j3' | 'j7' | 'j15' | 'overdue', daysRemaining: number) => {
             for (const doc of docs) {
@@ -125,6 +166,10 @@ export async function GET(request: Request) {
                 const { userId, vehicleId, task } = data;
                 if (!userId) continue;
 
+                // Si une entrée plus récente existe pour cette tâche (nextDueDate futur),
+                // l'utilisateur a déjà enregistré l'entretien → on arrête les notifications.
+                if (vehicleId && task && alreadyScheduledKeys.has(`${vehicleId}_${task}`)) continue;
+
                 const vehicle = vehicleId ? vehicleMap.get(vehicleId) : null;
                 const vehicleName = vehicle ? `${vehicle.brand} ${vehicle.model}` : 'votre véhicule';
 
@@ -134,26 +179,40 @@ export async function GET(request: Request) {
                 let title = 'Rappel Entretien';
                 let body = '';
                 const isUrgent = stage === 'j0' || stage === 'overdue';
+                const requiresDoc = DOCUMENT_TASKS.has(task);
 
                 if (stage === 'overdue') {
-                    title = `⚠️ Échéance Dépassée : ${task}`;
-                    body = `L'entretien "${task}" pour ${vehicleName} est en retard (prévu le ${data.nextDueDate}). Pensez à l'effectuer rapidement !`;
+                    title = `⚠️ Entretien en retard : ${task} (${vehicleName})`;
+                    if (requiresDoc) {
+                        body = `"${task}" pour ${vehicleName} aurait dû être fait le ${data.nextDueDate}. Payez dès que possible et ajoutez le justificatif dans la section Documents de l’application.`;
+                    } else {
+                        body = `"${task}" pour ${vehicleName} aurait dû être fait le ${data.nextDueDate}. Effectuez-le dès que possible ou marquez-le comme fait avec sa vraie date dans l’application.`;
+                    }
                 } else if (stage === 'j0') {
-                    title = `🚨 Jour J : ${task} (${vehicleName})`;
-                    body = `C'est aujourd'hui la date limite pour "${task}" (${vehicleName}). N'oubliez pas d'enregistrer votre document après l'entretien.`;
+                    title = `🚨 Jour J : ${task} (${vehicleName})`;
+                    if (requiresDoc) {
+                        body = `C’est aujourd’hui la date limite pour "${task}" (${vehicleName}). Après le paiement, pensez à ajouter le reçu ou le document dans la section Documents de l’application.`;
+                    } else {
+                        body = `C'est aujourd'hui la date limite pour "${task}" (${vehicleName}). Après l’entretien, n’oubliez pas de l’enregistrer avec la vraie date dans l’application.`;
+                    }
                 } else if (stage === 'j3') {
-                    title = `Rappel J-3 : ${task} (${vehicleName})`;
-                    body = `Dans 3 jours : "${task}" pour ${vehicleName}. Pensez à planifier votre rendez-vous.`;
+                    title = `Rappel J-3 : ${task} (${vehicleName})`;
+                    if (requiresDoc) {
+                        body = `Plus que 3 jours pour "${task}" (${vehicleName}). Préparez votre paiement et n’oubliez pas d’enregistrer le justificatif dans l’application.`;
+                    } else {
+                        body = `Dans 3 jours : "${task}" pour ${vehicleName}. Pensez à planifier votre rendez-vous.`;
+                    }
                 } else if (stage === 'j7') {
-                    title = `Rappel J-7 : ${task} (${vehicleName})`;
-                    body = `Dans une semaine : "${task}" pour ${vehicleName} arrive à échéance.`;
+                    title = `Rappel J-7 : ${task} (${vehicleName})`;
+                    body = `Dans une semaine : "${task}" pour ${vehicleName} arrive à échéance.`;
                 } else if (stage === 'j15') {
-                    title = `Rappel J-15 : ${task} (${vehicleName})`;
-                    body = `Dans 15 jours : pensez à anticiper l'entretien "${task}" pour votre ${vehicleName}.`;
+                    title = `Rappel J-15 : ${task} (${vehicleName})`;
+                    body = `Dans 15 jours : pensez à anticiper l’entretien "${task}" pour votre ${vehicleName}.`;
                 }
 
-                const targetUrl = isUrgent
-                    ? `/maintenance?vehicleId=${vehicleId || ''}`
+                // Les tâches à justificatif redirigent vers /documents, les autres vers /maintenance
+                const targetUrl = requiresDoc && (stage === 'j0' || stage === 'overdue')
+                    ? `/documents?vehicleId=${vehicleId || ''}`
                     : `/maintenance?vehicleId=${vehicleId || ''}`;
                 const tag = `carcare-task-${doc.id}-${stage}`;
 
@@ -198,12 +257,12 @@ export async function GET(request: Request) {
             }
         };
 
-        // Traitement des dates standard
-        if (!snapshotOverdue.empty) await processDocs(snapshotOverdue.docs, 'overdue', -1);
-        if (!snapshot0.empty) await processDocs(snapshot0.docs, 'j0', 0);
-        if (!snapshot3.empty) await processDocs(snapshot3.docs, 'j3', 3);
-        if (!snapshot7.empty) await processDocs(snapshot7.docs, 'j7', 7);
-        if (!snapshot15.empty) await processDocs(snapshot15.docs, 'j15', 15);
+        // Traitement des dates standard (avec déduplication par vehicleId+task)
+        if (!snapshotOverdue.empty) await processDocs(deduplicateByVehicleTask(snapshotOverdue.docs), 'overdue', -1);
+        if (!snapshot0.empty) await processDocs(deduplicateByVehicleTask(snapshot0.docs), 'j0', 0);
+        if (!snapshot3.empty) await processDocs(deduplicateByVehicleTask(snapshot3.docs), 'j3', 3);
+        if (!snapshot7.empty) await processDocs(deduplicateByVehicleTask(snapshot7.docs), 'j7', 7);
+        if (!snapshot15.empty) await processDocs(deduplicateByVehicleTask(snapshot15.docs), 'j15', 15);
 
         // 2. Traitement dynamique des Vignettes (y compris véhicules sans historique)
         const latestVignetteByVehicle = new Map<string, any>();
@@ -261,17 +320,17 @@ export async function GET(request: Request) {
                         let body = `La date limite de la vignette (${nextVignetteDate.toLocaleDateString('fr-FR')}) approche pour ${vehicleName}.`;
 
                         if (stage === 'j0') {
-                            title = `🚨 Jour J : Vignette (${vehicleName})`;
-                            body = `Aujourd'hui est la date limite officielle pour le paiement de la Vignette (${vehicleName}). N'oubliez pas d'ajouter le reçu dans "Documents".`;
+                            title = `🚨 Jour J : Vignette (${vehicleName})`;
+                            body = `Aujourd’hui est la date limite officielle pour le paiement de la Vignette de ${vehicleName}. Après le paiement, ajoutez immédiatement le reçu dans la section « Documents » de l’application.`;
                         } else if (stage === 'j3') {
-                            title = `Rappel J-3 : Vignette (${vehicleName})`;
-                            body = `Plus que 3 jours pour régler la Vignette de ${vehicleName} (date limite: ${nextVignetteDate.toLocaleDateString('fr-FR')}).`;
+                            title = `Rappel J-3 : Vignette (${vehicleName})`;
+                            body = `Plus que 3 jours pour régler la Vignette de ${vehicleName} (date limite : ${nextVignetteDate.toLocaleDateString('fr-FR')}). Une fois payée, n’oubliez pas d’ajouter le justificatif dans « Documents ».`;
                         } else if (stage === 'j7') {
-                            title = `Rappel J-7 : Vignette (${vehicleName})`;
-                            body = `Dans 7 jours : échéance de la Vignette pour ${vehicleName} (${nextVignetteDate.toLocaleDateString('fr-FR')}).`;
+                            title = `Rappel J-7 : Vignette (${vehicleName})`;
+                            body = `Dans 7 jours : échéance de la Vignette pour ${vehicleName} (${nextVignetteDate.toLocaleDateString('fr-FR')}). Préparez votre paiement et gardez le reçu pour l’application.`;
                         } else if (stage === 'j15') {
-                            title = `Rappel J-15 : Vignette (${vehicleName})`;
-                            body = `Dans 15 jours : prévoyez le règlement de la Vignette pour votre ${vehicleName}.`;
+                            title = `Rappel J-15 : Vignette (${vehicleName})`;
+                            body = `Dans 15 jours : prévoyez le règlement de la Vignette pour votre ${vehicleName}. Pensez à ajouter le justificatif dans « Documents » après paiement.`;
                         }
 
                         const targetUrl = `/documents?vehicleId=${vehicleId}`;
@@ -318,8 +377,20 @@ export async function GET(request: Request) {
         }
 
         // 3. Traitement dynamique des Vidanges selon le kilométrage estimé
-        // Filtrer les vidanges avec nextDueMileage > 0 en JavaScript (évite l'index composite Firestore)
-        const vidangesAvecMileage = snapshotVidanges.docs.filter(doc => (doc.data().nextDueMileage || 0) > 0);
+        // Ne garder que la vidange la plus récente par véhicule pour éviter les fausses alertes
+        // sur d'anciens enregistrements dont le nextDueMileage a déjà été dépassé.
+        const latestVidangeByVehicle = new Map<string, any>();
+        snapshotVidanges.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.vehicleId && (data.nextDueMileage || 0) > 0) {
+                const existing = latestVidangeByVehicle.get(data.vehicleId);
+                if (!existing || new Date(data.date).getTime() > new Date(existing.data().date).getTime()) {
+                    latestVidangeByVehicle.set(data.vehicleId, doc);
+                }
+            }
+        });
+
+        const vidangesAvecMileage = Array.from(latestVidangeByVehicle.values());
         if (vidangesAvecMileage.length > 0) {
             for (const doc of vidangesAvecMileage) {
                 const data = doc.data();
@@ -362,8 +433,8 @@ export async function GET(request: Request) {
                 if (kmRemaining <= 0) {
                     stageTag = 'overdue';
                     isUrgent = true;
-                    title = `⚠️ Vidange Dépacée : ${vehicleName}`;
-                    body = `Kilométrage prévu (${nextDueMileage.toLocaleString('fr-FR')} km) dépassé ! Kilométrage actuel: ${latestEvent.mileage.toLocaleString('fr-FR')} km.`;
+                    title = `⚠️ Vidange Dépassée : ${vehicleName}`;
+                    body = `Vous avez dépassé les ${nextDueMileage.toLocaleString('fr-FR')} km prévus pour la vidange (actuel : ${latestEvent.mileage.toLocaleString('fr-FR')} km). Effectuez-la dès que possible ou marquez-la comme faite avec sa vraie date dans l’application.`;
                 } else if (avgKmPerDay) {
                     const estimatedDate = estimateVidangeDate(latestEvent.mileage, nextDueMileage, avgKmPerDay);
                     if (estimatedDate) {
@@ -371,8 +442,8 @@ export async function GET(request: Request) {
                         if (daysRemaining <= 0) {
                             stageTag = 'j0';
                             isUrgent = true;
-                            title = `🚨 Jour J : Vidange requise (${vehicleName})`;
-                            body = `Vidange due maintenant (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                            title = `🚨 Jour J : Vidange requise (${vehicleName})`;
+                            body = `La vidange est due aujourd'hui selon votre rythme (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km. Après l’entretien, enregistrez-le avec la vraie date dans l’application.`;
                         } else if (daysRemaining === 3) {
                             stageTag = 'j3';
                             title = `Rappel J-3 : Vidange (${vehicleName})`;
