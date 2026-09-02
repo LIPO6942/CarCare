@@ -49,46 +49,15 @@ export async function GET(request: Request) {
 
         console.log('[CRON] Dates cibles:', { J0: dateString0, J3: dateString3, J7: dateString7, J15: dateString15 });
 
-        // 1. Récupération des maintenances avec échéances exactes
-        const [
-            snapshot0,
-            snapshot3,
-            snapshot7,
-            snapshot15,
-            snapshotOverdue,
-            snapshotVignettes,
-            snapshotVidanges,
-            vehiclesSnapshot,
-            snapshotFutureScheduled
-        ] = await Promise.all([
-            adminDb.collection('maintenance').where('nextDueDate', '==', dateString0).get(),
-            adminDb.collection('maintenance').where('nextDueDate', '==', dateString3).get(),
-            adminDb.collection('maintenance').where('nextDueDate', '==', dateString7).get(),
-            adminDb.collection('maintenance').where('nextDueDate', '==', dateString15).get(),
-            // Pas de borne inférieure : on veut notifier indéfiniment jusqu'à ce que l'utilisateur enregistre l'entretien.
-            // La déduplication par (vehicleId, task) en JS garantit qu'on ne traite que le plus récent.
-            adminDb.collection('maintenance')
-                .where('nextDueDate', '<', dateString0)
-                .get(),
-            adminDb.collection('maintenance').where('task', '==', 'Vignette').get(),
-            // Pas de filtre nextDueMileage ici pour éviter l'index composite Firestore (filtré en JS ensuite)
-            adminDb.collection('maintenance').where('task', '==', 'Vidange').get(),
-            adminDb.collection('vehicles').get(),
-            // Enregistrements déjà replanifiés (l'utilisateur a enregistré l'entretien avant l'échéance)
-            // nextDueDate > today => cycle suivant déjà prévu => on ne doit plus notifier l'ancien
-            adminDb.collection('maintenance').where('nextDueDate', '>', dateString0).get()
+        // 1. Récupération de l'ensemble des maintenances et des véhicules
+        const [maintenanceSnapshot, vehiclesSnapshot] = await Promise.all([
+            adminDb.collection('maintenance').get(),
+            adminDb.collection('vehicles').get()
         ]);
 
-        console.log('[CRON] Résultats Firestore:', {
-            j0: snapshot0.size,
-            j3: snapshot3.size,
-            j7: snapshot7.size,
-            j15: snapshot15.size,
-            overdue: snapshotOverdue.size,
-            vignettes: snapshotVignettes.size,
-            vidanges: snapshotVidanges.size,
-            vehicles: vehiclesSnapshot.size,
-            futureScheduled: snapshotFutureScheduled.size,
+        console.log('[CRON] Données récupérées:', {
+            totalMaintenances: maintenanceSnapshot.size,
+            totalVehicles: vehiclesSnapshot.size
         });
 
         // Cache des informations des véhicules
@@ -115,21 +84,7 @@ export async function GET(request: Request) {
         const messages: any[] = [];
         const processedDocIds = new Set<string>();
 
-        // Set des paires (vehicleId_task) pour lesquelles l'utilisateur a déjà enregistré un nouvel entretien
-        // avec une nextDueDate future. Cela signifie que l'entretien a été fait (avant ou à l'échéance) et
-        // qu'un nouveau cycle a déjà été planifié → on NE notifie PLUS l'ancien enregistrement.
-        const alreadyScheduledKeys = new Set<string>();
-        snapshotFutureScheduled.docs.forEach(doc => {
-            const data = doc.data();
-            if (data.vehicleId && data.task) {
-                alreadyScheduledKeys.add(`${data.vehicleId}_${data.task}`);
-            }
-        });
-        console.log(`[CRON] Pères (vehicleId+task) déjà replanifiés : ${alreadyScheduledKeys.size}`);
-
         // Tâches qui exigent un justificatif à ajouter dans l'application après paiement.
-        // Pour ces tâches, les notifications incluent un rappel d'ajout de document
-        // et redirigent vers la page /documents au lieu de /maintenance.
         const DOCUMENT_TASKS = new Set([
             'Vignette',
             'Paiement Assurance',
@@ -139,142 +94,152 @@ export async function GET(request: Request) {
             'Carte Grise',
         ]);
 
-        // Déduplique une liste de docs Firestore par (vehicleId, task) en gardant le plus récent (par date).
-        // Cela évite les fausses alertes sur d'anciens enregistrements quand une entrée plus récente existe.
-        const deduplicateByVehicleTask = (docs: any[]): any[] => {
-            const latest = new Map<string, any>();
-            for (const doc of docs) {
-                const data = doc.data();
-                if (!data.vehicleId || !data.task) continue;
-                const key = `${data.vehicleId}_${data.task}`;
-                const existing = latest.get(key);
-                if (!existing || new Date(data.date).getTime() > new Date(existing.data().date).getTime()) {
-                    latest.set(key, doc);
-                }
-            }
-            return Array.from(latest.values());
-        };
-
-        // Fonction d'aide pour générer et formater les messages de rappel
-        const processDocs = async (docs: any[], stage: 'j0' | 'j3' | 'j7' | 'j15' | 'overdue', daysRemaining: number) => {
-            for (const doc of docs) {
-                const uniqueKey = `${doc.id}_${stage}`;
-                if (processedDocIds.has(uniqueKey)) continue;
-                processedDocIds.add(uniqueKey);
-
-                const data = doc.data();
-                const { userId, vehicleId, task } = data;
-                if (!userId) continue;
-
-                // Si une entrée plus récente existe pour cette tâche (nextDueDate futur),
-                // l'utilisateur a déjà enregistré l'entretien → on arrête les notifications.
-                if (vehicleId && task && alreadyScheduledKeys.has(`${vehicleId}_${task}`)) continue;
-
-                const vehicle = vehicleId ? vehicleMap.get(vehicleId) : null;
-                const vehicleName = vehicle ? `${vehicle.brand} ${vehicle.model}` : 'votre véhicule';
-
-                const tokens = await getUserTokens(userId);
-                if (tokens.length === 0) continue;
-
-                let title = 'Rappel Entretien';
-                let body = '';
-                const isUrgent = stage === 'j0' || stage === 'overdue';
-                const requiresDoc = DOCUMENT_TASKS.has(task);
-
-                if (stage === 'overdue') {
-                    title = `⚠️ Entretien en retard : ${task} (${vehicleName})`;
-                    if (requiresDoc) {
-                        body = `"${task}" pour ${vehicleName} aurait dû être fait le ${data.nextDueDate}. Payez dès que possible et ajoutez le justificatif dans la section Documents de l’application.`;
-                    } else {
-                        body = `"${task}" pour ${vehicleName} aurait dû être fait le ${data.nextDueDate}. Effectuez-le dès que possible ou marquez-le comme fait avec sa vraie date dans l’application.`;
-                    }
-                } else if (stage === 'j0') {
-                    title = `🚨 Jour J : ${task} (${vehicleName})`;
-                    if (requiresDoc) {
-                        body = `C’est aujourd’hui la date limite pour "${task}" (${vehicleName}). Après le paiement, pensez à ajouter le reçu ou le document dans la section Documents de l’application.`;
-                    } else {
-                        body = `C'est aujourd'hui la date limite pour "${task}" (${vehicleName}). Après l’entretien, n’oubliez pas de l’enregistrer avec la vraie date dans l’application.`;
-                    }
-                } else if (stage === 'j3') {
-                    title = `Rappel J-3 : ${task} (${vehicleName})`;
-                    if (requiresDoc) {
-                        body = `Plus que 3 jours pour "${task}" (${vehicleName}). Préparez votre paiement et n’oubliez pas d’enregistrer le justificatif dans l’application.`;
-                    } else {
-                        body = `Dans 3 jours : "${task}" pour ${vehicleName}. Pensez à planifier votre rendez-vous.`;
-                    }
-                } else if (stage === 'j7') {
-                    title = `Rappel J-7 : ${task} (${vehicleName})`;
-                    body = `Dans une semaine : "${task}" pour ${vehicleName} arrive à échéance.`;
-                } else if (stage === 'j15') {
-                    title = `Rappel J-15 : ${task} (${vehicleName})`;
-                    body = `Dans 15 jours : pensez à anticiper l’entretien "${task}" pour votre ${vehicleName}.`;
-                }
-
-                // Les tâches à justificatif redirigent vers /documents, les autres vers /maintenance
-                const targetUrl = requiresDoc && (stage === 'j0' || stage === 'overdue')
-                    ? `/documents?vehicleId=${vehicleId || ''}`
-                    : `/maintenance?vehicleId=${vehicleId || ''}`;
-                const tag = `carcare-task-${doc.id}-${stage}`;
-
-                messages.push({
-                    tokens,
-                    notification: {
-                        title,
-                        body,
-                    },
-                    data: {
-                        url: targetUrl,
-                        title,
-                        body,
-                        type: 'maintenance-reminder',
-                        taskId: String(doc.id || ''),
-                        vehicleId: String(vehicleId || ''),
-                        priority: isUrgent ? 'high' : 'normal',
-                        tag,
-                    },
-                    webpush: {
-                        headers: {
-                            Urgency: isUrgent ? 'high' : 'normal',
-                        },
-                        notification: {
-                            title,
-                            body,
-                            icon: '/android-chrome-192x192.png',
-                            badge: '/badge-72x72.png',
-                            tag,
-                            renotify: true,
-                            requireInteraction: isUrgent,
-                            data: {
-                                url: targetUrl,
-                                tag,
-                            }
-                        },
-                        fcmOptions: {
-                            link: targetUrl
-                        }
-                    }
-                });
-            }
-        };
-
-        // Traitement des dates standard (avec déduplication par vehicleId+task)
-        if (!snapshotOverdue.empty) await processDocs(deduplicateByVehicleTask(snapshotOverdue.docs), 'overdue', -1);
-        if (!snapshot0.empty) await processDocs(deduplicateByVehicleTask(snapshot0.docs), 'j0', 0);
-        if (!snapshot3.empty) await processDocs(deduplicateByVehicleTask(snapshot3.docs), 'j3', 3);
-        if (!snapshot7.empty) await processDocs(deduplicateByVehicleTask(snapshot7.docs), 'j7', 7);
-        if (!snapshot15.empty) await processDocs(deduplicateByVehicleTask(snapshot15.docs), 'j15', 15);
-
-        // 2. Traitement dynamique des Vignettes (y compris véhicules sans historique)
-        const latestVignetteByVehicle = new Map<string, any>();
-        snapshotVignettes.docs.forEach(doc => {
+        // Regrouper par (vehicleId_task) pour ne garder QUE le document le plus récent.
+        // Si l'utilisateur a enregistré un nouvel entretien (ex: payé en avance),
+        // c'est ce nouveau document qui devient le seul évalué.
+        const latestMaintenanceByVehicleTask = new Map<string, any>();
+        maintenanceSnapshot.docs.forEach(doc => {
             const data = doc.data();
-            if (data.vehicleId) {
-                const existing = latestVignetteByVehicle.get(data.vehicleId);
-                if (!existing || new Date(data.date).getTime() > new Date(existing.data().date).getTime()) {
-                    latestVignetteByVehicle.set(data.vehicleId, doc);
+            if (!data.vehicleId || !data.task) return;
+            const key = `${data.vehicleId}_${data.task}`;
+            const existing = latestMaintenanceByVehicleTask.get(key);
+            if (!existing) {
+                latestMaintenanceByVehicleTask.set(key, doc);
+            } else {
+                const existingDate = new Date(existing.data().date || 0).getTime();
+                const docDate = new Date(data.date || 0).getTime();
+                // Priorité à la date la plus récente, ou à la date d'échéance la plus lointaine en cas d'égalité
+                if (docDate > existingDate || (docDate === existingDate && (data.nextDueDate || '') > (existing.data().nextDueDate || ''))) {
+                    latestMaintenanceByVehicleTask.set(key, doc);
                 }
             }
         });
+
+        console.log(`[CRON] Entretiens actifs uniques (par véhicule + tâche) : ${latestMaintenanceByVehicleTask.size}`);
+
+        // 1. Traitement des maintenances standard par date d'échéance
+        for (const doc of latestMaintenanceByVehicleTask.values()) {
+            const data = doc.data();
+            const { userId, vehicleId, task, nextDueDate } = data;
+            if (!userId || !nextDueDate) continue;
+
+            // Déterminer l'étape selon nextDueDate
+            let stage: 'j0' | 'j3' | 'j7' | 'j15' | 'overdue' | null = null;
+            if (nextDueDate === dateString0) stage = 'j0';
+            else if (nextDueDate === dateString3) stage = 'j3';
+            else if (nextDueDate === dateString7) stage = 'j7';
+            else if (nextDueDate === dateString15) stage = 'j15';
+            else if (nextDueDate < dateString0) stage = 'overdue';
+
+            if (!stage) continue;
+
+            const uniqueKey = `${doc.id}_${stage}`;
+            if (processedDocIds.has(uniqueKey)) continue;
+            processedDocIds.add(uniqueKey);
+
+            const vehicle = vehicleId ? vehicleMap.get(vehicleId) : null;
+            const vehicleName = vehicle ? `${vehicle.brand} ${vehicle.model}` : 'votre véhicule';
+
+            const tokens = await getUserTokens(userId);
+            console.log(`[CRON] 🎯 Candidat trouvé: "${task}" (${vehicleName}) | Étape: ${stage} | nextDueDate: ${nextDueDate} | userId: ${userId} | Tokens FCM: ${tokens.length}`);
+
+            if (tokens.length === 0) {
+                console.warn(`[CRON] ⚠️ Aucun token FCM enregistré pour l'utilisateur ${userId} (${vehicleName}). Notification non envoyée.`);
+                continue;
+            }
+
+            let title = 'Rappel Entretien';
+            let body = '';
+            const isUrgent = stage === 'j0' || stage === 'overdue';
+            const requiresDoc = DOCUMENT_TASKS.has(task);
+
+            if (stage === 'overdue') {
+                title = `⚠️ Entretien en retard : ${task} (${vehicleName})`;
+                if (requiresDoc) {
+                    body = `"${task}" pour ${vehicleName} aurait dû être fait le ${data.nextDueDate}. Payez dès que possible et ajoutez le justificatif dans la section Documents de l’application.`;
+                } else {
+                    body = `"${task}" pour ${vehicleName} aurait dû être fait le ${data.nextDueDate}. Effectuez-le dès que possible ou marquez-le comme fait avec sa vraie date dans l’application.`;
+                }
+            } else if (stage === 'j0') {
+                title = `🚨 Jour J : ${task} (${vehicleName})`;
+                if (requiresDoc) {
+                    body = `C’est aujourd’hui la date limite pour "${task}" (${vehicleName}). Après le paiement, pensez à ajouter le reçu ou le document dans la section Documents de l’application.`;
+                } else {
+                    body = `C'est aujourd'hui la date limite pour "${task}" (${vehicleName}). Après l’entretien, n’oubliez pas de l’enregistrer avec la vraie date dans l’application.`;
+                }
+            } else if (stage === 'j3') {
+                title = `Rappel J-3 : ${task} (${vehicleName})`;
+                if (requiresDoc) {
+                    body = `Plus que 3 jours pour "${task}" (${vehicleName}). Préparez votre paiement et n’oubliez pas d’enregistrer le justificatif dans l’application.`;
+                } else {
+                    body = `Dans 3 jours : "${task}" pour ${vehicleName}. Pensez à planifier votre rendez-vous.`;
+                }
+            } else if (stage === 'j7') {
+                title = `Rappel J-7 : ${task} (${vehicleName})`;
+                body = `Dans une semaine : "${task}" pour ${vehicleName} arrive à échéance.`;
+            } else if (stage === 'j15') {
+                title = `Rappel J-15 : ${task} (${vehicleName})`;
+                body = `Dans 15 jours : pensez à anticiper l’entretien "${task}" pour votre ${vehicleName}.`;
+            }
+
+            const targetUrl = requiresDoc && (stage === 'j0' || stage === 'overdue')
+                ? `/documents?vehicleId=${vehicleId || ''}`
+                : `/maintenance?vehicleId=${vehicleId || ''}`;
+            const tag = `carcare-task-${doc.id}-${stage}`;
+
+            messages.push({
+                tokens,
+                notification: {
+                    title,
+                    body,
+                },
+                data: {
+                    url: targetUrl,
+                    title,
+                    body,
+                    type: 'maintenance-reminder',
+                    taskId: String(doc.id || ''),
+                    vehicleId: String(vehicleId || ''),
+                    priority: isUrgent ? 'high' : 'normal',
+                    tag,
+                },
+                webpush: {
+                    headers: {
+                        Urgency: isUrgent ? 'high' : 'normal',
+                    },
+                    notification: {
+                        title,
+                        body,
+                        icon: '/android-chrome-192x192.png',
+                        badge: '/badge-72x72.png',
+                        tag,
+                        renotify: true,
+                        requireInteraction: isUrgent,
+                        data: {
+                            url: targetUrl,
+                            tag,
+                        }
+                    },
+                    fcmOptions: {
+                        link: targetUrl
+                    }
+                }
+            });
+        }
+
+        // 2. Traitement dynamique des Vignettes (y compris véhicules sans historique)
+        const latestVignetteByVehicle = new Map<string, any>();
+        maintenanceSnapshot.docs
+            .filter(doc => doc.data().task === 'Vignette')
+            .forEach(doc => {
+                const data = doc.data();
+                if (data.vehicleId) {
+                    const existing = latestVignetteByVehicle.get(data.vehicleId);
+                    if (!existing || new Date(data.date).getTime() > new Date(existing.data().date).getTime()) {
+                        latestVignetteByVehicle.set(data.vehicleId, doc);
+                    }
+                }
+            });
 
         // Analyse de chaque véhicule pour la vignette
         for (const [vehicleId, vehicle] of vehicleMap.entries()) {
@@ -380,15 +345,17 @@ export async function GET(request: Request) {
         // Ne garder que la vidange la plus récente par véhicule pour éviter les fausses alertes
         // sur d'anciens enregistrements dont le nextDueMileage a déjà été dépassé.
         const latestVidangeByVehicle = new Map<string, any>();
-        snapshotVidanges.docs.forEach(doc => {
-            const data = doc.data();
-            if (data.vehicleId && (data.nextDueMileage || 0) > 0) {
-                const existing = latestVidangeByVehicle.get(data.vehicleId);
-                if (!existing || new Date(data.date).getTime() > new Date(existing.data().date).getTime()) {
-                    latestVidangeByVehicle.set(data.vehicleId, doc);
+        maintenanceSnapshot.docs
+            .filter(doc => doc.data().task === 'Vidange' && (doc.data().nextDueMileage || 0) > 0)
+            .forEach(doc => {
+                const data = doc.data();
+                if (data.vehicleId) {
+                    const existing = latestVidangeByVehicle.get(data.vehicleId);
+                    if (!existing || new Date(data.date).getTime() > new Date(existing.data().date).getTime()) {
+                        latestVidangeByVehicle.set(data.vehicleId, doc);
+                    }
                 }
-            }
-        });
+            });
 
         const vidangesAvecMileage = Array.from(latestVidangeByVehicle.values());
         if (vidangesAvecMileage.length > 0) {
@@ -399,7 +366,7 @@ export async function GET(request: Request) {
 
                 // Récupération des derniers pleins, réparations et entretiens pour calculer la moyenne journalière
                 // Note: pas d'orderBy pour éviter les index composites Firestore (tri fait en JS)
-                const [fuelLogsSnapshot, repairsSnapshot, maintenanceSnapshot] = await Promise.all([
+                const [fuelLogsSnapshot, repairsSnapshot, vehicleMaintenanceSnapshot] = await Promise.all([
                     adminDb.collection('fuelLogs').where('vehicleId', '==', vehicleId).get(),
                     adminDb.collection('repairs').where('vehicleId', '==', vehicleId).get(),
                     adminDb.collection('maintenance').where('vehicleId', '==', vehicleId).get()
@@ -408,7 +375,7 @@ export async function GET(request: Request) {
                 const allEvents: { date: string; mileage: number }[] = [
                     ...fuelLogsSnapshot.docs.map(d => d.data() as { date: string; mileage: number }),
                     ...repairsSnapshot.docs.map(d => d.data() as { date: string; mileage: number }),
-                    ...maintenanceSnapshot.docs.map(d => d.data() as { date: string; mileage: number })
+                    ...vehicleMaintenanceSnapshot.docs.map(d => d.data() as { date: string; mileage: number })
                 ].filter(e => typeof e.mileage === 'number' && e.mileage > 0 && Boolean(e.date));
 
                 // Tri en JavaScript (remplace le orderBy Firestore qui nécessitait un index composite)
