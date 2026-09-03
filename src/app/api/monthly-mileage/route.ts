@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import * as admin from 'firebase-admin';
 
 // Configuration des en-têtes CORS pour permettre à Kol Youm d'appeler cette API
 function corsHeaders() {
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const monthParam = searchParams.get('month'); // Format attendu : "YYYY-MM" (ex: "2026-08")
         const requestedUserId = searchParams.get('userId');
+        const requestedEmail = (searchParams.get('userEmail') || searchParams.get('email') || '').trim().toLowerCase();
 
         let targetYear: number;
         let targetMonthIndex: number; // 0-11
@@ -36,33 +38,114 @@ export async function GET(request: NextRequest) {
 
         const targetMonthKey = `${targetYear}-${String(targetMonthIndex + 1).padStart(2, '0')}`;
 
-        // Récupérer les véhicules et les pleins de carburant
-        let vehiclesQuery: any = adminDb.collection('vehicles');
-        let fuelLogsQuery: any = adminDb.collection('fuelLogs');
+        // 1. Résoudre le userId CarCare correspondant à l'adresse e-mail
+        const userIdsToMatch = new Set<string>();
 
         if (requestedUserId) {
-            vehiclesQuery = vehiclesQuery.where('userId', '==', requestedUserId);
-            fuelLogsQuery = fuelLogsQuery.where('userId', '==', requestedUserId);
+            userIdsToMatch.add(requestedUserId);
         }
 
-        const [vehiclesSnap, fuelLogsSnap] = await Promise.all([
-            vehiclesQuery.get().catch((err: any) => {
-                console.warn('[CarCare API] Erreur lecture vehicles:', err.message);
-                return { docs: [] };
-            }),
-            fuelLogsQuery.get().catch((err: any) => {
-                console.warn('[CarCare API] Erreur lecture fuelLogs:', err.message);
-                return { docs: [] };
-            }),
-        ]);
+        if (requestedEmail) {
+            try {
+                // Recherche dans Firebase Authentication de CarCare
+                const userRecord = await admin.auth().getUserByEmail(requestedEmail);
+                if (userRecord && userRecord.uid) {
+                    userIdsToMatch.add(userRecord.uid);
+                    console.log(`[CarCare API] Utilisateur trouvé dans Auth pour ${requestedEmail} -> UID: ${userRecord.uid}`);
+                }
+            } catch (authErr: any) {
+                console.warn(`[CarCare API] Aucun utilisateur Auth trouvé pour ${requestedEmail}:`, authErr.message);
+            }
+        }
 
-        const vehicles = vehiclesSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-        const allFuelLogs = fuelLogsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        // Si une adresse e-mail ou un userId a été demandé mais qu'aucun compte n'a été trouvé,
+        // NE JAMAIS piocher dans les données d'autres utilisateurs !
+        if (userIdsToMatch.size === 0 && (requestedEmail || requestedUserId)) {
+            return NextResponse.json({
+                success: true,
+                month: targetMonthKey,
+                monthlyMileage: 0,
+                totalCost: 0,
+                vehicleName: null,
+                vehiclesCount: 0,
+                logsCount: 0,
+                message: `Aucun compte CarCare trouvé pour l'email ${requestedEmail || requestedUserId}`,
+            }, { headers: corsHeaders() });
+        }
 
-        let primaryVehicleName = 'Mon Véhicule';
-        if (vehicles.length > 0) {
-            const first = vehicles[0];
-            primaryVehicleName = `${first.brand || ''} ${first.model || ''}`.trim() || 'Véhicule';
+        // 2. Récupérer uniquement les véhicules de cet utilisateur
+        let vehicles: any[] = [];
+        if (userIdsToMatch.size > 0) {
+            const userIds = Array.from(userIdsToMatch);
+            const vehiclesSnaps = await Promise.all([
+                ...userIds.map(uid => adminDb.collection('vehicles').where('userId', '==', uid).get().catch(() => ({ docs: [] }))),
+                // Fallback si l'email était stocké en champ direct dans le véhicule
+                ...(requestedEmail ? [
+                    adminDb.collection('vehicles').where('userEmail', '==', requestedEmail).get().catch(() => ({ docs: [] })),
+                    adminDb.collection('vehicles').where('email', '==', requestedEmail).get().catch(() => ({ docs: [] })),
+                ] : [])
+            ]);
+
+            const seenVehicleIds = new Set<string>();
+            vehiclesSnaps.forEach((snap: any) => {
+                snap.docs.forEach((d: any) => {
+                    if (!seenVehicleIds.has(d.id)) {
+                        seenVehicleIds.add(d.id);
+                        vehicles.push({ id: d.id, ...d.data() });
+                    }
+                });
+            });
+        } else {
+            // Aucun filtre utilisateur fourni du tout
+            const snap = await adminDb.collection('vehicles').get().catch(() => ({ docs: [] }));
+            vehicles = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        }
+
+        // Si aucun véhicule ne correspond à cet utilisateur
+        if (vehicles.length === 0) {
+            return NextResponse.json({
+                success: true,
+                month: targetMonthKey,
+                monthlyMileage: 0,
+                totalCost: 0,
+                vehicleName: null,
+                vehiclesCount: 0,
+                logsCount: 0,
+                message: 'Aucun véhicule enregistré pour cet utilisateur',
+            }, { headers: corsHeaders() });
+        }
+
+        // Set des identifiants des véhicules de l'utilisateur
+        const userVehicleIds = new Set(vehicles.map(v => v.id));
+
+        // Nom du véhicule principal
+        const first = vehicles[0];
+        const primaryVehicleName = `${first.brand || ''} ${first.model || ''}`.trim() || 'Mon Véhicule';
+
+        // 3. Récupérer les pleins de carburant STRICTEMENT associés aux véhicules et/ou userId de l'utilisateur
+        let allFuelLogs: any[] = [];
+        if (userIdsToMatch.size > 0) {
+            const userIds = Array.from(userIdsToMatch);
+            const fuelSnaps = await Promise.all(
+                userIds.map(uid => adminDb.collection('fuelLogs').where('userId', '==', uid).get().catch(() => ({ docs: [] })))
+            );
+
+            const seenLogIds = new Set<string>();
+            fuelSnaps.forEach((snap: any) => {
+                snap.docs.forEach((d: any) => {
+                    if (!seenLogIds.has(d.id)) {
+                        seenLogIds.add(d.id);
+                        const logData = d.data();
+                        // Filtrer pour s'assurer que le plein appartient bien à l'un des véhicules de l'utilisateur
+                        if (userVehicleIds.has(logData.vehicleId)) {
+                            allFuelLogs.push({ id: d.id, ...logData });
+                        }
+                    }
+                });
+            });
+        } else {
+            const snap = await adminDb.collection('fuelLogs').get().catch(() => ({ docs: [] }));
+            allFuelLogs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
         }
 
         // Grouper les pleins par véhicule
@@ -79,9 +162,9 @@ export async function GET(request: NextRequest) {
         let totalMonthlyCost = 0;
         let monthlyLogsCount = 0;
 
-        // Calculer la distance parcourue dans le mois pour chaque véhicule
+        // Calcul de la distance parcourue dans le mois pour chaque véhicule de l'utilisateur
         for (const [vehicleId, logs] of Object.entries(logsByVehicle)) {
-            // Trier tous les pleins chronologiquement par date
+            // Trier les pleins chronologiquement par date
             const sortedLogs = [...logs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
             for (let i = 0; i < sortedLogs.length; i++) {
@@ -94,7 +177,8 @@ export async function GET(request: NextRequest) {
                     monthlyLogsCount++;
                     totalMonthlyCost += Number(currentLog.totalCost || 0);
 
-                    // Si on a un plein antérieur (même du mois précédent), la distance jusqu'à ce plein compte pour ce mois
+                    // Si on a un plein précédent chronologique (même du mois précédent),
+                    // la distance jusqu'à ce plein a été parcourue pour ce mois
                     if (i > 0) {
                         const prevLog = sortedLogs[i - 1];
                         const diff = currentLog.mileage - prevLog.mileage;
