@@ -13,6 +13,7 @@ import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { VehicleCard } from '@/components/vehicle-card';
 import { calculateNextVignetteDate, formatDateToLocalISO, getCorrectVignetteDeadline } from '@/lib/vignette';
+import { getDeadlineAnticipationInfo } from '@/lib/tunisia-holidays';
 import { getVehicleTankCapacity, calculateAverageFuelConsumption, calculateIntervalConsumption, calculateSmartAutonomie, calculateAverageRefillGaugeLevel } from '@/lib/fuel-utils';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance } from '@/lib/data';
 import { useAuth } from '@/context/auth-context';
@@ -593,7 +594,14 @@ export function DashboardClient() {
   const getNextDeadlineDescription = (deadline: Deadline | null) => {
     if (!deadline) return "Aucune échéance à venir";
     const vehicle = getVehicleForStat(deadline.vehicleId);
-    return `${deadline.name} (${vehicle?.licensePlate || 'N/A'})`;
+    let desc = `${deadline.name} (${vehicle?.licensePlate || 'N/A'})`;
+    if (deadline.type === 'date') {
+      const anticipation = getDeadlineAnticipationInfo(deadline.date);
+      if (anticipation.isNonWorking) {
+        desc += ` • ⚠️ ${anticipation.shortWarningText.replace(/^⚠️\s*/, '')}`;
+      }
+    }
+    return desc;
   }
 
 

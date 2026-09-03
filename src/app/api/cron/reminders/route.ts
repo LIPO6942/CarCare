@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminDb, adminMessaging } from '@/lib/firebase-admin';
 import { calculateNextVignetteDate, formatDateToLocalISO, getCorrectVignetteDeadline } from '@/lib/vignette';
 import { calculateAverageKmPerDay, estimateVidangeDate, formatDateToFrench, getDaysRemaining } from '@/lib/vidange';
+import { getDeadlineAnticipationInfo } from '@/lib/tunisia-holidays';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -168,18 +169,40 @@ export async function GET(request: Request) {
                     body = `C'est aujourd'hui la date limite pour "${task}" (${vehicleName}). Après l’entretien, n’oubliez pas de l’enregistrer avec la vraie date dans l’application.`;
                 }
             } else if (stage === 'j3') {
-                title = `Rappel J-3 : ${task} (${vehicleName})`;
-                if (requiresDoc) {
-                    body = `Plus que 3 jours pour "${task}" (${vehicleName}). Préparez votre paiement et n’oubliez pas d’enregistrer le justificatif dans l’application.`;
+                const anticipation = getDeadlineAnticipationInfo(nextDueDate);
+                if (anticipation.isNonWorking) {
+                    title = `⚠️ Rappel J-3 (${anticipation.dayName}) : ${task} (${vehicleName})`;
+                    if (requiresDoc) {
+                        body = `Plus que 3 jours pour "${task}" (${vehicleName}). ${anticipation.warningText} Pensez à enregistrer le justificatif dans l’application après paiement.`;
+                    } else {
+                        body = `Dans 3 jours : "${task}" pour ${vehicleName}. ${anticipation.warningText} Pensez à planifier votre rendez-vous.`;
+                    }
                 } else {
-                    body = `Dans 3 jours : "${task}" pour ${vehicleName}. Pensez à planifier votre rendez-vous.`;
+                    title = `Rappel J-3 : ${task} (${vehicleName})`;
+                    if (requiresDoc) {
+                        body = `Plus que 3 jours pour "${task}" (${vehicleName}). Préparez votre paiement et n’oubliez pas d’enregistrer le justificatif dans l’application.`;
+                    } else {
+                        body = `Dans 3 jours : "${task}" pour ${vehicleName}. Pensez à planifier votre rendez-vous.`;
+                    }
                 }
             } else if (stage === 'j7') {
-                title = `Rappel J-7 : ${task} (${vehicleName})`;
-                body = `Dans une semaine : "${task}" pour ${vehicleName} arrive à échéance.`;
+                const anticipation = getDeadlineAnticipationInfo(nextDueDate);
+                if (anticipation.isNonWorking) {
+                    title = `Rappel J-7 : ${task} (${vehicleName})`;
+                    body = `Dans une semaine : "${task}" (${vehicleName}) arrive à échéance le ${anticipation.dueDateFormatted}. ${anticipation.warningText}`;
+                } else {
+                    title = `Rappel J-7 : ${task} (${vehicleName})`;
+                    body = `Dans une semaine : "${task}" pour ${vehicleName} arrive à échéance.`;
+                }
             } else if (stage === 'j15') {
-                title = `Rappel J-15 : ${task} (${vehicleName})`;
-                body = `Dans 15 jours : pensez à anticiper l’entretien "${task}" pour votre ${vehicleName}.`;
+                const anticipation = getDeadlineAnticipationInfo(nextDueDate);
+                if (anticipation.isNonWorking) {
+                    title = `Rappel J-15 : ${task} (${vehicleName})`;
+                    body = `Dans 15 jours : pensez à anticiper l’entretien "${task}" pour votre ${vehicleName} (${anticipation.dueDateFormatted}). ${anticipation.warningText}`;
+                } else {
+                    title = `Rappel J-15 : ${task} (${vehicleName})`;
+                    body = `Dans 15 jours : pensez à anticiper l’entretien "${task}" pour votre ${vehicleName}.`;
+                }
             }
 
             const targetUrl = requiresDoc && (stage === 'j0' || stage === 'overdue')
@@ -288,14 +311,32 @@ export async function GET(request: Request) {
                             title = `🚨 Jour J : Vignette (${vehicleName})`;
                             body = `Aujourd’hui est la date limite officielle pour le paiement de la Vignette de ${vehicleName}. Après le paiement, ajoutez immédiatement le reçu dans la section « Documents » de l’application.`;
                         } else if (stage === 'j3') {
-                            title = `Rappel J-3 : Vignette (${vehicleName})`;
-                            body = `Plus que 3 jours pour régler la Vignette de ${vehicleName} (date limite : ${nextVignetteDate.toLocaleDateString('fr-FR')}). Une fois payée, n’oubliez pas d’ajouter le justificatif dans « Documents ».`;
+                            const anticipation = getDeadlineAnticipationInfo(nextVignetteDate);
+                            if (anticipation.isNonWorking) {
+                                title = `⚠️ Rappel J-3 (${anticipation.dayName}) : Vignette (${vehicleName})`;
+                                body = `Plus que 3 jours pour régler la Vignette de ${vehicleName}. ${anticipation.warningText} Une fois payée, n’oubliez pas d’ajouter le justificatif dans « Documents ».`;
+                            } else {
+                                title = `Rappel J-3 : Vignette (${vehicleName})`;
+                                body = `Plus que 3 jours pour régler la Vignette de ${vehicleName} (date limite : ${nextVignetteDate.toLocaleDateString('fr-FR')}). Une fois payée, n’oubliez pas d’ajouter le justificatif dans « Documents ».`;
+                            }
                         } else if (stage === 'j7') {
-                            title = `Rappel J-7 : Vignette (${vehicleName})`;
-                            body = `Dans 7 jours : échéance de la Vignette pour ${vehicleName} (${nextVignetteDate.toLocaleDateString('fr-FR')}). Préparez votre paiement et gardez le reçu pour l’application.`;
+                            const anticipation = getDeadlineAnticipationInfo(nextVignetteDate);
+                            if (anticipation.isNonWorking) {
+                                title = `Rappel J-7 : Vignette (${vehicleName})`;
+                                body = `Dans 7 jours : échéance de la Vignette pour ${vehicleName} (${anticipation.dueDateFormatted}). ${anticipation.warningText} Gardez le reçu pour l’application.`;
+                            } else {
+                                title = `Rappel J-7 : Vignette (${vehicleName})`;
+                                body = `Dans 7 jours : échéance de la Vignette pour ${vehicleName} (${nextVignetteDate.toLocaleDateString('fr-FR')}). Préparez votre paiement et gardez le reçu pour l’application.`;
+                            }
                         } else if (stage === 'j15') {
-                            title = `Rappel J-15 : Vignette (${vehicleName})`;
-                            body = `Dans 15 jours : prévoyez le règlement de la Vignette pour votre ${vehicleName}. Pensez à ajouter le justificatif dans « Documents » après paiement.`;
+                            const anticipation = getDeadlineAnticipationInfo(nextVignetteDate);
+                            if (anticipation.isNonWorking) {
+                                title = `Rappel J-15 : Vignette (${vehicleName})`;
+                                body = `Dans 15 jours : prévoyez le règlement de la Vignette pour votre ${vehicleName} (${anticipation.dueDateFormatted}). ${anticipation.warningText} Pensez à ajouter le justificatif dans « Documents » après paiement.`;
+                            } else {
+                                title = `Rappel J-15 : Vignette (${vehicleName})`;
+                                body = `Dans 15 jours : prévoyez le règlement de la Vignette pour votre ${vehicleName}. Pensez à ajouter le justificatif dans « Documents » après paiement.`;
+                            }
                         }
 
                         const targetUrl = `/documents?vehicleId=${vehicleId}`;
@@ -413,16 +454,34 @@ export async function GET(request: Request) {
                             body = `La vidange est due aujourd'hui selon votre rythme (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km. Après l’entretien, enregistrez-le avec la vraie date dans l’application.`;
                         } else if (daysRemaining === 3) {
                             stageTag = 'j3';
-                            title = `Rappel J-3 : Vidange (${vehicleName})`;
-                            body = `Vidange estimée dans 3 jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                            const anticipation = getDeadlineAnticipationInfo(estimatedDate);
+                            if (anticipation.isNonWorking) {
+                                title = `⚠️ Rappel J-3 (${anticipation.dayName}) : Vidange (${vehicleName})`;
+                                body = `Vidange estimée dans 3 jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km. ⚠️ Le jour prévu tombe ${anticipation.isWeekend ? 'un weekend' : 'un jour férié'} (ateliers fermés). Anticipez votre rendez-vous avant le ${anticipation.lastWorkingDateFormatted} !`;
+                            } else {
+                                title = `Rappel J-3 : Vidange (${vehicleName})`;
+                                body = `Vidange estimée dans 3 jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                            }
                         } else if (daysRemaining === 7) {
                             stageTag = 'j7';
-                            title = `Rappel J-7 : Vidange (${vehicleName})`;
-                            body = `Vidange estimée dans 7 jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                            const anticipation = getDeadlineAnticipationInfo(estimatedDate);
+                            if (anticipation.isNonWorking) {
+                                title = `Rappel J-7 : Vidange (${vehicleName})`;
+                                body = `Vidange estimée dans 7 jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km. ⚠️ Attention : cette date tombe ${anticipation.isWeekend ? 'un weekend' : 'un jour férié'}, pensez à planifier à l'avance.`;
+                            } else {
+                                title = `Rappel J-7 : Vidange (${vehicleName})`;
+                                body = `Vidange estimée dans 7 jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                            }
                         } else if (daysRemaining === 15) {
                             stageTag = 'j15';
-                            title = `Rappel J-15 : Vidange (${vehicleName})`;
-                            body = `Vidange prévue dans environ 15 jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                            const anticipation = getDeadlineAnticipationInfo(estimatedDate);
+                            if (anticipation.isNonWorking) {
+                                title = `Rappel J-15 : Vidange (${vehicleName})`;
+                                body = `Vidange prévue dans environ 15 jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km. ⚠️ Le jour prévu tombe ${anticipation.isWeekend ? 'un weekend' : 'un jour férié'}, pensez à anticiper.`;
+                            } else {
+                                title = `Rappel J-15 : Vidange (${vehicleName})`;
+                                body = `Vidange prévue dans environ 15 jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                            }
                         }
                     }
                 } else if (kmRemaining <= 500) {
