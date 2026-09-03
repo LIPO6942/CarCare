@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import * as admin from 'firebase-admin';
 
-// Configuration des en-têtes CORS pour permettre à Kol Youm d'appeler cette API
 function corsHeaders() {
     return {
         'Access-Control-Allow-Origin': '*',
@@ -18,10 +17,11 @@ export async function OPTIONS() {
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
-        const monthParam = searchParams.get('month'); // Format attendu : "YYYY-MM" (ex: "2026-08")
+        const monthParam = searchParams.get('month'); // ex: "2026-08"
         const requestedUserId = searchParams.get('userId');
         const requestedEmail = (searchParams.get('userEmail') || searchParams.get('email') || '').trim().toLowerCase();
 
+        // Mois cible
         let targetYear: number;
         let targetMonthIndex: number; // 0-11
 
@@ -37,29 +37,27 @@ export async function GET(request: NextRequest) {
         }
 
         const targetMonthKey = `${targetYear}-${String(targetMonthIndex + 1).padStart(2, '0')}`;
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-        // 1. Résoudre le userId CarCare correspondant à l'adresse e-mail
+        // 1. Résolution de l'utilisateur par e-mail
         const userIdsToMatch = new Set<string>();
-
         if (requestedUserId) {
             userIdsToMatch.add(requestedUserId);
         }
 
         if (requestedEmail) {
             try {
-                // Recherche dans Firebase Authentication de CarCare
                 const userRecord = await admin.auth().getUserByEmail(requestedEmail);
                 if (userRecord && userRecord.uid) {
                     userIdsToMatch.add(userRecord.uid);
                     console.log(`[CarCare API] Utilisateur trouvé dans Auth pour ${requestedEmail} -> UID: ${userRecord.uid}`);
                 }
             } catch (authErr: any) {
-                console.warn(`[CarCare API] Aucun utilisateur Auth trouvé pour ${requestedEmail}:`, authErr.message);
+                console.warn(`[CarCare API] Aucun utilisateur Auth pour ${requestedEmail}:`, authErr.message);
             }
         }
 
-        // Si une adresse e-mail ou un userId a été demandé mais qu'aucun compte n'a été trouvé,
-        // NE JAMAIS piocher dans les données d'autres utilisateurs !
         if (userIdsToMatch.size === 0 && (requestedEmail || requestedUserId)) {
             return NextResponse.json({
                 success: true,
@@ -73,13 +71,12 @@ export async function GET(request: NextRequest) {
             }, { headers: corsHeaders() });
         }
 
-        // 2. Récupérer uniquement les véhicules de cet utilisateur
+        // 2. Récupération des véhicules de cet utilisateur
         let vehicles: any[] = [];
         if (userIdsToMatch.size > 0) {
             const userIds = Array.from(userIdsToMatch);
             const vehiclesSnaps = await Promise.all([
                 ...userIds.map(uid => adminDb.collection('vehicles').where('userId', '==', uid).get().catch(() => ({ docs: [] }))),
-                // Fallback si l'email était stocké en champ direct dans le véhicule
                 ...(requestedEmail ? [
                     adminDb.collection('vehicles').where('userEmail', '==', requestedEmail).get().catch(() => ({ docs: [] })),
                     adminDb.collection('vehicles').where('email', '==', requestedEmail).get().catch(() => ({ docs: [] })),
@@ -96,12 +93,10 @@ export async function GET(request: NextRequest) {
                 });
             });
         } else {
-            // Aucun filtre utilisateur fourni du tout
             const snap = await adminDb.collection('vehicles').get().catch(() => ({ docs: [] }));
             vehicles = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
         }
 
-        // Si aucun véhicule ne correspond à cet utilisateur
         if (vehicles.length === 0) {
             return NextResponse.json({
                 success: true,
@@ -111,18 +106,14 @@ export async function GET(request: NextRequest) {
                 vehicleName: null,
                 vehiclesCount: 0,
                 logsCount: 0,
-                message: 'Aucun véhicule enregistré pour cet utilisateur',
             }, { headers: corsHeaders() });
         }
 
-        // Set des identifiants des véhicules de l'utilisateur
         const userVehicleIds = new Set(vehicles.map(v => v.id));
-
-        // Nom du véhicule principal
         const first = vehicles[0];
         const primaryVehicleName = `${first.brand || ''} ${first.model || ''}`.trim() || 'Mon Véhicule';
 
-        // 3. Récupérer les pleins de carburant STRICTEMENT associés aux véhicules et/ou userId de l'utilisateur
+        // 3. Récupération des pleins de carburant STRICTEMENT associés à l'utilisateur
         let allFuelLogs: any[] = [];
         if (userIdsToMatch.size > 0) {
             const userIds = Array.from(userIdsToMatch);
@@ -136,7 +127,6 @@ export async function GET(request: NextRequest) {
                     if (!seenLogIds.has(d.id)) {
                         seenLogIds.add(d.id);
                         const logData = d.data();
-                        // Filtrer pour s'assurer que le plein appartient bien à l'un des véhicules de l'utilisateur
                         if (userVehicleIds.has(logData.vehicleId)) {
                             allFuelLogs.push({ id: d.id, ...logData });
                         }
@@ -148,68 +138,88 @@ export async function GET(request: NextRequest) {
             allFuelLogs = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
         }
 
-        // Grouper les pleins par véhicule
-        const logsByVehicle: Record<string, any[]> = {};
+        // 4. Calcul IDENTIQUE à vehicle-tabs.tsx de CarCare :
+        // Groupement par mois (clé YYYY-MM)
+        const groupedByMonth: Record<string, { logs: any[]; totalCost: number; totalDistance: number }> = {};
+
         allFuelLogs.forEach((log: any) => {
-            if (!log.vehicleId || typeof log.mileage !== 'number' || !log.date) return;
-            if (!logsByVehicle[log.vehicleId]) {
-                logsByVehicle[log.vehicleId] = [];
+            if (typeof log.mileage !== 'number' || !log.date) return;
+            const d = new Date(log.date);
+            if (isNaN(d.getTime())) return;
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (!groupedByMonth[key]) {
+                groupedByMonth[key] = { logs: [], totalCost: 0, totalDistance: 0 };
             }
-            logsByVehicle[log.vehicleId].push(log);
+            groupedByMonth[key].logs.push(log);
+            groupedByMonth[key].totalCost += Number(log.totalCost || 0);
         });
 
-        let totalMonthlyDistance = 0;
-        let totalMonthlyCost = 0;
-        let monthlyLogsCount = 0;
+        // Calcul exact de totalDistance pour chaque mois (même algorithme que vehicle-tabs.tsx)
+        for (const key in groupedByMonth) {
+            const monthData = groupedByMonth[key];
+            const sortedLogs = [...monthData.logs].sort((a, b) => a.mileage - b.mileage);
 
-        // Calcul de la distance parcourue dans le mois pour chaque véhicule de l'utilisateur
-        for (const [vehicleId, logs] of Object.entries(logsByVehicle)) {
-            // Trier les pleins chronologiquement par date
-            const sortedLogs = [...logs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            let totalDistance = 0;
+            for (let i = 1; i < sortedLogs.length; i++) {
+                const distance = sortedLogs[i].mileage - sortedLogs[i - 1].mileage;
+                if (distance > 0) {
+                    totalDistance += distance;
+                }
+            }
 
-            for (let i = 0; i < sortedLogs.length; i++) {
-                const currentLog = sortedLogs[i];
-                const logDate = new Date(currentLog.date);
+            // Si un seul plein dans le mois, calcul de la distance parcourue depuis le plein précédent antérieur
+            if (totalDistance === 0 && sortedLogs.length === 1) {
+                const singleLogDate = new Date(sortedLogs[0].date).getTime();
+                const singleLogMileage = sortedLogs[0].mileage;
 
-                if (isNaN(logDate.getTime())) continue;
+                const earlierLogs = allFuelLogs
+                    .filter((l: any) => new Date(l.date).getTime() < singleLogDate && typeof l.mileage === 'number' && l.mileage < singleLogMileage)
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-                if (logDate.getFullYear() === targetYear && logDate.getMonth() === targetMonthIndex) {
-                    monthlyLogsCount++;
-                    totalMonthlyCost += Number(currentLog.totalCost || 0);
+                if (earlierLogs.length > 0) {
+                    totalDistance = singleLogMileage - earlierLogs[0].mileage;
+                }
+            }
 
-                    // Si on a un plein précédent chronologique (même du mois précédent),
-                    // la distance jusqu'à ce plein a été parcourue pour ce mois
-                    if (i > 0) {
-                        const prevLog = sortedLogs[i - 1];
-                        const diff = currentLog.mileage - prevLog.mileage;
-                        if (diff > 0) {
-                            totalMonthlyDistance += diff;
-                        }
-                    }
+            monthData.totalDistance = totalDistance;
+        }
+
+        // Résolution du mois à renvoyer :
+        // 1. D'abord le mois cible demandé (ex: wrap-up month)
+        let resolvedMonthKey = targetMonthKey;
+        let selectedMonthData = groupedByMonth[targetMonthKey];
+
+        // 2. Si le mois cible n'a aucun kilométrage calculé, vérifier le mois courant
+        if ((!selectedMonthData || selectedMonthData.totalDistance === 0) && groupedByMonth[currentMonthKey]?.totalDistance > 0) {
+            resolvedMonthKey = currentMonthKey;
+            selectedMonthData = groupedByMonth[currentMonthKey];
+        }
+
+        // 3. Si toujours 0, chercher le mois le plus récent avec des données
+        if (!selectedMonthData || selectedMonthData.totalDistance === 0) {
+            const availableMonths = Object.keys(groupedByMonth).sort().reverse();
+            for (const mKey of availableMonths) {
+                if (groupedByMonth[mKey].totalDistance > 0) {
+                    resolvedMonthKey = mKey;
+                    selectedMonthData = groupedByMonth[mKey];
+                    break;
                 }
             }
         }
 
-        // Si aucun plein n'a de précédent mais qu'on a plusieurs pleins dans le mois : delta max-min
-        if (totalMonthlyDistance === 0 && monthlyLogsCount >= 2) {
-            const monthLogs = allFuelLogs.filter((log: any) => {
-                const d = new Date(log.date);
-                return d.getFullYear() === targetYear && d.getMonth() === targetMonthIndex;
-            });
-            const mileages = monthLogs.map((l: any) => l.mileage).filter((m: any) => typeof m === 'number');
-            if (mileages.length >= 2) {
-                totalMonthlyDistance = Math.max(...mileages) - Math.min(...mileages);
-            }
-        }
+        const finalDistance = selectedMonthData ? Math.round(selectedMonthData.totalDistance) : 0;
+        const finalCost = selectedMonthData ? parseFloat(selectedMonthData.totalCost.toFixed(2)) : 0;
+        const finalLogsCount = selectedMonthData ? selectedMonthData.logs.length : 0;
 
         return NextResponse.json({
             success: true,
-            month: targetMonthKey,
-            monthlyMileage: Math.round(totalMonthlyDistance),
-            totalCost: parseFloat(totalMonthlyCost.toFixed(2)),
+            month: resolvedMonthKey,
+            targetMonthRequested: targetMonthKey,
+            monthlyMileage: finalDistance,
+            totalCost: finalCost,
             vehicleName: primaryVehicleName,
             vehiclesCount: vehicles.length,
-            logsCount: monthlyLogsCount,
+            logsCount: finalLogsCount,
         }, { headers: corsHeaders() });
 
     } catch (error: any) {
