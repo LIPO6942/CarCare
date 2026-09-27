@@ -239,14 +239,23 @@ export function DashboardClient() {
   const {
     totalRepairCost,
     totalFuelCost,
+    yearlyRepairCost,
+    yearlyFuelCost,
     nextDeadline,
     secondNextDeadline,
     isDeadlineUrgent,
     isSecondDeadlineUrgent,
     allEvents
   } = useMemo(() => {
+    const currentYear = new Date().getFullYear();
     const totalRepairCost = repairs.reduce((sum, r) => sum + r.cost, 0);
     const totalFuelCost = fuelLogs.reduce((sum, f) => sum + f.totalCost, 0);
+    const yearlyRepairCost = repairs
+      .filter(r => new Date(r.date).getFullYear() === currentYear)
+      .reduce((sum, r) => sum + r.cost, 0);
+    const yearlyFuelCost = fuelLogs
+      .filter(f => new Date(f.date).getFullYear() === currentYear)
+      .reduce((sum, f) => sum + f.totalCost, 0);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -422,6 +431,8 @@ export function DashboardClient() {
     return {
       totalRepairCost,
       totalFuelCost,
+      yearlyRepairCost,
+      yearlyFuelCost,
       nextDeadline,
       secondNextDeadline,
       isDeadlineUrgent: checkUrgency(nextDeadline),
@@ -727,9 +738,9 @@ export function DashboardClient() {
             />
             <StatCard
               title="Coût des Réparations"
-              value={`${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
+              value={`${yearlyRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
               icon={Wrench}
-              description={costCardDescription}
+              description={`En ${new Date().getFullYear()} · Total : ${totalRepairCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
               disabled
               isLoading={isStatsLoading}
               iconGradient="from-rose-500 to-red-600"
@@ -737,9 +748,9 @@ export function DashboardClient() {
             />
             <StatCard
               title="Dépenses Carburant"
-              value={`${totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
+              value={`${yearlyFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
               icon={Fuel}
-              description={costCardDescription}
+              description={`En ${new Date().getFullYear()} · Total : ${totalFuelCost.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}`}
               disabled
               isLoading={isStatsLoading}
               iconGradient="from-orange-400 to-amber-600"

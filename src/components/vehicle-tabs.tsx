@@ -1030,18 +1030,18 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
     return (
         <>
             <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-start">
-                        <div>
+                <CardHeader className="pb-3">
+                    <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
                             <CardTitle>Suivi du Carburant</CardTitle>
                             <CardDescription>
                                 Consultez l'historique de vos pleins de carburant.
                             </CardDescription>
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                                 {avgRefillGauge !== null && (
-                                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20 whitespace-nowrap">
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20">
                                         <Fuel className="h-3.5 w-3.5 shrink-0" />
-                                        <span>Ajout carburant moyen à : <strong>~{avgRefillGauge}%</strong> {refillHabit?.icon} ({refillHabit?.label})</span>
+                                        <span className="break-words">Moy. ajout : <strong>~{avgRefillGauge}%</strong> {refillHabit?.icon} ({refillHabit?.label})</span>
                                     </div>
                                 )}
                                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/60 text-muted-foreground text-xs font-medium border">
@@ -1050,7 +1050,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                                 </div>
                             </div>
                         </div>
-                        <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10">
+                        <Button onClick={handleAdd} size="icon" className="flex-shrink-0 w-10 h-10 mt-0.5">
                             <PlusCircle className="h-6 w-6" />
                             <span className="sr-only">Ajouter un plein</span>
                         </Button>
