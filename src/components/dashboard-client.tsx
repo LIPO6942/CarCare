@@ -443,6 +443,7 @@ export function DashboardClient() {
       daysUntilEmpty?: number;
       remainingRangeKm?: number;
       avgRefillGauge?: number | null;
+      avgDaysBetweenFills?: number | null;
     } | null>();
 
     vehicles.forEach(vehicle => {
@@ -532,6 +533,18 @@ export function DashboardClient() {
         averageConsumption
       );
 
+      // Calcul de l'intervalle moyen entre pleins
+      let avgDaysBetweenFills: number | null = null;
+      if (vehicleFuelLogs.length >= 2) {
+        const sortedByDate = [...vehicleFuelLogs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        let totalDays = 0; let cnt = 0;
+        for (let i = 1; i < sortedByDate.length; i++) {
+          const diff = Math.round((new Date(sortedByDate[i].date).getTime() - new Date(sortedByDate[i - 1].date).getTime()) / (1000 * 60 * 60 * 24));
+          if (diff > 0) { totalDays += diff; cnt++; }
+        }
+        avgDaysBetweenFills = cnt > 0 ? Math.round(totalDays / cnt) : null;
+      }
+
       stats.set(vehicle.id, {
         consumption: averageConsumption,
         latestConsumption,
@@ -543,7 +556,8 @@ export function DashboardClient() {
         drivingStyle,
         daysUntilEmpty: smartAutonomie?.daysUntilEmpty,
         remainingRangeKm: smartAutonomie?.remainingRangeKm,
-        avgRefillGauge
+        avgRefillGauge,
+        avgDaysBetweenFills
       });
     });
 
@@ -763,6 +777,7 @@ export function DashboardClient() {
                       daysUntilEmpty={stats?.daysUntilEmpty}
                       remainingRangeKm={stats?.remainingRangeKm}
                       avgRefillGauge={stats?.avgRefillGauge}
+                      avgDaysBetweenFills={stats?.avgDaysBetweenFills}
                     />
                   );
                 })}

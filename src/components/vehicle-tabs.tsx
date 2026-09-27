@@ -1002,22 +1002,6 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
     const refillHabit = useMemo(() => avgRefillGauge !== null ? getRefillHabitDescription(avgRefillGauge) : null, [avgRefillGauge]);
     const tankCapacity = useMemo(() => getVehicleTankCapacity(vehicle, fuelLogs), [vehicle, fuelLogs]);
 
-    // Calcul de l'intervalle moyen entre deux pleins consécutifs
-    const avgDaysBetweenFills = useMemo(() => {
-        if (fuelLogs.length < 2) return null;
-        const sorted = [...fuelLogs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        let totalDays = 0;
-        let count = 0;
-        for (let i = 1; i < sorted.length; i++) {
-            const diff = Math.round(
-                (new Date(sorted[i].date).getTime() - new Date(sorted[i - 1].date).getTime())
-                / (1000 * 60 * 60 * 24)
-            );
-            if (diff > 0) { totalDays += diff; count++; }
-        }
-        return count > 0 ? Math.round(totalDays / count) : null;
-    }, [fuelLogs]);
-
     const handleEdit = (item: FuelLog) => {
         setItemToEdit(item);
         setIsDialogOpen(true);
@@ -1058,9 +1042,6 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                                     <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20 whitespace-nowrap">
                                         <Fuel className="h-3.5 w-3.5 shrink-0" />
                                         <span>Ajout carburant moyen à : <strong>~{avgRefillGauge}%</strong> {refillHabit?.icon} ({refillHabit?.label})</span>
-                                        {avgDaysBetweenFills !== null && (
-                                            <span className="opacity-70">· tous les <strong>~{avgDaysBetweenFills}j</strong></span>
-                                        )}
                                     </div>
                                 )}
                                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/60 text-muted-foreground text-xs font-medium border">

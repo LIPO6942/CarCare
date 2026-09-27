@@ -29,7 +29,7 @@ import { getVehicleImage, saveVehicleImage } from '@/lib/local-db';
 import { generateVehicleImage } from '@/ai/flows/generate-vehicle-image';
 import { FuelConsumptionHistoryModal } from '@/components/fuel-consumption-history-modal';
 
-export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost, fuelLogs = [], kmPerDay, averageSpeed, drivingStyle, daysUntilEmpty, remainingRangeKm, avgRefillGauge }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null; fuelLogs?: FuelLog[]; kmPerDay?: number | null; averageSpeed?: number | null; drivingStyle?: string; daysUntilEmpty?: number; remainingRangeKm?: number; avgRefillGauge?: number | null }) {
+export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption, latestConsumption, fuelCost, lastLogQuantity, lastLogTotalCost, fuelLogs = [], kmPerDay, averageSpeed, drivingStyle, daysUntilEmpty, remainingRangeKm, avgRefillGauge, avgDaysBetweenFills }: { vehicle: Vehicle; onShowDetails: () => void; onDeleted: () => void; fuelConsumption?: number | null; latestConsumption?: number | null; fuelCost?: number | null; lastLogQuantity?: number | null; lastLogTotalCost?: number | null; fuelLogs?: FuelLog[]; kmPerDay?: number | null; averageSpeed?: number | null; drivingStyle?: string; daysUntilEmpty?: number; remainingRangeKm?: number; avgRefillGauge?: number | null; avgDaysBetweenFills?: number | null }) {
   const { user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -307,6 +307,9 @@ export function VehicleCard({ vehicle, onShowDetails, onDeleted, fuelConsumption
                         </span>
                         <span className="font-bold shrink-0 ml-1.5">
                           ~{avgRefillGauge}% {avgRefillGauge < 15 ? '🔴' : avgRefillGauge < 35 ? '🟡' : avgRefillGauge < 60 ? '🟢' : '✅'}
+                          {avgDaysBetweenFills != null && (
+                            <span className="font-normal opacity-70 ml-1">· tous les ~{avgDaysBetweenFills}j</span>
+                          )}
                         </span>
                       </div>
                     )}
