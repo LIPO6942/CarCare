@@ -15,6 +15,7 @@ import { Fuel, Loader2, LineChart } from 'lucide-react';
 import { useRef } from 'react';
 import { MonthlyFuelChartModal } from '@/components/monthly-fuel-chart-modal';
 import { getSettings } from '@/lib/settings';
+import { splitFuelLogsByMonth } from '@/lib/fuel-utils';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -49,24 +50,10 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
 
   const monthlyFuelLogs = useMemo(() => {
     if (!selectedVehicleId) return [];
-    const monthlyData: { [key: string]: { totalCost: number, totalQuantity: number, date: Date } } = {};
     const vehicleFuelLogs = fuelLogs.filter(log => log.vehicleId === selectedVehicleId);
-    
-    vehicleFuelLogs.forEach(log => {
-        try {
-            const date = new Date(log.date);
-            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-            if (!monthlyData[monthKey]) {
-                monthlyData[monthKey] = { totalCost: 0, totalQuantity: 0, date: date };
-            }
-            monthlyData[monthKey].totalCost += log.totalCost;
-            monthlyData[monthKey].totalQuantity += log.quantity;
-        } catch (e) {
-            console.error("Invalid date for fuel log", log);
-        }
-    });
-
-    return Object.values(monthlyData).sort((a, b) => b.date.getTime() - a.date.getTime());
+    // splitFuelLogsByMonth ventile les pleins après le jour 20
+    // entre le mois courant et le mois suivant selon l'autonomie estimée.
+    return splitFuelLogsByMonth(vehicleFuelLogs);
   }, [fuelLogs, selectedVehicleId]);
 
   // Assist user with mileage prefix

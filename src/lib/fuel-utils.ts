@@ -334,3 +334,106 @@ export function getRefillHabitDescription(avgGaugePercentage: number): { label: 
   }
 }
 
+/**
+ * Répartit intelligemment les pleins de carburant entre les mois.
+ *
+ * Logique :
+ * - Si un plein est fait AVANT le jour `splitThresholdDay` (défaut : 20),
+ *   il est attribué entièrement au mois de la date d'achat.
+ * - Si un plein suivant existe dans la même période d'autonomie estimée,
+ *   on utilise les jours RÉELS jusqu'au prochain plein comme autonomie réelle
+ *   (preuve concrète que le carburant a été consommé avant ce plein suivant).
+ * - Sinon, on ventile quantité/coût proportionnellement entre M courant et M+1.
+ *
+ * @param fuelLogs           Liste brute des pleins (filtrée ou non par véhicule)
+ * @param kmPerDay           Intensité journalière en km/jour (40 par défaut)
+ * @param splitThresholdDay  Jour du mois à partir duquel on déclenche le split (20 par défaut)
+ * @returns Tableau d'objets { totalCost, totalQuantity, date } agrégés par mois
+ */
+export function splitFuelLogsByMonth(
+  fuelLogs: FuelLog[],
+  kmPerDay: number = 40,
+  splitThresholdDay: number = 20
+): { totalCost: number; totalQuantity: number; date: Date }[] {
+  const monthlyData: { [key: string]: { totalCost: number; totalQuantity: number; date: Date } } = {};
+
+  const addToMonth = (yearMonth: string, refDate: Date, cost: number, qty: number) => {
+    if (!monthlyData[yearMonth]) {
+      monthlyData[yearMonth] = {
+        totalCost: 0,
+        totalQuantity: 0,
+        date: new Date(refDate.getFullYear(), refDate.getMonth(), 1),
+      };
+    }
+    monthlyData[yearMonth].totalCost += cost;
+    monthlyData[yearMonth].totalQuantity += qty;
+  };
+
+  // Trier par date croissante pour pouvoir accéder au plein suivant
+  const sorted = [...fuelLogs].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+
+  const refConsumptionPer100km = 8; // L/100km référence neutre
+  const dailyFuelUse = (kmPerDay * refConsumptionPer100km) / 100; // L/jour
+
+  for (let i = 0; i < sorted.length; i++) {
+    const log = sorted[i];
+    try {
+      const date = new Date(log.date);
+      const dayOfMonth = date.getDate();
+
+      // Nombre de jours dans le mois courant
+      const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+      // Jours restants dans le mois courant (du jour d'achat jusqu'à la fin du mois)
+      const daysRemaining = daysInMonth - dayOfMonth;
+
+      // Autonomie ESTIMÉE en jours (sans info sur le plein suivant)
+      const estimatedAutonomyDays = dailyFuelUse > 0 ? log.quantity / dailyFuelUse : 15;
+
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+      // ── Étape 1 : chercher le plein suivant ──────────────────────────────────
+      const nextLog = sorted[i + 1];
+      let actualAutonomyDays = estimatedAutonomyDays;
+
+      if (nextLog) {
+        const nextDate = new Date(nextLog.date);
+        // Jours réels entre ce plein et le suivant
+        const daysUntilNext = Math.round(
+          (nextDate.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        // Si le prochain plein arrive AVANT la fin de l'autonomie estimée,
+        // c'est la preuve que le carburant a été consommé en daysUntilNext jours.
+        if (daysUntilNext < estimatedAutonomyDays) {
+          actualAutonomyDays = daysUntilNext;
+        }
+      }
+
+      // ── Étape 2 : décision de split ──────────────────────────────────────────
+      if (dayOfMonth <= splitThresholdDay || actualAutonomyDays <= daysRemaining) {
+        // Pas de split : plein avant le seuil OU toute la conso tient dans ce mois
+        addToMonth(monthKey, date, log.totalCost, log.quantity);
+      } else {
+        // Split proportionnel selon les jours réels restants vs l'autonomie réelle
+        const ratioCurrentMonth = Math.max(0, Math.min(1, daysRemaining / actualAutonomyDays));
+        const ratioNextMonth = 1 - ratioCurrentMonth;
+
+        if (ratioCurrentMonth > 0) {
+          addToMonth(monthKey, date, log.totalCost * ratioCurrentMonth, log.quantity * ratioCurrentMonth);
+        }
+        if (ratioNextMonth > 0) {
+          const nextMonthDate = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+          const nextMonthKey = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}`;
+          addToMonth(nextMonthKey, nextMonthDate, log.totalCost * ratioNextMonth, log.quantity * ratioNextMonth);
+        }
+      }
+    } catch (e) {
+      console.error('splitFuelLogsByMonth: date invalide pour le log', log, e);
+    }
+  }
+
+  return Object.values(monthlyData).sort((a, b) => b.date.getTime() - a.date.getTime());
+}
+
+

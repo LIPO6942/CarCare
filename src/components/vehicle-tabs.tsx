@@ -29,7 +29,7 @@ import {
     addMaintenance, updateMaintenance, deleteMaintenance,
     addFuelLog, updateFuelLog, deleteFuelLog,
 } from '@/lib/data';
-import { calculateAverageRefillGaugeLevel, getRefillHabitDescription, getVehicleTankCapacity } from '@/lib/fuel-utils';
+import { calculateAverageRefillGaugeLevel, getRefillHabitDescription, getVehicleTankCapacity, splitFuelLogsByMonth } from '@/lib/fuel-utils';
 import { categorizeRepair } from '@/ai/flows/repair-categorization';
 import { useAuth } from '@/context/auth-context';
 import {
@@ -95,23 +95,10 @@ const safeFormatCurrency = (numInput: any): string => {
 export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataChange, initialTab }: VehicleTabsProps) {
 
     const monthlyFuelLogs = useMemo(() => {
-        const monthlyData: { [key: string]: { totalCost: number, totalQuantity: number, date: Date } } = {};
-        fuelLogs.forEach(log => {
-            try {
-                const date = new Date(log.date);
-                const monthKey = format(date, 'yyyy-MM');
-                if (!monthlyData[monthKey]) {
-                    monthlyData[monthKey] = { totalCost: 0, totalQuantity: 0, date: date };
-                }
-                monthlyData[monthKey].totalCost += log.totalCost;
-                monthlyData[monthKey].totalQuantity += log.quantity;
-            } catch (e) {
-                console.error("Invalid date for fuel log", log);
-            }
-        });
-
-
-        return Object.values(monthlyData).sort((a, b) => b.date.getTime() - a.date.getTime());
+        // splitFuelLogsByMonth ventile automatiquement les pleins faits
+        // après le jour 20 entre le mois courant et le mois suivant,
+        // selon une autonomie estimée à partir de 40 km/jour et 8 L/100km.
+        return splitFuelLogsByMonth(fuelLogs);
     }, [fuelLogs]);
 
     const [isChartModalOpen, setIsChartModalOpen] = useState(false);
