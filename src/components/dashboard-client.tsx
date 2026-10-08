@@ -864,15 +864,25 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
     return { vehicle, latestMileage: latestEvent?.mileage || 0 };
   }, [vehicles, deadline, allEvents]);
 
+  const canonicalTask = useMemo(() => {
+    if (!deadline) return '';
+    const clean = deadline.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (clean.includes('assurance')) return 'assurance';
+    if (clean.includes('visite') || clean.includes('controle')) return 'visite_technique';
+    if (clean.includes('vignette')) return 'vignette';
+    if (clean.includes('vidange')) return 'vidange';
+    return clean;
+  }, [deadline]);
+
   const needsCost = useMemo(() => {
     if (!deadline) return false;
-    return ['Visite technique', 'Vidange', 'Paiement Assurance', 'Vignette'].includes(deadline.name);
-  }, [deadline]);
+    return ['visite_technique', 'vidange', 'assurance', 'vignette'].includes(canonicalTask);
+  }, [deadline, canonicalTask]);
 
   const needsMileage = useMemo(() => {
     if (!deadline) return false;
-    return deadline.name === 'Vidange';
-  }, [deadline]);
+    return canonicalTask === 'vidange';
+  }, [deadline, canonicalTask]);
 
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -886,10 +896,15 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
     const today = new Date().toISOString().split('T')[0];
 
     try {
+      let standardizedTask = deadline.name;
+      if (canonicalTask === 'assurance') standardizedTask = 'Paiement Assurance';
+      else if (canonicalTask === 'visite_technique') standardizedTask = 'Visite technique';
+      else if (canonicalTask === 'vignette') standardizedTask = 'Vignette';
+      else if (canonicalTask === 'vidange') standardizedTask = 'Vidange';
 
       const newMaintenance: Omit<Maintenance, 'id' | 'userId'> = {
         vehicleId: vehicle.id,
-        task: deadline.name,
+        task: standardizedTask,
         date: today,
         cost: 0,
         mileage: 0,
@@ -909,9 +924,9 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
         newMaintenance.mileage = latestMileage || deadline.originalTask.mileage;
       }
 
-      if (needsCost && cost === 0 && deadline.name !== 'Paiement Assurance') {
+      if (needsCost && cost === 0 && canonicalTask !== 'assurance') {
         const settings = getSettings();
-        if (deadline.name === 'Vignette' && vehicle.fiscalPower) {
+        if (canonicalTask === 'vignette' && vehicle.fiscalPower) {
           const vignetteSettings = vehicle.fuelType === 'Diesel' ? settings.vignetteDiesel : settings.vignetteEssence;
           const powerRange = vignetteSettings.find(v => {
             if (v.range.includes('-')) {
@@ -921,7 +936,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
             return Number(v.range) === vehicle.fiscalPower!;
           });
           if (powerRange) newMaintenance.cost = powerRange.cost;
-        } else if (deadline.name === 'Visite technique') {
+        } else if (canonicalTask === 'visite_technique') {
           newMaintenance.cost = settings.costVisiteTechnique;
         }
       }
@@ -942,26 +957,25 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
       // Finally, create the *next* deadline by updating the record we just added
       const nextMaintenanceData: Partial<Maintenance> = {};
 
-      if (deadline.name === 'Vidange') {
+      if (canonicalTask === 'vidange') {
         nextMaintenanceData.nextDueMileage = (addedMaintenance.mileage || 0) + 10000;
-      } else if (deadline.originalTask.nextDueDate) {
-        const previousDueDate = new Date(deadline.originalTask.nextDueDate);
-
-        if (deadline.name === 'Visite technique') {
-          previousDueDate.setFullYear(previousDueDate.getFullYear() + 1);
-        } else if (deadline.name === 'Vignette') {
-          // On utilise la nouvelle logique en passant la date saisie (ici today/addedMaintenance)
-          nextMaintenanceData.nextDueDate = formatDateToLocalISO(calculateNextVignetteDate(vehicle.licensePlate, new Date(addedMaintenance.date)));
-        } else if (deadline.name === 'Paiement Assurance') {
+      } else if (canonicalTask === 'vignette') {
+        nextMaintenanceData.nextDueDate = formatDateToLocalISO(calculateNextVignetteDate(vehicle.licensePlate, new Date(addedMaintenance.date)));
+      } else if (canonicalTask === 'visite_technique') {
+        const baseDate = deadline.originalTask.nextDueDate ? new Date(deadline.originalTask.nextDueDate) : new Date(today);
+        baseDate.setFullYear(baseDate.getFullYear() + 1);
+        nextMaintenanceData.nextDueDate = formatDateToLocalISO(baseDate);
+      } else if (canonicalTask === 'assurance') {
+        let monthsToAdd = 12; // défaut annuel
+        if (deadline.originalTask.nextDueDate && deadline.originalTask.date) {
           const oldDueDate = new Date(deadline.originalTask.nextDueDate);
           const oldDate = new Date(deadline.originalTask.date);
           const monthDiff = (oldDueDate.getFullYear() - oldDate.getFullYear()) * 12 + (oldDueDate.getMonth() - oldDate.getMonth());
-          const isAnnual = monthDiff > 8;
-          previousDueDate.setMonth(previousDueDate.getMonth() + (isAnnual ? 12 : 6));
+          monthsToAdd = monthDiff > 8 ? 12 : 6;
         }
-        if (deadline.name !== 'Vignette') {
-          nextMaintenanceData.nextDueDate = formatDateToLocalISO(previousDueDate);
-        }
+        const baseDate = deadline.originalTask.nextDueDate ? new Date(deadline.originalTask.nextDueDate) : new Date(today);
+        baseDate.setMonth(baseDate.getMonth() + monthsToAdd);
+        nextMaintenanceData.nextDueDate = formatDateToLocalISO(baseDate);
       }
 
       if (Object.keys(nextMaintenanceData).length > 0) {
