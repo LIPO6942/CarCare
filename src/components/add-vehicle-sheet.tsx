@@ -23,14 +23,18 @@ export function AddVehicleSheet({ children, onVehicleAdded }: { children: ReactN
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>{children}</SheetTrigger>
-      <SheetContent className="sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>Ajouter un nouveau véhicule</SheetTitle>
-          <SheetDescription>
-            Remplissez les détails de votre véhicule pour l'ajouter à votre flotte.
+      <SheetContent className="w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl p-5 sm:p-7 md:p-8 flex flex-col h-full overflow-hidden">
+        <SheetHeader className="pb-4 border-b shrink-0">
+          <SheetTitle className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            Ajouter un nouveau véhicule
+          </SheetTitle>
+          <SheetDescription className="text-xs sm:text-sm text-muted-foreground">
+            Remplissez les détails et caractéristiques de votre véhicule pour l'ajouter à votre flotte.
           </SheetDescription>
         </SheetHeader>
-        <AddVehicleForm onFormSubmit={handleFormSubmit} onCancel={() => setOpen(false)} />
+        <div className="flex-1 overflow-y-auto py-3 pr-1 sm:pr-2">
+          <AddVehicleForm onFormSubmit={handleFormSubmit} onCancel={() => setOpen(false)} />
+        </div>
       </SheetContent>
     </Sheet>
   );

@@ -28,7 +28,7 @@ export function MobileSidebarTrigger() {
     return (
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
           <SheetTrigger asChild>
-            <Button size="icon" variant="outline" className="h-9 w-9 sm:h-10 sm:w-10 lg:hidden shrink-0">
+            <Button size="icon" variant="outline" className="h-8 w-8 sm:h-10 sm:w-10 lg:hidden shrink-0">
               <Menu className="h-4 w-4 sm:h-5 sm:w-5" />
               <span className="sr-only">Toggle Menu</span>
             </Button>
