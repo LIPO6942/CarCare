@@ -18,6 +18,7 @@ import { getSettings } from '@/lib/settings';
 import { splitFuelLogsByMonth } from '@/lib/fuel-utils';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 const QuickFuelLogSchema = z.object({
   vehicleId: z.string().min(1, 'Veuillez sélectionner un véhicule.'),
@@ -39,8 +40,42 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>(vehicles[0]?.id);
   const [currentMileage, setCurrentMileage] = useState<string>('');
+  const [totalCost, setTotalCost] = useState<string>('');
   const [gaugeLevelBefore, setGaugeLevelBefore] = useState<number>(12.5);
   const [isChartModalOpen, setIsChartModalOpen] = useState(false);
+
+  // Calcul dynamique des 3 montants les plus fréquents pour une sélection rapide
+  const frequentAmounts = useMemo(() => {
+    if (!selectedVehicleId) return [20, 30, 50];
+    const vehicleLogs = fuelLogs.filter(log => log.vehicleId === selectedVehicleId && log.totalCost > 0);
+    if (vehicleLogs.length === 0) return [20, 30, 50];
+
+    const counts = new Map<number, number>();
+    vehicleLogs.forEach(log => {
+      const rounded = Math.round(log.totalCost);
+      counts.set(rounded, (counts.get(rounded) || 0) + 1);
+    });
+
+    const sorted = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(entry => entry[0]);
+
+    const result: number[] = [];
+    for (const val of sorted) {
+      if (val >= 10 && !result.includes(val)) {
+        result.push(val);
+      }
+      if (result.length === 3) break;
+    }
+
+    const defaults = [20, 30, 50, 70, 100];
+    for (const d of defaults) {
+      if (result.length >= 3) break;
+      if (!result.includes(d)) result.push(d);
+    }
+
+    return result.sort((a, b) => a - b).slice(0, 3);
+  }, [selectedVehicleId, fuelLogs]);
 
   const handleOpenFuelTracking = () => {
     if (selectedVehicleId && onOpenVehicleFuel) {
@@ -193,6 +228,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
       (event.target as HTMLFormElement).reset();
       setSelectedVehicleId(vehicleId);
       setCurrentMileage('');
+      setTotalCost('');
       setGaugeLevelBefore(12.5);
 
     } catch (error) {
@@ -297,15 +333,48 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-5 items-end">
+          <div className="grid grid-cols-2 gap-5 items-start">
             <div className="w-full">
-              <label htmlFor="quick-cost" className="text-sm font-medium mb-2 block">Coût (TND)</label>
-              <Input id="quick-cost" name="totalCost" type="number" step="0.001" placeholder="ex: 50" required className="h-10 text-sm font-bold" />
+              <label htmlFor="quick-cost" className="text-sm font-medium mb-1.5 block">Coût (TND)</label>
+              <Input
+                id="quick-cost"
+                name="totalCost"
+                type="number"
+                step="0.001"
+                placeholder="ex: 50"
+                required
+                value={totalCost}
+                onChange={(e) => setTotalCost(e.target.value)}
+                className="h-10 text-sm font-bold"
+              />
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                {frequentAmounts.map((amt) => {
+                  const isSelected = totalCost === amt.toString();
+                  return (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setTotalCost(amt.toString())}
+                      className={cn(
+                        "px-2.5 py-0.5 text-xs font-semibold rounded-full border transition-all active:scale-95 cursor-pointer",
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                          : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border/70"
+                      )}
+                    >
+                      {amt} DT
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <Button type="submit" disabled={isSubmitting} className="w-full h-10 text-sm" size="sm">
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Fuel className="mr-2 h-4 w-4" />}
-              {isSubmitting ? '...' : 'Ajouter'}
-            </Button>
+            <div className="w-full">
+              <label className="text-sm font-medium mb-1.5 block invisible select-none">Action</label>
+              <Button type="submit" disabled={isSubmitting} className="w-full h-10 text-sm shadow-sm" size="sm">
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Fuel className="mr-2 h-4 w-4" />}
+                {isSubmitting ? '...' : 'Ajouter'}
+              </Button>
+            </div>
           </div>
         </form>
       </CardContent>
