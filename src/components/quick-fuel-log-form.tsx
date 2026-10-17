@@ -44,11 +44,11 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
   const [gaugeLevelBefore, setGaugeLevelBefore] = useState<number>(12.5);
   const [isChartModalOpen, setIsChartModalOpen] = useState(false);
 
-  // Calcul dynamique des 3 montants les plus fréquents pour une sélection rapide
+  // Calcul dynamique des 4 montants les plus fréquents pour une sélection rapide sur une ligne
   const frequentAmounts = useMemo(() => {
-    if (!selectedVehicleId) return [20, 30, 50];
+    if (!selectedVehicleId) return [20, 30, 50, 80];
     const vehicleLogs = fuelLogs.filter(log => log.vehicleId === selectedVehicleId && log.totalCost > 0);
-    if (vehicleLogs.length === 0) return [20, 30, 50];
+    if (vehicleLogs.length === 0) return [20, 30, 50, 80];
 
     const counts = new Map<number, number>();
     vehicleLogs.forEach(log => {
@@ -65,16 +65,16 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
       if (val >= 10 && !result.includes(val)) {
         result.push(val);
       }
-      if (result.length === 3) break;
+      if (result.length === 4) break;
     }
 
-    const defaults = [20, 30, 50, 70, 100];
+    const defaults = [20, 30, 50, 80, 100];
     for (const d of defaults) {
-      if (result.length >= 3) break;
+      if (result.length >= 4) break;
       if (!result.includes(d)) result.push(d);
     }
 
-    return result.sort((a, b) => a - b).slice(0, 3);
+    return result.sort((a, b) => a - b).slice(0, 4);
   }, [selectedVehicleId, fuelLogs]);
 
   const handleOpenFuelTracking = () => {
@@ -333,9 +333,34 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-5 items-start">
+          {/* 4 pastilles sur une même ligne */}
+          <div className="w-full">
+            <span className="text-xs text-muted-foreground font-medium mb-1.5 block">Montants fréquents</span>
+            <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+              {frequentAmounts.map((amt) => {
+                const isSelected = totalCost === amt.toString();
+                return (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setTotalCost(amt.toString())}
+                    className={cn(
+                      "py-1.5 px-1 text-xs sm:text-sm font-semibold rounded-lg border transition-all active:scale-95 text-center cursor-pointer",
+                      isSelected
+                        ? "bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary"
+                        : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border-border/70"
+                    )}
+                  >
+                    {amt} DT
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-5 items-end">
             <div className="w-full">
-              <label htmlFor="quick-cost" className="text-sm font-medium mb-1.5 block">Coût (TND)</label>
+              <label htmlFor="quick-cost" className="text-sm font-medium mb-2 block">Coût (TND)</label>
               <Input
                 id="quick-cost"
                 name="totalCost"
@@ -347,29 +372,8 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
                 onChange={(e) => setTotalCost(e.target.value)}
                 className="h-10 text-sm font-bold"
               />
-              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                {frequentAmounts.map((amt) => {
-                  const isSelected = totalCost === amt.toString();
-                  return (
-                    <button
-                      key={amt}
-                      type="button"
-                      onClick={() => setTotalCost(amt.toString())}
-                      className={cn(
-                        "px-2.5 py-0.5 text-xs font-semibold rounded-full border transition-all active:scale-95 cursor-pointer",
-                        isSelected
-                          ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                          : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border/70"
-                      )}
-                    >
-                      {amt} DT
-                    </button>
-                  );
-                })}
-              </div>
             </div>
             <div className="w-full">
-              <label className="text-sm font-medium mb-1.5 block invisible select-none">Action</label>
               <Button type="submit" disabled={isSubmitting} className="w-full h-10 text-sm shadow-sm" size="sm">
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Fuel className="mr-2 h-4 w-4" />}
                 {isSubmitting ? '...' : 'Ajouter'}
