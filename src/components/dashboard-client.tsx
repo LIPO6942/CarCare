@@ -639,9 +639,10 @@ export function DashboardClient() {
           showLogo={true}
         >
           <AddVehicleSheet onVehicleAdded={handleVehicleAdded}>
-            <Button>
-              <PlusCircle className="mr-2" />
-              Ajouter un véhicule
+            <Button size="sm" className="h-9 px-2.5 sm:px-4 text-xs sm:text-sm font-semibold shrink-0">
+              <PlusCircle className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Ajouter un véhicule</span>
+              <span className="sm:hidden ml-1">Ajouter</span>
             </Button>
           </AddVehicleSheet>
         </DashboardHeader>

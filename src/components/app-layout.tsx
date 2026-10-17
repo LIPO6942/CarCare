@@ -1,5 +1,4 @@
 import { Sidebar } from './sidebar';
-import { MobileSidebar } from './mobile-sidebar';
 import { FloatingChatbot } from './floating-chatbot';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -8,8 +7,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="hidden border-r bg-card lg:block">
         <Sidebar />
       </div>
-      <div className="flex flex-col">
-        <MobileSidebar />
+      <div className="flex flex-col min-w-0">
         {children}
       </div>
       <FloatingChatbot />
