@@ -19,8 +19,22 @@ function getCanonicalTask(task: string): 'assurance' | 'visite_technique' | 'vig
     return clean;
 }
 
-// Calcul de l'étape (J0, J-3, J-7, J-15, overdue) avec tolérance aux exécutions manquées
-function getStageAndDaysRemaining(dueDateStr: string, today: Date): { stage: 'j0' | 'j3' | 'j7' | 'j15' | 'overdue' | null; daysRemaining: number } {
+export type ReminderStage =
+    | 'j0'
+    | 'j3'
+    | 'j7'
+    | 'j15'
+    | 'overdue_1'
+    | 'overdue_2'
+    | 'overdue_3'
+    | 'overdue_7'
+    | 'overdue_14'
+    | 'overdue_30'
+    | 'overdue_60'
+    | null;
+
+// Calcul de l'étape (J0, J-3, J-7, J-15, overdue_1..60) avec tolérance aux exécutions manquées
+function getStageAndDaysRemaining(dueDateStr: string, today: Date): { stage: ReminderStage; daysRemaining: number } {
     const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
     const [y, m, d] = dueDateStr.split('-').map(Number);
     const dueMidnight = new Date(y, m - 1, d).getTime();
@@ -31,10 +45,16 @@ function getStageAndDaysRemaining(dueDateStr: string, today: Date): { stage: 'j0
     if (diffDays >= 4 && diffDays <= 7) return { stage: 'j7', daysRemaining: diffDays };
     if (diffDays >= 8 && diffDays <= 15) return { stage: 'j15', daysRemaining: diffDays };
     if (diffDays < 0) {
-        // Fenêtre active d'overdue (jusqu'à 90 jours de retard pour éviter les enregistrements abandonnés de plusieurs années)
-        if (diffDays >= -90) {
-            return { stage: 'overdue', daysRemaining: diffDays };
-        }
+        // Fenêtre active d'overdue (jusqu'à 60 jours de retard) :
+        // Relances quotidiennes rapprochées : J+1, J+2, J+3
+        if (diffDays === -1) return { stage: 'overdue_1', daysRemaining: -1 };
+        if (diffDays === -2) return { stage: 'overdue_2', daysRemaining: -2 };
+        if (diffDays === -3) return { stage: 'overdue_3', daysRemaining: -3 };
+        // Relances périodiques suivantes :
+        if (diffDays >= -7 && diffDays <= -4) return { stage: 'overdue_7', daysRemaining: diffDays };
+        if (diffDays >= -14 && diffDays <= -8) return { stage: 'overdue_14', daysRemaining: diffDays };
+        if (diffDays >= -30 && diffDays <= -15) return { stage: 'overdue_30', daysRemaining: diffDays };
+        if (diffDays >= -60 && diffDays <= -31) return { stage: 'overdue_60', daysRemaining: diffDays };
         return { stage: null, daysRemaining: diffDays };
     }
     return { stage: null, daysRemaining: diffDays };
@@ -282,15 +302,16 @@ export async function GET(request: Request) {
                 // Préparation du contenu du message
                 let title = 'Rappel Entretien';
                 let body = '';
-                const isUrgent = stage === 'j0' || stage === 'overdue';
+                const isUrgent = stage === 'j0' || (stage ? stage.startsWith('overdue') : false);
                 const requiresDoc = DOCUMENT_TASKS.has(task) || DOCUMENT_TASKS.has(getCanonicalTask(task));
 
-                if (stage === 'overdue') {
-                    title = `⚠️ Entretien en retard : ${task} (${vehicleName})`;
+                if (stage && stage.startsWith('overdue')) {
+                    const daysOverdue = Math.abs(daysRemaining);
+                    title = `⚠️ Entretien en retard (J+${daysOverdue}) : ${task} (${vehicleName})`;
                     if (requiresDoc) {
-                        body = `"${task}" pour ${vehicleName} aurait dû être fait le ${nextDueDate}. Payez dès que possible et ajoutez le justificatif dans la section Documents de l’application.`;
+                        body = `"${task}" pour ${vehicleName} aurait dû être fait le ${nextDueDate} (${daysOverdue} jour${daysOverdue > 1 ? 's' : ''} de retard). Payez dès que possible et ajoutez le justificatif dans la section Documents de l’application.`;
                     } else {
-                        body = `"${task}" pour ${vehicleName} aurait dû être fait le ${nextDueDate}. Effectuez-le dès que possible ou marquez-le comme fait avec sa vraie date dans l’application.`;
+                        body = `"${task}" pour ${vehicleName} aurait dû être fait le ${nextDueDate} (${daysOverdue} jour${daysOverdue > 1 ? 's' : ''} de retard). Effectuez-le dès que possible ou marquez-le comme fait avec sa vraie date dans l’application.`;
                     }
                 } else if (stage === 'j0') {
                     title = `🚨 Jour J : ${task} (${vehicleName})`;
@@ -336,7 +357,7 @@ export async function GET(request: Request) {
                     }
                 }
 
-                const targetUrl = requiresDoc && (stage === 'j0' || stage === 'overdue')
+                const targetUrl = requiresDoc && (stage === 'j0' || (stage ? stage.startsWith('overdue') : false))
                     ? `/documents?vehicleId=${vehicleId || ''}`
                     : `/maintenance?vehicleId=${vehicleId || ''}`;
                 const tag = `carcare-task-${doc.id}-${stage}`;
@@ -410,18 +431,20 @@ export async function GET(request: Request) {
             let nextVignetteDate: Date;
 
             if (existingVignetteDoc && existingVignetteDoc.data().date) {
-                nextVignetteDate = calculateNextVignetteDate(vehicle.licensePlate, new Date(existingVignetteDoc.data().date));
-                if (nextVignetteDate < today) {
-                    nextVignetteDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
+                const paymentDate = new Date(existingVignetteDoc.data().date);
+                if (paymentDate.getFullYear() === today.getFullYear()) {
+                    nextVignetteDate = calculateNextVignetteDate(vehicle.licensePlate, paymentDate);
+                } else {
+                    nextVignetteDate = getCorrectVignetteDeadline(vehicle.licensePlate, today, 60);
                 }
             } else {
-                nextVignetteDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
+                nextVignetteDate = getCorrectVignetteDeadline(vehicle.licensePlate, today, 60);
             }
 
             const calculatedString = formatDateToLocalISO(nextVignetteDate);
-            const { stage } = getStageAndDaysRemaining(calculatedString, today);
+            const { stage, daysRemaining } = getStageAndDaysRemaining(calculatedString, today);
 
-            if (stage && stage !== 'overdue') { // Les vignettes synthétiques n'envoient pas d'overdue permanent
+            if (stage) {
                 const virtualId = existingVignetteDoc ? existingVignetteDoc.id : `synthetic-vignette-${vehicleId}`;
                 const logKey = `${virtualId}_${stage}_${calculatedString}`;
                 const existingLog = await getNotifLog(logKey);
@@ -466,7 +489,11 @@ export async function GET(request: Request) {
                 let title = `Rappel Vignette (${vehicleName})`;
                 let body = `La date limite de la vignette (${nextVignetteDate.toLocaleDateString('fr-FR')}) approche pour ${vehicleName}.`;
 
-                if (stage === 'j0') {
+                if (stage.startsWith('overdue')) {
+                    const daysOverdue = Math.abs(daysRemaining);
+                    title = `⚠️ Vignette en retard (J+${daysOverdue}) : ${vehicleName}`;
+                    body = `La date limite de la Vignette (${nextVignetteDate.toLocaleDateString('fr-FR')}) pour ${vehicleName} est dépassée de ${daysOverdue} jour${daysOverdue > 1 ? 's' : ''}. Réglez-la dès que possible pour éviter les pénalités et ajoutez le reçu dans « Documents ».`;
+                } else if (stage === 'j0') {
                     title = `🚨 Jour J : Vignette (${vehicleName})`;
                     body = `Aujourd’hui est la date limite officielle pour le paiement de la Vignette de ${vehicleName}. Après le paiement, ajoutez immédiatement le reçu dans la section « Documents » de l’application.`;
                 } else if (stage === 'j3') {
@@ -484,7 +511,7 @@ export async function GET(request: Request) {
                 }
 
                 const targetUrl = `/documents?vehicleId=${vehicleId}`;
-                const isUrgent = stage === 'j0';
+                const isUrgent = stage === 'j0' || stage.startsWith('overdue');
                 const tag = `vignette-${vehicleId}-${stage}-${nextVignetteDate.getFullYear()}`;
 
                 messagesToSend.push({
@@ -574,35 +601,60 @@ export async function GET(request: Request) {
             let body = '';
             let isUrgent = false;
             let estimatedDateString: string = '';
+            let daysRemaining: number = 0;
+
+            const estimatedDate = avgKmPerDay ? estimateVidangeDate(latestEvent.mileage, nextDueMileage, avgKmPerDay) : null;
+            if (estimatedDate) {
+                estimatedDateString = formatDateToLocalISO(estimatedDate);
+                daysRemaining = getDaysRemaining(estimatedDate, today);
+            }
 
             if (kmRemaining <= 0) {
-                stageTag = 'overdue';
+                const absDays = daysRemaining < 0 ? Math.abs(daysRemaining) : 1;
+                if (absDays === 1) stageTag = 'overdue_1';
+                else if (absDays === 2) stageTag = 'overdue_2';
+                else if (absDays === 3) stageTag = 'overdue_3';
+                else if (absDays <= 7) stageTag = 'overdue_7';
+                else if (absDays <= 14) stageTag = 'overdue_14';
+                else if (absDays <= 30) stageTag = 'overdue_30';
+                else stageTag = 'overdue_60';
+
                 isUrgent = true;
-                title = `⚠️ Vidange Dépassée : ${vehicleName}`;
-                body = `Vous avez dépassé les ${nextDueMileage.toLocaleString('fr-FR')} km prévus pour la vidange (actuel : ${latestEvent.mileage.toLocaleString('fr-FR')} km). Effectuez-la dès que possible ou marquez-la comme faite dans l’application.`;
-            } else if (avgKmPerDay) {
-                const estimatedDate = estimateVidangeDate(latestEvent.mileage, nextDueMileage, avgKmPerDay);
-                if (estimatedDate) {
-                    estimatedDateString = formatDateToLocalISO(estimatedDate);
-                    const daysRemaining = getDaysRemaining(estimatedDate, today);
-                    if (daysRemaining <= 0) {
-                        stageTag = 'j0';
-                        isUrgent = true;
-                        title = `🚨 Jour J : Vidange requise (${vehicleName})`;
-                        body = `La vidange est due aujourd'hui selon votre rythme (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
-                    } else if (daysRemaining <= 3) {
-                        stageTag = 'j3';
-                        title = `Rappel J-3 : Vidange (${vehicleName})`;
-                        body = `Vidange estimée dans ${daysRemaining} jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
-                    } else if (daysRemaining <= 7) {
-                        stageTag = 'j7';
-                        title = `Rappel J-7 : Vidange (${vehicleName})`;
-                        body = `Vidange estimée dans une semaine (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
-                    } else if (daysRemaining <= 15) {
-                        stageTag = 'j15';
-                        title = `Rappel J-15 : Vidange (${vehicleName})`;
-                        body = `Vidange prévue dans environ 15 jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
-                    }
+                const kmDepasse = Math.abs(kmRemaining).toLocaleString('fr-FR');
+                const daysOverdueText = daysRemaining < 0 ? ` (J+${Math.abs(daysRemaining)})` : '';
+                title = `⚠️ Vidange Dépassée${daysOverdueText} : ${vehicleName}`;
+                body = `Vous avez dépassé de ${kmDepasse} km la limite prévue pour la vidange (actuel : ${latestEvent.mileage.toLocaleString('fr-FR')} km / prévu : ${nextDueMileage.toLocaleString('fr-FR')} km). Effectuez-la dès que possible ou marquez-la comme faite dans l’application.`;
+            } else if (estimatedDate && daysRemaining < 0) {
+                const absDays = Math.abs(daysRemaining);
+                if (absDays === 1) stageTag = 'overdue_1';
+                else if (absDays === 2) stageTag = 'overdue_2';
+                else if (absDays === 3) stageTag = 'overdue_3';
+                else if (absDays <= 7) stageTag = 'overdue_7';
+                else if (absDays <= 14) stageTag = 'overdue_14';
+                else if (absDays <= 30) stageTag = 'overdue_30';
+                else stageTag = 'overdue_60';
+
+                isUrgent = true;
+                title = `⚠️ Vidange en retard (J+${absDays}) : ${vehicleName}`;
+                body = `Selon votre rythme de conduite, votre vidange aurait dû être faite le ${formatDateToFrench(estimatedDate)} (${absDays} jour${absDays > 1 ? 's' : ''} de retard). Reste ${kmRemaining.toLocaleString('fr-FR')} km avant le terme. Pensez à l'effectuer dès que possible.`;
+            } else if (estimatedDate) {
+                if (daysRemaining === 0) {
+                    stageTag = 'j0';
+                    isUrgent = true;
+                    title = `🚨 Jour J : Vidange requise (${vehicleName})`;
+                    body = `La vidange est due aujourd'hui selon votre rythme (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                } else if (daysRemaining <= 3) {
+                    stageTag = 'j3';
+                    title = `Rappel J-3 : Vidange (${vehicleName})`;
+                    body = `Vidange estimée dans ${daysRemaining} jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                } else if (daysRemaining <= 7) {
+                    stageTag = 'j7';
+                    title = `Rappel J-7 : Vidange (${vehicleName})`;
+                    body = `Vidange estimée dans une semaine (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
+                } else if (daysRemaining <= 15) {
+                    stageTag = 'j15';
+                    title = `Rappel J-15 : Vidange (${vehicleName})`;
+                    body = `Vidange prévue dans environ 15 jours (${formatDateToFrench(estimatedDate)}). Reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
                 }
             }
 

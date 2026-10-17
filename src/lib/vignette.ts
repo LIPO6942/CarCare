@@ -25,14 +25,20 @@ function getVignetteRules(licensePlate: string) {
  *
  * Rules:
  *  - If today ≤ this year's fixed vignette date → return this year's date.
- *  - If today > this year's fixed vignette date → return next year's date.
+ *  - If today > this year's fixed vignette date, but within maxOverdueDays (default 60 days)
+ *    → return this year's date so overdue status and alerts (J+1, J+2...) function properly.
+ *  - If today is past maxOverdueDays → rollover to next year's date.
  *
- * This is the source-of-truth for dashboard deadline display.
+ * This is the source-of-truth for dashboard deadline display and reminders.
  */
-export function getCorrectVignetteDeadline(licensePlate: string, today: Date = new Date()): Date {
+export function getCorrectVignetteDeadline(licensePlate: string, today: Date = new Date(), maxOverdueDays: number = 60): Date {
     const rules = getVignetteRules(licensePlate);
     const thisYearDeadline = new Date(today.getFullYear(), rules.month, rules.day);
     if (today <= thisYearDeadline) {
+        return thisYearDeadline;
+    }
+    const diffDays = Math.round((today.getTime() - thisYearDeadline.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays <= maxOverdueDays) {
         return thisYearDeadline;
     }
     return new Date(today.getFullYear() + 1, rules.month, rules.day);

@@ -148,9 +148,20 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
                 let isUrgent = false;
 
                 if (kmRemaining <= 0) {
-                    title = `⚠️ VIDANGE ÉCHUE : ${vehicleName}`;
+                    const daysRemaining = (avgKmPerDay && vehicleMileage)
+                        ? getDaysRemaining(estimateVidangeDate(vehicleMileage.mileage, task.nextDueMileage, avgKmPerDay) || today, today)
+                        : -1;
+                    const absDays = Math.max(1, Math.abs(daysRemaining));
+                    if (absDays === 1) stageTag = 'overdue_1';
+                    else if (absDays === 2) stageTag = 'overdue_2';
+                    else if (absDays === 3) stageTag = 'overdue_3';
+                    else if (absDays <= 7) stageTag = 'overdue_7';
+                    else if (absDays <= 14) stageTag = 'overdue_14';
+                    else if (absDays <= 30) stageTag = 'overdue_30';
+                    else stageTag = 'overdue_60';
+
+                    title = `⚠️ Vidange Dépassée (J+${absDays}) : ${vehicleName}`;
                     body = `Le kilométrage prévu (${task.nextDueMileage.toLocaleString('fr-FR')} km) a été dépassé ! Kilométrage actuel: ${vehicleMileage.mileage.toLocaleString('fr-FR')} km.`;
-                    stageTag = 'overdue';
                     isUrgent = true;
                 } else if (avgKmPerDay) {
                     const estimatedDate = estimateVidangeDate(vehicleMileage.mileage, task.nextDueMileage, avgKmPerDay);
@@ -158,9 +169,17 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
                         const daysRemaining = getDaysRemaining(estimatedDate, today);
 
                         if (daysRemaining < 0) {
-                            title = `⚠️ VIDANGE ÉCHUE : ${vehicleName}`;
-                            body = `Votre vidange aurait dû être faite le ${formatDateToFrench(estimatedDate)}. Dépassement estimé !`;
-                            stageTag = 'overdue';
+                            const absDays = Math.abs(daysRemaining);
+                            if (absDays === 1) stageTag = 'overdue_1';
+                            else if (absDays === 2) stageTag = 'overdue_2';
+                            else if (absDays === 3) stageTag = 'overdue_3';
+                            else if (absDays <= 7) stageTag = 'overdue_7';
+                            else if (absDays <= 14) stageTag = 'overdue_14';
+                            else if (absDays <= 30) stageTag = 'overdue_30';
+                            else stageTag = 'overdue_60';
+
+                            title = `⚠️ Vidange en retard (J+${absDays}) : ${vehicleName}`;
+                            body = `Votre vidange aurait dû être faite le ${formatDateToFrench(estimatedDate)} (${absDays} jour${absDays > 1 ? 's' : ''} de retard). Dépassement estimé !`;
                             isUrgent = true;
                         } else if (daysRemaining <= 1) {
                             title = `🚨 Jour J : Vidange pour ${vehicleName}`;
@@ -233,15 +252,18 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
 
             // --- Logic 2: Date-Based Reminders (Vignette, Assurance, Visite Technique, etc.) ---
             let dueDate: Date | null = null;
-            const isPaid = !task.id.startsWith('synthetic-');
 
             if (task.task === 'Vignette') {
                 if (vehicle && vehicle.licensePlate) {
                     if (task.date) {
                         const paymentDate = new Date(task.date);
-                        const officialDeadline = new Date(paymentDate.getFullYear(), getVignetteRules(vehicle.licensePlate).month, getVignetteRules(vehicle.licensePlate).day);
-                        dueDate = calculateNextVignetteDate(vehicle.licensePlate, paymentDate);
+                        if (paymentDate.getFullYear() === today.getFullYear()) {
+                            dueDate = calculateNextVignetteDate(vehicle.licensePlate, paymentDate);
+                        } else {
+                            dueDate = getCorrectVignetteDeadline(vehicle.licensePlate, today, 60);
+                        }
 
+                        const officialDeadline = new Date(paymentDate.getFullYear(), getVignetteRules(vehicle.licensePlate).month, getVignetteRules(vehicle.licensePlate).day);
                         const isOfficialDeadlineToday = officialDeadline.getFullYear() === today.getFullYear() &&
                             officialDeadline.getMonth() === today.getMonth() &&
                             officialDeadline.getDate() === today.getDate();
@@ -263,7 +285,7 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
                             }
                         }
                     } else {
-                        dueDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
+                        dueDate = getCorrectVignetteDeadline(vehicle.licensePlate, today, 60);
                     }
                 } else if (task.nextDueDate) {
                     dueDate = new Date(task.nextDueDate);
@@ -282,17 +304,27 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
             let stageTag = '';
             let isUrgent = false;
 
-            if (daysRemaining < 0 && !isPaid) {
-                title = `⚠️ ÉCHÉANCE DÉPASSÉE : ${task.task} (${vehicleName})`;
-                body = `L'échéance pour "${task.task}" est dépassée depuis le ${dueDate.toLocaleDateString('fr-FR')}. Action requise !`;
-                stageTag = 'overdue';
-                isUrgent = true;
-            } else if (daysRemaining <= 1 && (!isPaid || daysRemaining === 0)) {
+            if (daysRemaining < 0) {
+                const absDays = Math.abs(daysRemaining);
+                if (absDays === 1) stageTag = 'overdue_1';
+                else if (absDays === 2) stageTag = 'overdue_2';
+                else if (absDays === 3) stageTag = 'overdue_3';
+                else if (absDays <= 7) stageTag = 'overdue_7';
+                else if (absDays <= 14) stageTag = 'overdue_14';
+                else if (absDays <= 30) stageTag = 'overdue_30';
+                else if (absDays <= 60) stageTag = 'overdue_60';
+
+                if (stageTag) {
+                    title = `⚠️ Entretien en retard (J+${absDays}) : ${task.task} (${vehicleName})`;
+                    body = `L'échéance pour "${task.task}" est dépassée depuis le ${dueDate.toLocaleDateString('fr-FR')} (${absDays} jour${absDays > 1 ? 's' : ''} de retard). Action requise !`;
+                    isUrgent = true;
+                }
+            } else if (daysRemaining === 0 || daysRemaining === 1) {
                 title = `🚨 Jour J : ${task.task} (${vehicleName})`;
                 body = `C'est aujourd'hui la date limite pour "${task.task}" (${dueDate.toLocaleDateString('fr-FR')}).`;
                 stageTag = 'j0';
                 isUrgent = true;
-            } else if (daysRemaining <= 3 && !isPaid) {
+            } else if (daysRemaining <= 3) {
                 stageTag = 'j3';
                 const anticipation = getDeadlineAnticipationInfo(dueDate);
                 if (anticipation.isNonWorking) {
@@ -302,7 +334,7 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
                     title = `Rappel J-3 : ${task.task} (${vehicleName})`;
                     body = `L'échéance "${task.task}" arrive dans ${daysRemaining} jour(s) (${dueDate.toLocaleDateString('fr-FR')}).`;
                 }
-            } else if (daysRemaining <= 7 && !isPaid) {
+            } else if (daysRemaining <= 7) {
                 stageTag = 'j7';
                 const anticipation = getDeadlineAnticipationInfo(dueDate);
                 if (anticipation.isNonWorking) {
@@ -312,7 +344,7 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
                     title = `Rappel J-7 : ${task.task} (${vehicleName})`;
                     body = `N'oubliez pas : "${task.task}" est à faire avant le ${dueDate.toLocaleDateString('fr-FR')}.`;
                 }
-            } else if (daysRemaining <= 15 && !isPaid) {
+            } else if (daysRemaining <= 15) {
                 stageTag = 'j15';
                 const anticipation = getDeadlineAnticipationInfo(dueDate);
                 if (anticipation.isNonWorking) {
