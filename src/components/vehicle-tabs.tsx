@@ -820,6 +820,9 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
         if (rawData.task === 'Vignette' && typeof rawData.date === 'string') {
             const calculatedNext = calculateNextVignetteDate(vehicle.licensePlate || '', new Date(rawData.date));
             rawData.nextDueDate = formatDateToLocalISO(calculatedNext);
+        } else if (rawData.task === 'Visite technique' && typeof rawData.date === 'string' && !rawData.nextDueDate) {
+            const [y, m, d] = (rawData.date as string).split('-').map(Number);
+            rawData.nextDueDate = formatDateToLocalISO(new Date(y + 1, m - 1, d));
         }
 
         const validatedFields = MaintenanceSchema.safeParse(rawData);

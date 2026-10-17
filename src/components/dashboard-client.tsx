@@ -962,9 +962,10 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
       } else if (canonicalTask === 'vignette') {
         nextMaintenanceData.nextDueDate = formatDateToLocalISO(calculateNextVignetteDate(vehicle.licensePlate, new Date(addedMaintenance.date)));
       } else if (canonicalTask === 'visite_technique') {
-        const baseDate = deadline.originalTask.nextDueDate ? new Date(deadline.originalTask.nextDueDate) : new Date(today);
-        baseDate.setFullYear(baseDate.getFullYear() + 1);
-        nextMaintenanceData.nextDueDate = formatDateToLocalISO(baseDate);
+        // La visite technique est valide exactement 1 an à compter du jour où l'entretien est effectué/réglé
+        const [y, m, d] = today.split('-').map(Number);
+        const nextDate = new Date(y + 1, m - 1, d);
+        nextMaintenanceData.nextDueDate = formatDateToLocalISO(nextDate);
       } else if (canonicalTask === 'assurance') {
         let monthsToAdd = 12; // défaut annuel
         if (deadline.originalTask.nextDueDate && deadline.originalTask.date) {
