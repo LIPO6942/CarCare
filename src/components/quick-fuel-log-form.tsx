@@ -213,28 +213,30 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
 
   return (
     <Card className="shadow-sm">
-      <CardHeader className="pb-4 pt-6 px-6">
+      <CardHeader className="pb-3 pt-5 px-4 sm:px-6">
         <div className="flex justify-between items-center flex-wrap gap-2">
-          <CardTitle className="text-xl flex items-center gap-1 flex-wrap">
-            <span>Ajout rapide</span>
-            <button
-              type="button"
-              onClick={handleOpenFuelTracking}
-              className="text-primary hover:underline decoration-primary/30 underline-offset-4 transition-all hover:text-primary/80 active:scale-95 px-1 rounded hover:bg-primary/5"
-            >
-              carburant
-            </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-1 whitespace-nowrap">
+              <span>Ajout rapide</span>
+              <button
+                type="button"
+                onClick={handleOpenFuelTracking}
+                className="text-primary hover:underline decoration-primary/30 underline-offset-4 transition-all hover:text-primary/80 active:scale-95 px-1 rounded hover:bg-primary/5"
+              >
+                carburant
+              </button>
+            </CardTitle>
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10 ml-1"
+              className="h-7 w-7 sm:h-8 sm:w-8 text-primary hover:text-primary hover:bg-primary/10 shrink-0"
               onClick={() => setIsChartModalOpen(true)}
               title="Voir l'évolution mensuelle"
             >
-              <LineChart className="h-5 w-5" />
+              <LineChart className="h-4 w-4 sm:h-5 sm:w-5" />
             </Button>
-          </CardTitle>
+          </div>
           <span className="text-xs text-muted-foreground">{lastFuelLogInfo}</span>
         </div>
       </CardHeader>
