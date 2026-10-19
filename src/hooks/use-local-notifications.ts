@@ -4,9 +4,10 @@ import { useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { getAllUserMaintenance, getAllUserRepairs, getAllUserFuelLogs, getVehicles } from '@/lib/data';
 import type { Maintenance } from '@/lib/types';
-import { calculateNextVignetteDate, getCorrectVignetteDeadline, getVignetteRules } from '@/lib/vignette';
+import { calculateNextVignetteDate, getCorrectVignetteDeadline, getVignetteRules, formatDateToLocalISO } from '@/lib/vignette';
 import { calculateAverageKmPerDay, estimateVidangeDate, formatDateToFrench, getDaysRemaining } from '@/lib/vidange';
 import { getDeadlineAnticipationInfo } from '@/lib/tunisia-holidays';
+import { getReminderStageAndDays, isDeadlineAlreadyCompleted, getCanonicalTask } from '@/lib/reminder-utils';
 import { useToast, toast as globalToast } from './use-toast';
 
 const NOTIFICATION_SNOOZE_KEY = 'carcarepro_notified_deadlines';
@@ -155,14 +156,16 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
                     if (absDays === 1) stageTag = 'overdue_1';
                     else if (absDays === 2) stageTag = 'overdue_2';
                     else if (absDays === 3) stageTag = 'overdue_3';
-                    else if (absDays <= 7) stageTag = 'overdue_7';
-                    else if (absDays <= 14) stageTag = 'overdue_14';
-                    else if (absDays <= 30) stageTag = 'overdue_30';
-                    else stageTag = 'overdue_60';
+                    else if (absDays === 7) stageTag = 'overdue_7';
+                    else if (absDays === 14) stageTag = 'overdue_14';
+                    else if (absDays === 30) stageTag = 'overdue_30';
+                    else if (absDays === 60) stageTag = 'overdue_60';
 
-                    title = `⚠️ Vidange Dépassée (J+${absDays}) : ${vehicleName}`;
-                    body = `Le kilométrage prévu (${task.nextDueMileage.toLocaleString('fr-FR')} km) a été dépassé ! Kilométrage actuel: ${vehicleMileage.mileage.toLocaleString('fr-FR')} km.`;
-                    isUrgent = true;
+                    if (stageTag) {
+                        title = `⚠️ Vidange Dépassée (J+${absDays}) : ${vehicleName}`;
+                        body = `Le kilométrage prévu (${task.nextDueMileage.toLocaleString('fr-FR')} km) a été dépassé ! Kilométrage actuel: ${vehicleMileage.mileage.toLocaleString('fr-FR')} km.`;
+                        isUrgent = true;
+                    }
                 } else if (avgKmPerDay) {
                     const estimatedDate = estimateVidangeDate(vehicleMileage.mileage, task.nextDueMileage, avgKmPerDay);
                     if (estimatedDate) {
@@ -173,14 +176,16 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
                             if (absDays === 1) stageTag = 'overdue_1';
                             else if (absDays === 2) stageTag = 'overdue_2';
                             else if (absDays === 3) stageTag = 'overdue_3';
-                            else if (absDays <= 7) stageTag = 'overdue_7';
-                            else if (absDays <= 14) stageTag = 'overdue_14';
-                            else if (absDays <= 30) stageTag = 'overdue_30';
-                            else stageTag = 'overdue_60';
+                            else if (absDays === 7) stageTag = 'overdue_7';
+                            else if (absDays === 14) stageTag = 'overdue_14';
+                            else if (absDays === 30) stageTag = 'overdue_30';
+                            else if (absDays === 60) stageTag = 'overdue_60';
 
-                            title = `⚠️ Vidange en retard (J+${absDays}) : ${vehicleName}`;
-                            body = `Votre vidange aurait dû être faite le ${formatDateToFrench(estimatedDate)} (${absDays} jour${absDays > 1 ? 's' : ''} de retard). Dépassement estimé !`;
-                            isUrgent = true;
+                            if (stageTag) {
+                                title = `⚠️ Vidange en retard (J+${absDays}) : ${vehicleName}`;
+                                body = `Votre vidange aurait dû être faite le ${formatDateToFrench(estimatedDate)} (${absDays} jour${absDays > 1 ? 's' : ''} de retard). Dépassement estimé !`;
+                                isUrgent = true;
+                            }
                         } else if (daysRemaining <= 1) {
                             title = `🚨 Jour J : Vidange pour ${vehicleName}`;
                             body = `La vidange est dûe maintenant (${formatDateToFrench(estimatedDate)}). Il reste ${kmRemaining.toLocaleString('fr-FR')} km.`;
@@ -251,6 +256,7 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
             }
 
             // --- Logic 2: Date-Based Reminders (Vignette, Assurance, Visite Technique, etc.) ---
+            let dueDateStr: string | null = null;
             let dueDate: Date | null = null;
 
             if (task.task === 'Vignette') {
@@ -287,72 +293,66 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
                     } else {
                         dueDate = getCorrectVignetteDeadline(vehicle.licensePlate, today, 60);
                     }
+                    if (dueDate) {
+                        dueDateStr = formatDateToLocalISO(dueDate);
+                    }
                 } else if (task.nextDueDate) {
+                    dueDateStr = task.nextDueDate;
                     dueDate = new Date(task.nextDueDate);
                 }
             } else if (task.nextDueDate) {
+                // Vérifier si cette tâche est déjà couverte par un renouvellement ultérieur
+                const sameTaskGroup = allMaintenanceTasks.filter(m => m.vehicleId === task.vehicleId && getCanonicalTask(m.task) === getCanonicalTask(task.task));
+                if (isDeadlineAlreadyCompleted(task, sameTaskGroup).isCompleted) {
+                    continue;
+                }
+                dueDateStr = task.nextDueDate;
                 dueDate = new Date(task.nextDueDate);
             }
 
-            if (!dueDate || isNaN(dueDate.getTime())) continue;
+            if (!dueDateStr) continue;
 
-            const daysRemaining = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            const dueDateStr = dueDate.toISOString().split('T')[0];
+            // Utiliser le calcul calendaire strict partagé (sans décalage UTC / heure locale)
+            const { stage: stageTag, daysRemaining } = getReminderStageAndDays(dueDateStr, today);
+            if (!stageTag) continue;
 
+            const daysOverdue = Math.abs(daysRemaining);
             let title = '';
             let body = '';
-            let stageTag = '';
-            let isUrgent = false;
+            let isUrgent = stageTag === 'j0' || stageTag.startsWith('overdue');
 
-            if (daysRemaining < 0) {
-                const absDays = Math.abs(daysRemaining);
-                if (absDays === 1) stageTag = 'overdue_1';
-                else if (absDays === 2) stageTag = 'overdue_2';
-                else if (absDays === 3) stageTag = 'overdue_3';
-                else if (absDays <= 7) stageTag = 'overdue_7';
-                else if (absDays <= 14) stageTag = 'overdue_14';
-                else if (absDays <= 30) stageTag = 'overdue_30';
-                else if (absDays <= 60) stageTag = 'overdue_60';
-
-                if (stageTag) {
-                    title = `⚠️ Entretien en retard (J+${absDays}) : ${task.task} (${vehicleName})`;
-                    body = `L'échéance pour "${task.task}" est dépassée depuis le ${dueDate.toLocaleDateString('fr-FR')} (${absDays} jour${absDays > 1 ? 's' : ''} de retard). Action requise !`;
-                    isUrgent = true;
-                }
-            } else if (daysRemaining === 0 || daysRemaining === 1) {
+            if (stageTag.startsWith('overdue')) {
+                title = `⚠️ Entretien en retard (J+${daysOverdue}) : ${task.task} (${vehicleName})`;
+                body = `L'échéance pour "${task.task}" est dépassée depuis le ${dueDate ? dueDate.toLocaleDateString('fr-FR') : dueDateStr} (${daysOverdue} jour${daysOverdue > 1 ? 's' : ''} de retard). Action requise !`;
+            } else if (stageTag === 'j0') {
                 title = `🚨 Jour J : ${task.task} (${vehicleName})`;
-                body = `C'est aujourd'hui la date limite pour "${task.task}" (${dueDate.toLocaleDateString('fr-FR')}).`;
-                stageTag = 'j0';
-                isUrgent = true;
-            } else if (daysRemaining <= 3) {
-                stageTag = 'j3';
-                const anticipation = getDeadlineAnticipationInfo(dueDate);
+                body = `C'est aujourd'hui la date limite pour "${task.task}" (${dueDate ? dueDate.toLocaleDateString('fr-FR') : dueDateStr}).`;
+            } else if (stageTag === 'j3') {
+                const anticipation = getDeadlineAnticipationInfo(dueDate || dueDateStr);
                 if (anticipation.isNonWorking) {
                     title = `⚠️ Rappel J-3 (${anticipation.dayName}) : ${task.task} (${vehicleName})`;
                     body = `L'échéance "${task.task}" arrive dans ${daysRemaining} jour(s). ${anticipation.warningText}`;
                 } else {
                     title = `Rappel J-3 : ${task.task} (${vehicleName})`;
-                    body = `L'échéance "${task.task}" arrive dans ${daysRemaining} jour(s) (${dueDate.toLocaleDateString('fr-FR')}).`;
+                    body = `L'échéance "${task.task}" arrive dans ${daysRemaining} jour(s) (${dueDate ? dueDate.toLocaleDateString('fr-FR') : dueDateStr}).`;
                 }
-            } else if (daysRemaining <= 7) {
-                stageTag = 'j7';
-                const anticipation = getDeadlineAnticipationInfo(dueDate);
+            } else if (stageTag === 'j7') {
+                const anticipation = getDeadlineAnticipationInfo(dueDate || dueDateStr);
                 if (anticipation.isNonWorking) {
                     title = `Rappel J-7 : ${task.task} (${vehicleName})`;
                     body = `N'oubliez pas : "${task.task}" est à faire pour le ${anticipation.dueDateFormatted}. ${anticipation.warningText}`;
                 } else {
                     title = `Rappel J-7 : ${task.task} (${vehicleName})`;
-                    body = `N'oubliez pas : "${task.task}" est à faire avant le ${dueDate.toLocaleDateString('fr-FR')}.`;
+                    body = `N'oubliez pas : "${task.task}" est à faire avant le ${dueDate ? dueDate.toLocaleDateString('fr-FR') : dueDateStr}.`;
                 }
-            } else if (daysRemaining <= 15) {
-                stageTag = 'j15';
-                const anticipation = getDeadlineAnticipationInfo(dueDate);
+            } else if (stageTag === 'j15') {
+                const anticipation = getDeadlineAnticipationInfo(dueDate || dueDateStr);
                 if (anticipation.isNonWorking) {
                     title = `Rappel J-15 : ${task.task} (${vehicleName})`;
                     body = `Pensez à planifier : "${task.task}" est prévu le ${anticipation.dueDateFormatted}. ${anticipation.warningText}`;
                 } else {
                     title = `Rappel J-15 : ${task.task} (${vehicleName})`;
-                    body = `Pensez à planifier : "${task.task}" est prévu le ${dueDate.toLocaleDateString('fr-FR')}.`;
+                    body = `Pensez à planifier : "${task.task}" est prévu le ${dueDate ? dueDate.toLocaleDateString('fr-FR') : dueDateStr}.`;
                 }
             }
 

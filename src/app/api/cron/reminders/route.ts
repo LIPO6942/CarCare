@@ -4,106 +4,51 @@ import { adminDb, adminMessaging } from '@/lib/firebase-admin';
 import { calculateNextVignetteDate, formatDateToLocalISO, getCorrectVignetteDeadline } from '@/lib/vignette';
 import { calculateAverageKmPerDay, estimateVidangeDate, formatDateToFrench, getDaysRemaining } from '@/lib/vidange';
 import { getDeadlineAnticipationInfo } from '@/lib/tunisia-holidays';
+import {
+    ReminderStage,
+    getCanonicalTask,
+    isDocumentTask,
+    getReminderStageAndDays,
+    buildNotificationLogKey,
+    isDeadlineAlreadyCompleted,
+    buildReminderMessage,
+    buildVignetteMessage,
+} from '@/lib/reminder-utils';
 
 const NOTIF_LOGS_COLLECTION = 'notificationLogs';
+const DIAGNOSTICS_COLLECTION = 'reminderDiagnostics';
+const MAX_PENDING_ATTEMPTS = 5;
+const IN_PROGRESS_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes lock timeout
 
-// Normalisation canonique des tâches pour regrouper les variantes de libellés
-function getCanonicalTask(task: string): 'assurance' | 'visite_technique' | 'vignette' | 'vidange' | string {
-    if (!task) return '';
-    const clean = task.trim().toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // suppression des accents
-    if (clean.includes('assurance')) return 'assurance';
-    if (clean.includes('visite') || clean.includes('controle')) return 'visite_technique';
-    if (clean.includes('vignette')) return 'vignette';
-    if (clean.includes('vidange')) return 'vidange';
-    return clean;
-}
-
-export type ReminderStage =
-    | 'j0'
-    | 'j3'
-    | 'j7'
-    | 'j15'
-    | 'overdue_1'
-    | 'overdue_2'
-    | 'overdue_3'
-    | 'overdue_7'
-    | 'overdue_14'
-    | 'overdue_30'
-    | 'overdue_60'
-    | null;
-
-// Calcul de l'étape (J0, J-3, J-7, J-15, overdue_1..60) avec tolérance aux exécutions manquées
-function getStageAndDaysRemaining(dueDateStr: string, today: Date): { stage: ReminderStage; daysRemaining: number } {
-    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-    const [y, m, d] = dueDateStr.split('-').map(Number);
-    const dueMidnight = new Date(y, m - 1, d).getTime();
-    const diffDays = Math.round((dueMidnight - todayMidnight) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return { stage: 'j0', daysRemaining: 0 };
-    if (diffDays >= 1 && diffDays <= 3) return { stage: 'j3', daysRemaining: diffDays };
-    if (diffDays >= 4 && diffDays <= 7) return { stage: 'j7', daysRemaining: diffDays };
-    if (diffDays >= 8 && diffDays <= 15) return { stage: 'j15', daysRemaining: diffDays };
-    if (diffDays < 0) {
-        // Fenêtre active d'overdue (jusqu'à 60 jours de retard) :
-        // Relances quotidiennes rapprochées : J+1, J+2, J+3
-        if (diffDays === -1) return { stage: 'overdue_1', daysRemaining: -1 };
-        if (diffDays === -2) return { stage: 'overdue_2', daysRemaining: -2 };
-        if (diffDays === -3) return { stage: 'overdue_3', daysRemaining: -3 };
-        // Relances périodiques suivantes :
-        if (diffDays >= -7 && diffDays <= -4) return { stage: 'overdue_7', daysRemaining: diffDays };
-        if (diffDays >= -14 && diffDays <= -8) return { stage: 'overdue_14', daysRemaining: diffDays };
-        if (diffDays >= -30 && diffDays <= -15) return { stage: 'overdue_30', daysRemaining: diffDays };
-        if (diffDays >= -60 && diffDays <= -31) return { stage: 'overdue_60', daysRemaining: diffDays };
-        return { stage: null, daysRemaining: diffDays };
-    }
-    return { stage: null, daysRemaining: diffDays };
-}
-
-// Vérifie si une échéance donnée a déjà été couverte ou renouvelée par un entretien postérieur
-function isDeadlineAlreadyCompleted(
-    candidateDoc: FirebaseFirestore.QueryDocumentSnapshot,
-    allMaintenancesForVehicleAndTask: FirebaseFirestore.QueryDocumentSnapshot[]
-): { isCompleted: boolean; reason?: string } {
-    const candidateData = candidateDoc.data();
-    const candidateDueDate = candidateData.nextDueDate;
-    if (!candidateDueDate) {
-        return { isCompleted: true, reason: 'Pas de date d\'échéance future' };
-    }
-
-    const candidateDueDateMs = new Date(candidateDueDate).getTime();
-    const candidateDateMs = new Date(candidateData.date || 0).getTime();
-
-    for (const other of allMaintenancesForVehicleAndTask) {
-        if (other.id === candidateDoc.id) continue;
-        const otherData = other.data();
-        const otherDateMs = new Date(otherData.date || 0).getTime();
-        const otherDueDate = otherData.nextDueDate;
-
-        // Cas 1: Une intervention réelle a été enregistrée à la date d'échéance ou après
-        if (otherDateMs >= candidateDueDateMs) {
-            return {
-                isCompleted: true,
-                reason: `Couverte par l'intervention du ${otherData.date || 'date récente'}`
-            };
-        }
-
-        // Cas 2: Un entretien plus récent ou identique a déjà généré une échéance plus lointaine
-        if (otherDateMs >= candidateDateMs && otherDueDate && otherDueDate > candidateDueDate) {
-            return {
-                isCompleted: true,
-                reason: `Remplacée par une échéance plus récente (${otherDueDate})`
-            };
-        }
-    }
-
-    return { isCompleted: false };
+export interface ReminderDiagnosticEntry {
+    runId: string;
+    executedAt: string;
+    isSimulation: boolean;
+    maintenanceId: string;
+    vehicleId: string;
+    vehicleName: string;
+    task: string;
+    dueDate: string;
+    diffDays: number;
+    daysOverdue: number;
+    stage: ReminderStage | 'none';
+    decision: 'ignored' | 'pending' | 'sent' | 'failed';
+    reason: string;
+    tokenCount: number;
+    sendResult?: string | null;
+    attemptCount: number;
+    details?: string;
 }
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');
     const authHeader = request.headers.get('authorization');
+    const simulateDateParam = searchParams.get('simulateDate');
+    const modeParam = searchParams.get('mode'); // 'simulate' (dry-run) | 'send' (controlled real send)
+    const targetVehicleId = searchParams.get('targetVehicleId');
+    const targetMaintenanceId = searchParams.get('targetMaintenanceId');
+    const viewDiagnostics = searchParams.get('viewDiagnostics') === 'true';
 
     console.log('[CRON] Déclenchement détecté.');
     console.log('[CRON] Authorization header reçu:', authHeader ? `Bearer ***${authHeader.slice(-6)}` : 'ABSENT');
@@ -123,12 +68,55 @@ export async function GET(request: Request) {
     }
     console.log('[CRON] Autorisation OK.');
 
-    try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const dateString0 = formatDateToLocalISO(today);
+    // Mode consultation rapide de l'historique des diagnostics
+    if (viewDiagnostics) {
+        try {
+            const limit = Math.min(Number(searchParams.get('limit') || 50), 100);
+            const diagSnap = await adminDb.collection(DIAGNOSTICS_COLLECTION)
+                .orderBy('executedAt', 'desc')
+                .limit(limit)
+                .get();
 
-        // 1. Récupération de l'ensemble des maintenances et des véhicules
+            const items = diagSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            return NextResponse.json({ success: true, count: items.length, diagnostics: items });
+        } catch (e: any) {
+            return NextResponse.json({ error: e.message }, { status: 500 });
+        }
+    }
+
+    try {
+        const runId = `run_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const executedAt = new Date().toISOString();
+
+        // Détermination de la date de référence (avec support du mode simulation)
+        let today: Date;
+        let isSimulation = false;
+
+        if (simulateDateParam) {
+            const [y, m, d] = simulateDateParam.split('-').map(Number);
+            today = new Date(y, m - 1, d);
+            // Par défaut, la spécification d'une date simulée active le mode simulation sauf si mode=send explicitement demandé
+            isSimulation = modeParam !== 'send';
+        } else {
+            today = new Date();
+            today.setHours(0, 0, 0, 0);
+            isSimulation = modeParam === 'simulate';
+        }
+
+        const dateString0 = formatDateToLocalISO(today);
+        console.log(`[CRON] Date d'exécution de référence : ${dateString0} (Simulation: ${isSimulation ? 'OUI' : 'NON'})`);
+
+        const diagnosticLogs: ReminderDiagnosticEntry[] = [];
+        const recordDiagnostic = (entry: Omit<ReminderDiagnosticEntry, 'runId' | 'executedAt' | 'isSimulation'>) => {
+            diagnosticLogs.push({
+                runId,
+                executedAt,
+                isSimulation,
+                ...entry
+            });
+        };
+
+        // 1. Récupération des maintenances et véhicules
         const [maintenanceSnapshot, vehiclesSnapshot] = await Promise.all([
             adminDb.collection('maintenance').get(),
             adminDb.collection('vehicles').get()
@@ -139,13 +127,13 @@ export async function GET(request: Request) {
             totalVehicles: vehiclesSnapshot.size
         });
 
-        // Cache des informations des véhicules
+        // Cache des véhicules
         const vehicleMap = new Map<string, any>();
         vehiclesSnapshot.docs.forEach(doc => {
             vehicleMap.set(doc.id, { id: doc.id, ...doc.data() });
         });
 
-        // Cache des tokens FCM par utilisateur pour éviter les requêtes répétées
+        // Cache des tokens FCM par utilisateur
         const userTokensCache = new Map<string, string[]>();
         const getUserTokens = async (userId: string): Promise<string[]> => {
             if (userTokensCache.has(userId)) {
@@ -160,7 +148,7 @@ export async function GET(request: Request) {
             return tokens;
         };
 
-        // Cache des statuts de notifications existantes dans notificationLogs
+        // Cache des logs existants dans notificationLogs
         const notifLogsCache = new Map<string, any>();
         const getNotifLog = async (logKey: string) => {
             if (notifLogsCache.has(logKey)) return notifLogsCache.get(logKey);
@@ -169,18 +157,6 @@ export async function GET(request: Request) {
             notifLogsCache.set(logKey, data);
             return data;
         };
-
-        const DOCUMENT_TASKS = new Set([
-            'Vignette',
-            'vignette',
-            'Paiement Assurance',
-            'Assurance',
-            'Visite Technique',
-            'Visite technique',
-            'Contrôle Technique',
-            'Controle technique',
-            'Carte Grise',
-        ]);
 
         const messagesToSend: Array<{
             logKey: string;
@@ -192,7 +168,219 @@ export async function GET(request: Request) {
             dueDate: string;
             tokens: string[];
             payload: any;
+            isRetry?: boolean;
         }> = [];
+
+        // =========================================================================
+        // SECTION 0: RATTRAPAGE ET RETENTATIVE DES NOTIFICATIONS EN ATTENTE (PENDING)
+        // =========================================================================
+        console.log(`[CRON] Recherche des notifications 'pending' à retenter...`);
+        const pendingSnap = await adminDb.collection(NOTIF_LOGS_COLLECTION)
+            .where('status', '==', 'pending')
+            .get();
+
+        console.log(`[CRON] Notifications en attente trouvées: ${pendingSnap.size}`);
+
+        for (const pendingDoc of pendingSnap.docs) {
+            const pendingData = pendingDoc.data();
+            const { id: logKey, maintenanceId, vehicleId, userId, task, stage, dueDate, attemptCount = 0 } = pendingData;
+
+            if (!userId || !logKey) continue;
+            if (targetVehicleId && vehicleId !== targetVehicleId) continue;
+            if (targetMaintenanceId && maintenanceId !== targetMaintenanceId) continue;
+
+            const vehicle = vehicleId ? vehicleMap.get(vehicleId) : null;
+            const vehicleName = vehicle ? `${vehicle.brand} ${vehicle.model}` : 'votre véhicule';
+
+            // 1. Dépassement du nombre maximal de tentatives (erreur permanente)
+            if (attemptCount >= MAX_PENDING_ATTEMPTS) {
+                console.warn(`[CRON] Pending ${logKey} a dépassé le max de tentatives (${attemptCount}). Marqué 'failed'.`);
+                if (!isSimulation) {
+                    await pendingDoc.ref.update({
+                        status: 'failed',
+                        failureReason: 'MAX_ATTEMPTS_EXCEEDED',
+                        updatedAt: new Date().toISOString(),
+                    });
+                }
+                recordDiagnostic({
+                    maintenanceId,
+                    vehicleId,
+                    vehicleName,
+                    task,
+                    dueDate,
+                    diffDays: 0,
+                    daysOverdue: 0,
+                    stage: stage as ReminderStage,
+                    decision: 'failed',
+                    reason: 'MAX_ATTEMPTS_EXCEEDED',
+                    tokenCount: 0,
+                    attemptCount,
+                });
+                continue;
+            }
+
+            // 2. Vérifier si l'échéance sous-jacente est toujours active (non supprimée et non renouvelée)
+            if (maintenanceId && !maintenanceId.startsWith('synthetic-')) {
+                const maintDoc = await adminDb.collection('maintenance').doc(maintenanceId).get();
+                if (!maintDoc.exists) {
+                    if (!isSimulation) {
+                        await pendingDoc.ref.update({
+                            status: 'cancelled',
+                            pendingReason: 'MAINTENANCE_DELETED',
+                            updatedAt: new Date().toISOString(),
+                        });
+                    }
+                    recordDiagnostic({
+                        maintenanceId,
+                        vehicleId,
+                        vehicleName,
+                        task,
+                        dueDate,
+                        diffDays: 0,
+                        daysOverdue: 0,
+                        stage: stage as ReminderStage,
+                        decision: 'ignored',
+                        reason: 'MAINTENANCE_DELETED',
+                        tokenCount: 0,
+                        attemptCount,
+                    });
+                    continue;
+                }
+
+                const currentMaintData = maintDoc.data() || {};
+                if (!currentMaintData.nextDueDate) {
+                    // L'échéance a été marquée terminée ou n'a plus de date future
+                    if (!isSimulation) {
+                        await pendingDoc.ref.update({
+                            status: 'cancelled',
+                            pendingReason: 'MAINTENANCE_ALREADY_COMPLETED',
+                            updatedAt: new Date().toISOString(),
+                        });
+                    }
+                    recordDiagnostic({
+                        maintenanceId,
+                        vehicleId,
+                        vehicleName,
+                        task,
+                        dueDate,
+                        diffDays: 0,
+                        daysOverdue: 0,
+                        stage: stage as ReminderStage,
+                        decision: 'ignored',
+                        reason: 'MAINTENANCE_ALREADY_COMPLETED',
+                        tokenCount: 0,
+                        attemptCount,
+                    });
+                    continue;
+                }
+            }
+
+            // 3. Récupération des tokens FCM disponibles
+            const tokens = await getUserTokens(userId);
+            if (tokens.length === 0) {
+                console.log(`[CRON] Pending ${logKey} : toujours aucun token FCM pour ${userId}`);
+                if (!isSimulation) {
+                    await pendingDoc.ref.update({
+                        attemptCount: admin.firestore.FieldValue.increment(1),
+                        lastAttemptAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                        pendingReason: 'NO_FCM_TOKEN',
+                    });
+                }
+                recordDiagnostic({
+                    maintenanceId,
+                    vehicleId,
+                    vehicleName,
+                    task,
+                    dueDate,
+                    diffDays: 0,
+                    daysOverdue: 0,
+                    stage: stage as ReminderStage,
+                    decision: 'pending',
+                    reason: 'PENDING_RETRY',
+                    details: 'Toujours aucun token FCM disponible',
+                    tokenCount: 0,
+                    attemptCount: attemptCount + 1,
+                });
+                continue;
+            }
+
+            // 4. Token disponible ! Reconstituer le message de rappel et l'enrôler pour envoi
+            console.log(`[CRON] Pending ${logKey} : ${tokens.length} token(s) trouvés ! Programmation de la retentative...`);
+            const msgInfo = buildReminderMessage({
+                task,
+                vehicleName,
+                dueDate,
+                stage: stage as ReminderStage,
+                daysRemaining: stage?.startsWith('overdue') ? -Number(stage.split('_')[1] || 1) : 0,
+            });
+
+            const targetUrl = isDocumentTask(task) && (stage === 'j0' || (stage && stage.startsWith('overdue')))
+                ? `/documents?vehicleId=${vehicleId || ''}`
+                : `/maintenance?vehicleId=${vehicleId || ''}`;
+            const tag = `carcare-retry-${maintenanceId}-${stage}`;
+
+            messagesToSend.push({
+                logKey,
+                maintenanceId,
+                vehicleId,
+                userId,
+                task,
+                stage,
+                dueDate,
+                tokens,
+                isRetry: true,
+                payload: {
+                    tokens,
+                    notification: { title: msgInfo.title, body: msgInfo.body },
+                    data: {
+                        url: targetUrl,
+                        title: msgInfo.title,
+                        body: msgInfo.body,
+                        type: 'maintenance-reminder',
+                        taskId: String(maintenanceId || ''),
+                        vehicleId: String(vehicleId || ''),
+                        priority: msgInfo.isUrgent ? 'high' : 'normal',
+                        tag,
+                    },
+                    webpush: {
+                        headers: { Urgency: msgInfo.isUrgent ? 'high' : 'normal' },
+                        notification: {
+                            title: msgInfo.title,
+                            body: msgInfo.body,
+                            icon: '/android-chrome-192x192.png',
+                            badge: '/badge-72x72.png',
+                            tag,
+                            renotify: true,
+                            requireInteraction: msgInfo.isUrgent,
+                            data: { url: targetUrl, tag }
+                        },
+                        fcmOptions: { link: targetUrl }
+                    }
+                }
+            });
+
+            recordDiagnostic({
+                maintenanceId,
+                vehicleId,
+                vehicleName,
+                task,
+                dueDate,
+                diffDays: 0,
+                daysOverdue: 0,
+                stage: stage as ReminderStage,
+                decision: isSimulation ? 'ignored' : 'pending',
+                reason: isSimulation ? 'SIMULATION_ONLY' : 'PENDING_RETRY',
+                details: 'Notification en attente prête pour envoi',
+                tokenCount: tokens.length,
+                attemptCount: attemptCount + 1,
+            });
+        }
+
+        // =========================================================================
+        // SECTION 1: TRAITEMENT DES ÉCHÉANCES STANDARD PAR DATE (Assurance, Visite Tech, etc.)
+        // =========================================================================
+        console.log(`[CRON] Analyse des groupes d'entretiens par véhicule et tâche...`);
 
         // Regrouper toutes les maintenances par [vehicleId + canonicalTask]
         const maintenancesByVehicleAndCanonicalTask = new Map<string, FirebaseFirestore.QueryDocumentSnapshot[]>();
@@ -207,15 +395,11 @@ export async function GET(request: Request) {
             maintenancesByVehicleAndCanonicalTask.get(groupKey)!.push(doc);
         });
 
-        // =========================================================================
-        // SECTION 1: TRAITEMENT DES ÉCHÉANCES STANDARD PAR DATE (Assurance, Visite Tech, etc.)
-        // =========================================================================
-        console.log(`[CRON] Analyse des groupes d'entretiens par véhicule et tâche...`);
-
         for (const [groupKey, docs] of maintenancesByVehicleAndCanonicalTask.entries()) {
-            // Identifier le véhicule
             const firstDocData = docs[0].data();
             const vehicleId = firstDocData.vehicleId;
+            if (targetVehicleId && vehicleId !== targetVehicleId) continue;
+
             const vehicle = vehicleId ? vehicleMap.get(vehicleId) : null;
             const vehicleName = vehicle ? `${vehicle.brand} ${vehicle.model}` : 'votre véhicule';
 
@@ -227,53 +411,116 @@ export async function GET(request: Request) {
                 return (b.data().nextDueDate || '').localeCompare(a.data().nextDueDate || '');
             });
 
-            // Pour chaque document avec une nextDueDate, vérifier son statut
+            const allDocsForTask = docs.map(d => ({ id: d.id, ...d.data() }));
+
             for (const doc of docs) {
                 const data = doc.data();
                 const { userId, task, nextDueDate } = data;
 
-                // Ignorer les documents sans échéance ou sans utilisateur
                 if (!userId || !nextDueDate) continue;
+                if (targetMaintenanceId && doc.id !== targetMaintenanceId) continue;
 
                 console.log(`--------------------------------------------------`);
                 console.log(`[CRON] Maintenance trouvée: "${task}" (ID: ${doc.id})`);
                 console.log(`[CRON] Véhicule: ${vehicleName}`);
-                console.log(`[CRON] Tâche: ${task}`);
                 console.log(`[CRON] Due date: ${nextDueDate}`);
 
-                // Vérifier si cette échéance est déjà terminée / couverte par une action postérieure
-                const completionCheck = isDeadlineAlreadyCompleted(doc, docs);
+                // Vérification stricte du renouvellement (sans déduction hasardeuse ni suppression en base)
+                const completionCheck = isDeadlineAlreadyCompleted({ id: doc.id, ...data }, allDocsForTask);
                 if (completionCheck.isCompleted) {
-                    console.log(`[CRON] IGNORÉE - maintenance déjà effectuée (${completionCheck.reason})`);
-                    // Nettoyage en tâche de fond du champ obsolète pour assainir Firestore
-                    if (data.nextDueDate < dateString0) {
-                        doc.ref.update({
-                            nextDueDate: admin.firestore.FieldValue.delete(),
-                            nextDueMileage: admin.firestore.FieldValue.delete()
-                        }).catch(() => {});
-                    }
+                    console.log(`[CRON] IGNORÉE - maintenance déjà couverte (${completionCheck.reason})`);
+                    recordDiagnostic({
+                        maintenanceId: doc.id,
+                        vehicleId: vehicleId || '',
+                        vehicleName,
+                        task,
+                        dueDate: nextDueDate,
+                        diffDays: 0,
+                        daysOverdue: 0,
+                        stage: 'none',
+                        decision: 'ignored',
+                        reason: 'MAINTENANCE_ALREADY_COMPLETED',
+                        details: completionCheck.reason,
+                        tokenCount: 0,
+                        attemptCount: 0,
+                    });
+                    // RÈGLE ABSOLUE : on NE supprime JAMAIS nextDueDate automatiquement !
                     continue;
                 }
 
-                // Calcul du stage avec tolérance de jours
-                const { stage, daysRemaining } = getStageAndDaysRemaining(nextDueDate, today);
+                // Calcul exact de l'étape et des jours calendaires
+                const { stage, daysRemaining } = getReminderStageAndDays(nextDueDate, today);
+                const daysOverdue = daysRemaining < 0 ? Math.abs(daysRemaining) : 0;
+
                 if (!stage) {
                     console.log(`[CRON] Échéance hors fenêtre active (${daysRemaining} jours restants)`);
+                    recordDiagnostic({
+                        maintenanceId: doc.id,
+                        vehicleId: vehicleId || '',
+                        vehicleName,
+                        task,
+                        dueDate: nextDueDate,
+                        diffDays: daysRemaining,
+                        daysOverdue,
+                        stage: 'none',
+                        decision: 'ignored',
+                        reason: 'OUTSIDE_REMINDER_WINDOW',
+                        details: `${daysRemaining} j restants`,
+                        tokenCount: 0,
+                        attemptCount: 0,
+                    });
                     continue;
                 }
 
-                console.log(`[CRON] Stage: ${stage} (${daysRemaining} j restants)`);
+                console.log(`[CRON] Stage: ${stage} (${daysRemaining} j restants / retard: ${daysOverdue})`);
 
                 // Clé logique d'idempotence
-                const logKey = `${doc.id}_${stage}_${nextDueDate}`;
+                const logKey = buildNotificationLogKey(doc.id, stage, nextDueDate);
                 const existingLog = await getNotifLog(logKey);
 
                 if (existingLog && existingLog.status === 'sent') {
                     console.log(`[CRON] Notification déjà envoyée: OUI (${logKey})`);
+                    recordDiagnostic({
+                        maintenanceId: doc.id,
+                        vehicleId: vehicleId || '',
+                        vehicleName,
+                        task,
+                        dueDate: nextDueDate,
+                        diffDays: daysRemaining,
+                        daysOverdue,
+                        stage,
+                        decision: 'ignored',
+                        reason: 'ALREADY_SENT',
+                        details: `Déjà envoyé le ${existingLog.sentAt || 'précédemment'}`,
+                        tokenCount: 0,
+                        attemptCount: existingLog.attemptCount || 1,
+                    });
                     continue;
                 }
 
-                console.log(`[CRON] Notification déjà envoyée: NON`);
+                // Protection contre les exécutions concurrentes (verrou en cours)
+                if (existingLog && existingLog.status === 'in_progress') {
+                    const lastAttemptMs = new Date(existingLog.lastAttemptAt || 0).getTime();
+                    if (Date.now() - lastAttemptMs < IN_PROGRESS_TIMEOUT_MS) {
+                        console.log(`[CRON] Traitement concurrent en cours: (${logKey})`);
+                        recordDiagnostic({
+                            maintenanceId: doc.id,
+                            vehicleId: vehicleId || '',
+                            vehicleName,
+                            task,
+                            dueDate: nextDueDate,
+                            diffDays: daysRemaining,
+                            daysOverdue,
+                            stage,
+                            decision: 'ignored',
+                            reason: 'IN_PROGRESS_LOCK',
+                            details: 'Un autre processus traite actuellement cette notification',
+                            tokenCount: 0,
+                            attemptCount: existingLog.attemptCount || 1,
+                        });
+                        continue;
+                    }
+                }
 
                 // Récupération des tokens FCM
                 const tokens = await getUserTokens(userId);
@@ -281,7 +528,72 @@ export async function GET(request: Request) {
 
                 if (tokens.length === 0) {
                     console.warn(`[CRON] EN ATTENTE - aucun token FCM pour ${userId}`);
-                    // Sauvegarde dans notificationLogs comme 'pending' pour retentative ultérieure
+                    if (!isSimulation) {
+                        await adminDb.collection(NOTIF_LOGS_COLLECTION).doc(logKey).set({
+                            id: logKey,
+                            maintenanceId: doc.id,
+                            vehicleId: vehicleId || '',
+                            userId,
+                            task,
+                            stage,
+                            dueDate: nextDueDate,
+                            status: 'pending',
+                            pendingReason: 'NO_FCM_TOKEN',
+                            attemptCount: admin.firestore.FieldValue.increment(1),
+                            lastAttemptAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString(),
+                        }, { merge: true });
+                    }
+                    recordDiagnostic({
+                        maintenanceId: doc.id,
+                        vehicleId: vehicleId || '',
+                        vehicleName,
+                        task,
+                        dueDate: nextDueDate,
+                        diffDays: daysRemaining,
+                        daysOverdue,
+                        stage,
+                        decision: isSimulation ? 'ignored' : 'pending',
+                        reason: isSimulation ? 'SIMULATION_ONLY' : 'NO_FCM_TOKEN',
+                        details: 'Aucun token FCM enregistré sur cet appareil',
+                        tokenCount: 0,
+                        attemptCount: 1,
+                    });
+                    continue;
+                }
+
+                // Préparation du contenu du message via reminder-utils
+                const msgInfo = buildReminderMessage({
+                    task,
+                    vehicleName,
+                    dueDate: nextDueDate,
+                    stage,
+                    daysRemaining,
+                });
+
+                const targetUrl = isDocumentTask(task) && (stage === 'j0' || stage.startsWith('overdue'))
+                    ? `/documents?vehicleId=${vehicleId || ''}`
+                    : `/maintenance?vehicleId=${vehicleId || ''}`;
+                const tag = `carcare-task-${doc.id}-${stage}`;
+
+                if (isSimulation) {
+                    recordDiagnostic({
+                        maintenanceId: doc.id,
+                        vehicleId: vehicleId || '',
+                        vehicleName,
+                        task,
+                        dueDate: nextDueDate,
+                        diffDays: daysRemaining,
+                        daysOverdue,
+                        stage,
+                        decision: 'ignored',
+                        reason: 'SIMULATION_ONLY',
+                        details: `Message préparé: "${msgInfo.title}"`,
+                        tokenCount: tokens.length,
+                        attemptCount: 0,
+                    });
+                } else {
+                    // Verrou d'idempotence immédiat pour empêcher les doublons concurrents
                     await adminDb.collection(NOTIF_LOGS_COLLECTION).doc(logKey).set({
                         id: logKey,
                         maintenanceId: doc.id,
@@ -290,118 +602,50 @@ export async function GET(request: Request) {
                         task,
                         stage,
                         dueDate: nextDueDate,
-                        status: 'pending',
-                        pendingReason: 'NO_FCM_TOKEN',
-                        attemptCount: admin.firestore.FieldValue.increment(1),
+                        status: 'in_progress',
                         lastAttemptAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString(),
                     }, { merge: true });
-                    continue;
-                }
 
-                // Préparation du contenu du message
-                let title = 'Rappel Entretien';
-                let body = '';
-                const isUrgent = stage === 'j0' || (stage ? stage.startsWith('overdue') : false);
-                const requiresDoc = DOCUMENT_TASKS.has(task) || DOCUMENT_TASKS.has(getCanonicalTask(task));
-
-                if (stage && stage.startsWith('overdue')) {
-                    const daysOverdue = Math.abs(daysRemaining);
-                    title = `⚠️ Entretien en retard (J+${daysOverdue}) : ${task} (${vehicleName})`;
-                    if (requiresDoc) {
-                        body = `"${task}" pour ${vehicleName} aurait dû être fait le ${nextDueDate} (${daysOverdue} jour${daysOverdue > 1 ? 's' : ''} de retard). Payez dès que possible et ajoutez le justificatif dans la section Documents de l’application.`;
-                    } else {
-                        body = `"${task}" pour ${vehicleName} aurait dû être fait le ${nextDueDate} (${daysOverdue} jour${daysOverdue > 1 ? 's' : ''} de retard). Effectuez-le dès que possible ou marquez-le comme fait avec sa vraie date dans l’application.`;
-                    }
-                } else if (stage === 'j0') {
-                    title = `🚨 Jour J : ${task} (${vehicleName})`;
-                    if (requiresDoc) {
-                        body = `C’est aujourd’hui la date limite pour "${task}" (${vehicleName}). Après le paiement, pensez à ajouter le reçu ou le document dans la section Documents de l’application.`;
-                    } else {
-                        body = `C'est aujourd'hui la date limite pour "${task}" (${vehicleName}). Après l’entretien, n’oubliez pas de l’enregistrer avec la vraie date dans l’application.`;
-                    }
-                } else if (stage === 'j3') {
-                    const anticipation = getDeadlineAnticipationInfo(nextDueDate);
-                    if (anticipation.isNonWorking) {
-                        title = `⚠️ Rappel J-3 (${anticipation.dayName}) : ${task} (${vehicleName})`;
-                        if (requiresDoc) {
-                            body = `Plus que 3 jours pour "${task}" (${vehicleName}). ${anticipation.warningText} Pensez à enregistrer le justificatif dans l’application après paiement.`;
-                        } else {
-                            body = `Dans 3 jours : "${task}" pour ${vehicleName}. ${anticipation.warningText} Pensez à planifier votre rendez-vous.`;
-                        }
-                    } else {
-                        title = `Rappel J-3 : ${task} (${vehicleName})`;
-                        if (requiresDoc) {
-                            body = `Plus que 3 jours pour "${task}" (${vehicleName}). Préparez votre paiement et n’oubliez pas d’enregistrer le justificatif dans l’application.`;
-                        } else {
-                            body = `Dans 3 jours : "${task}" pour ${vehicleName}. Pensez à planifier votre rendez-vous.`;
-                        }
-                    }
-                } else if (stage === 'j7') {
-                    const anticipation = getDeadlineAnticipationInfo(nextDueDate);
-                    if (anticipation.isNonWorking) {
-                        title = `Rappel J-7 : ${task} (${vehicleName})`;
-                        body = `Dans une semaine : "${task}" (${vehicleName}) arrive à échéance le ${anticipation.dueDateFormatted}. ${anticipation.warningText}`;
-                    } else {
-                        title = `Rappel J-7 : ${task} (${vehicleName})`;
-                        body = `Dans une semaine : "${task}" pour ${vehicleName} arrive à échéance.`;
-                    }
-                } else if (stage === 'j15') {
-                    const anticipation = getDeadlineAnticipationInfo(nextDueDate);
-                    if (anticipation.isNonWorking) {
-                        title = `Rappel J-15 : ${task} (${vehicleName})`;
-                        body = `Dans 15 jours : pensez à anticiper l’entretien "${task}" pour votre ${vehicleName} (${anticipation.dueDateFormatted}). ${anticipation.warningText}`;
-                    } else {
-                        title = `Rappel J-15 : ${task} (${vehicleName})`;
-                        body = `Dans 15 jours : pensez à anticiper l’entretien "${task}" pour votre ${vehicleName}.`;
-                    }
-                }
-
-                const targetUrl = requiresDoc && (stage === 'j0' || (stage ? stage.startsWith('overdue') : false))
-                    ? `/documents?vehicleId=${vehicleId || ''}`
-                    : `/maintenance?vehicleId=${vehicleId || ''}`;
-                const tag = `carcare-task-${doc.id}-${stage}`;
-
-                messagesToSend.push({
-                    logKey,
-                    maintenanceId: doc.id,
-                    vehicleId: vehicleId || '',
-                    userId,
-                    task,
-                    stage,
-                    dueDate: nextDueDate,
-                    tokens,
-                    payload: {
+                    messagesToSend.push({
+                        logKey,
+                        maintenanceId: doc.id,
+                        vehicleId: vehicleId || '',
+                        userId,
+                        task,
+                        stage,
+                        dueDate: nextDueDate,
                         tokens,
-                        notification: { title, body },
-                        data: {
-                            url: targetUrl,
-                            title,
-                            body,
-                            type: 'maintenance-reminder',
-                            taskId: String(doc.id || ''),
-                            vehicleId: String(vehicleId || ''),
-                            priority: isUrgent ? 'high' : 'normal',
-                            tag,
-                        },
-                        webpush: {
-                            headers: {
-                                Urgency: isUrgent ? 'high' : 'normal',
-                            },
-                            notification: {
-                                title,
-                                body,
-                                icon: '/android-chrome-192x192.png',
-                                badge: '/badge-72x72.png',
+                        payload: {
+                            tokens,
+                            notification: { title: msgInfo.title, body: msgInfo.body },
+                            data: {
+                                url: targetUrl,
+                                title: msgInfo.title,
+                                body: msgInfo.body,
+                                type: 'maintenance-reminder',
+                                taskId: String(doc.id || ''),
+                                vehicleId: String(vehicleId || ''),
+                                priority: msgInfo.isUrgent ? 'high' : 'normal',
                                 tag,
-                                renotify: true,
-                                requireInteraction: isUrgent,
-                                data: { url: targetUrl, tag }
                             },
-                            fcmOptions: { link: targetUrl }
+                            webpush: {
+                                headers: { Urgency: msgInfo.isUrgent ? 'high' : 'normal' },
+                                notification: {
+                                    title: msgInfo.title,
+                                    body: msgInfo.body,
+                                    icon: '/android-chrome-192x192.png',
+                                    badge: '/badge-72x72.png',
+                                    tag,
+                                    renotify: true,
+                                    requireInteraction: msgInfo.isUrgent,
+                                    data: { url: targetUrl, tag }
+                                },
+                                fcmOptions: { link: targetUrl }
+                            }
                         }
-                    }
-                });
+                    });
+                }
 
                 // Une seule échéance active notifiée par groupe véhicule/tâche à la fois
                 break;
@@ -426,6 +670,7 @@ export async function GET(request: Request) {
 
         for (const [vehicleId, vehicle] of vehicleMap.entries()) {
             if (!vehicle.licensePlate || !vehicle.userId) continue;
+            if (targetVehicleId && vehicleId !== targetVehicleId) continue;
 
             const existingVignetteDoc = latestVignetteByVehicle.get(vehicleId);
             let nextVignetteDate: Date;
@@ -442,33 +687,129 @@ export async function GET(request: Request) {
             }
 
             const calculatedString = formatDateToLocalISO(nextVignetteDate);
-            const { stage, daysRemaining } = getStageAndDaysRemaining(calculatedString, today);
+            const { stage, daysRemaining } = getReminderStageAndDays(calculatedString, today);
+            const daysOverdue = daysRemaining < 0 ? Math.abs(daysRemaining) : 0;
+            const vehicleName = `${vehicle.brand} ${vehicle.model}`;
 
             if (stage) {
                 const virtualId = existingVignetteDoc ? existingVignetteDoc.id : `synthetic-vignette-${vehicleId}`;
-                const logKey = `${virtualId}_${stage}_${calculatedString}`;
+                const logKey = buildNotificationLogKey(virtualId, stage, calculatedString);
                 const existingLog = await getNotifLog(logKey);
 
-                const vehicleName = `${vehicle.brand} ${vehicle.model}`;
-
                 console.log(`--------------------------------------------------`);
-                console.log(`[CRON] Maintenance trouvée: "Vignette"`);
-                console.log(`[CRON] Véhicule: ${vehicleName}`);
-                console.log(`[CRON] Tâche: Vignette`);
-                console.log(`[CRON] Due date: ${calculatedString}`);
-                console.log(`[CRON] Stage: ${stage}`);
+                console.log(`[CRON] Vignette trouvée pour ${vehicleName} (Due: ${calculatedString}, Stage: ${stage})`);
 
                 if (existingLog && existingLog.status === 'sent') {
-                    console.log(`[CRON] Notification déjà envoyée: OUI (${logKey})`);
+                    console.log(`[CRON] Notification Vignette déjà envoyée (${logKey})`);
+                    recordDiagnostic({
+                        maintenanceId: virtualId,
+                        vehicleId,
+                        vehicleName,
+                        task: 'Vignette',
+                        dueDate: calculatedString,
+                        diffDays: daysRemaining,
+                        daysOverdue,
+                        stage,
+                        decision: 'ignored',
+                        reason: 'ALREADY_SENT',
+                        details: `Déjà envoyé le ${existingLog.sentAt || 'précédemment'}`,
+                        tokenCount: 0,
+                        attemptCount: existingLog.attemptCount || 1,
+                    });
                     continue;
                 }
 
-                console.log(`[CRON] Notification déjà envoyée: NON`);
-                const tokens = await getUserTokens(vehicle.userId);
-                console.log(`[CRON] Token FCM: ${tokens.length}`);
+                if (existingLog && existingLog.status === 'in_progress') {
+                    const lastAttemptMs = new Date(existingLog.lastAttemptAt || 0).getTime();
+                    if (Date.now() - lastAttemptMs < IN_PROGRESS_TIMEOUT_MS) {
+                        recordDiagnostic({
+                            maintenanceId: virtualId,
+                            vehicleId,
+                            vehicleName,
+                            task: 'Vignette',
+                            dueDate: calculatedString,
+                            diffDays: daysRemaining,
+                            daysOverdue,
+                            stage,
+                            decision: 'ignored',
+                            reason: 'IN_PROGRESS_LOCK',
+                            details: 'Processus concurrent en cours',
+                            tokenCount: 0,
+                            attemptCount: existingLog.attemptCount || 1,
+                        });
+                        continue;
+                    }
+                }
 
+                const tokens = await getUserTokens(vehicle.userId);
                 if (tokens.length === 0) {
-                    console.warn(`[CRON] EN ATTENTE - aucun token FCM pour ${vehicle.userId}`);
+                    console.warn(`[CRON] EN ATTENTE - aucun token FCM pour Vignette ${vehicle.userId}`);
+                    if (!isSimulation) {
+                        await adminDb.collection(NOTIF_LOGS_COLLECTION).doc(logKey).set({
+                            id: logKey,
+                            maintenanceId: virtualId,
+                            vehicleId,
+                            userId: vehicle.userId,
+                            task: 'Vignette',
+                            stage,
+                            dueDate: calculatedString,
+                            status: 'pending',
+                            pendingReason: 'NO_FCM_TOKEN',
+                            attemptCount: admin.firestore.FieldValue.increment(1),
+                            lastAttemptAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString(),
+                        }, { merge: true });
+                    }
+                    recordDiagnostic({
+                        maintenanceId: virtualId,
+                        vehicleId,
+                        vehicleName,
+                        task: 'Vignette',
+                        dueDate: calculatedString,
+                        diffDays: daysRemaining,
+                        daysOverdue,
+                        stage,
+                        decision: isSimulation ? 'ignored' : 'pending',
+                        reason: isSimulation ? 'SIMULATION_ONLY' : 'NO_FCM_TOKEN',
+                        details: 'Aucun token FCM enregistré',
+                        tokenCount: 0,
+                        attemptCount: 1,
+                    });
+                    continue;
+                }
+
+                const anticipation = (stage === 'j3' || stage === 'j7' || stage === 'j15')
+                    ? getDeadlineAnticipationInfo(nextVignetteDate)
+                    : undefined;
+
+                const msgInfo = buildVignetteMessage({
+                    vehicleName,
+                    dueDateFormatted: nextVignetteDate.toLocaleDateString('fr-FR'),
+                    stage,
+                    daysRemaining,
+                    anticipation,
+                });
+
+                const targetUrl = `/documents?vehicleId=${vehicleId}`;
+                const tag = `vignette-${vehicleId}-${stage}-${nextVignetteDate.getFullYear()}`;
+
+                if (isSimulation) {
+                    recordDiagnostic({
+                        maintenanceId: virtualId,
+                        vehicleId,
+                        vehicleName,
+                        task: 'Vignette',
+                        dueDate: calculatedString,
+                        diffDays: daysRemaining,
+                        daysOverdue,
+                        stage,
+                        decision: 'ignored',
+                        reason: 'SIMULATION_ONLY',
+                        details: `Message préparé: "${msgInfo.title}"`,
+                        tokenCount: tokens.length,
+                        attemptCount: 0,
+                    });
+                } else {
                     await adminDb.collection(NOTIF_LOGS_COLLECTION).doc(logKey).set({
                         id: logKey,
                         maintenanceId: virtualId,
@@ -477,79 +818,64 @@ export async function GET(request: Request) {
                         task: 'Vignette',
                         stage,
                         dueDate: calculatedString,
-                        status: 'pending',
-                        pendingReason: 'NO_FCM_TOKEN',
-                        attemptCount: admin.firestore.FieldValue.increment(1),
+                        status: 'in_progress',
                         lastAttemptAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString(),
                     }, { merge: true });
-                    continue;
-                }
 
-                let title = `Rappel Vignette (${vehicleName})`;
-                let body = `La date limite de la vignette (${nextVignetteDate.toLocaleDateString('fr-FR')}) approche pour ${vehicleName}.`;
-
-                if (stage.startsWith('overdue')) {
-                    const daysOverdue = Math.abs(daysRemaining);
-                    title = `⚠️ Vignette en retard (J+${daysOverdue}) : ${vehicleName}`;
-                    body = `La date limite de la Vignette (${nextVignetteDate.toLocaleDateString('fr-FR')}) pour ${vehicleName} est dépassée de ${daysOverdue} jour${daysOverdue > 1 ? 's' : ''}. Réglez-la dès que possible pour éviter les pénalités et ajoutez le reçu dans « Documents ».`;
-                } else if (stage === 'j0') {
-                    title = `🚨 Jour J : Vignette (${vehicleName})`;
-                    body = `Aujourd’hui est la date limite officielle pour le paiement de la Vignette de ${vehicleName}. Après le paiement, ajoutez immédiatement le reçu dans la section « Documents » de l’application.`;
-                } else if (stage === 'j3') {
-                    const anticipation = getDeadlineAnticipationInfo(nextVignetteDate);
-                    title = `⚠️ Rappel J-3 : Vignette (${vehicleName})`;
-                    body = `Plus que 3 jours pour régler la Vignette de ${vehicleName} (${anticipation.dueDateFormatted}). ${anticipation.warningText}`;
-                } else if (stage === 'j7') {
-                    const anticipation = getDeadlineAnticipationInfo(nextVignetteDate);
-                    title = `Rappel J-7 : Vignette (${vehicleName})`;
-                    body = `Dans 7 jours : échéance de la Vignette pour ${vehicleName} (${anticipation.dueDateFormatted}). ${anticipation.warningText}`;
-                } else if (stage === 'j15') {
-                    const anticipation = getDeadlineAnticipationInfo(nextVignetteDate);
-                    title = `Rappel J-15 : Vignette (${vehicleName})`;
-                    body = `Dans 15 jours : prévoyez le règlement de la Vignette pour votre ${vehicleName} (${anticipation.dueDateFormatted}). ${anticipation.warningText}`;
-                }
-
-                const targetUrl = `/documents?vehicleId=${vehicleId}`;
-                const isUrgent = stage === 'j0' || stage.startsWith('overdue');
-                const tag = `vignette-${vehicleId}-${stage}-${nextVignetteDate.getFullYear()}`;
-
-                messagesToSend.push({
-                    logKey,
-                    maintenanceId: virtualId,
-                    vehicleId,
-                    userId: vehicle.userId,
-                    task: 'Vignette',
-                    stage,
-                    dueDate: calculatedString,
-                    tokens,
-                    payload: {
+                    messagesToSend.push({
+                        logKey,
+                        maintenanceId: virtualId,
+                        vehicleId,
+                        userId: vehicle.userId,
+                        task: 'Vignette',
+                        stage,
+                        dueDate: calculatedString,
                         tokens,
-                        notification: { title, body },
-                        data: {
-                            url: targetUrl,
-                            title,
-                            body,
-                            type: 'vignette-reminder',
-                            vehicleId,
-                            priority: isUrgent ? 'high' : 'normal',
-                            tag
-                        },
-                        webpush: {
-                            headers: { Urgency: isUrgent ? 'high' : 'normal' },
-                            notification: {
-                                title,
-                                body,
-                                icon: '/android-chrome-192x192.png',
-                                badge: '/badge-72x72.png',
-                                tag,
-                                renotify: true,
-                                requireInteraction: isUrgent,
-                                data: { url: targetUrl, tag }
+                        payload: {
+                            tokens,
+                            notification: { title: msgInfo.title, body: msgInfo.body },
+                            data: {
+                                url: targetUrl,
+                                title: msgInfo.title,
+                                body: msgInfo.body,
+                                type: 'vignette-reminder',
+                                vehicleId,
+                                priority: msgInfo.isUrgent ? 'high' : 'normal',
+                                tag
                             },
-                            fcmOptions: { link: targetUrl }
+                            webpush: {
+                                headers: { Urgency: msgInfo.isUrgent ? 'high' : 'normal' },
+                                notification: {
+                                    title: msgInfo.title,
+                                    body: msgInfo.body,
+                                    icon: '/android-chrome-192x192.png',
+                                    badge: '/badge-72x72.png',
+                                    tag,
+                                    renotify: true,
+                                    requireInteraction: msgInfo.isUrgent,
+                                    data: { url: targetUrl, tag }
+                                },
+                                fcmOptions: { link: targetUrl }
+                            }
                         }
-                    }
+                    });
+                }
+            } else {
+                recordDiagnostic({
+                    maintenanceId: existingVignetteDoc ? existingVignetteDoc.id : `synthetic-vignette-${vehicleId}`,
+                    vehicleId,
+                    vehicleName,
+                    task: 'Vignette',
+                    dueDate: calculatedString,
+                    diffDays: daysRemaining,
+                    daysOverdue,
+                    stage: 'none',
+                    decision: 'ignored',
+                    reason: 'OUTSIDE_REMINDER_WINDOW',
+                    details: `${daysRemaining} j restants`,
+                    tokenCount: 0,
+                    attemptCount: 0,
                 });
             }
         }
@@ -574,6 +900,7 @@ export async function GET(request: Request) {
             const data = doc.data();
             const { userId, vehicleId, nextDueMileage } = data;
             if (!userId || !vehicleId || !nextDueMileage) continue;
+            if (targetVehicleId && vehicleId !== targetVehicleId) continue;
 
             const [fuelLogsSnapshot, repairsSnapshot, vehicleMaintenanceSnapshot] = await Promise.all([
                 adminDb.collection('fuelLogs').where('vehicleId', '==', vehicleId).get(),
@@ -596,7 +923,7 @@ export async function GET(request: Request) {
             const vehicle = vehicleMap.get(vehicleId);
             const vehicleName = vehicle ? `${vehicle.brand} ${vehicle.model}` : 'votre véhicule';
 
-            let stageTag: string | null = null;
+            let stageTag: ReminderStage = null;
             let title = '';
             let body = '';
             let isUrgent = false;
@@ -614,29 +941,33 @@ export async function GET(request: Request) {
                 if (absDays === 1) stageTag = 'overdue_1';
                 else if (absDays === 2) stageTag = 'overdue_2';
                 else if (absDays === 3) stageTag = 'overdue_3';
-                else if (absDays <= 7) stageTag = 'overdue_7';
-                else if (absDays <= 14) stageTag = 'overdue_14';
-                else if (absDays <= 30) stageTag = 'overdue_30';
-                else stageTag = 'overdue_60';
+                else if (absDays === 7) stageTag = 'overdue_7';
+                else if (absDays === 14) stageTag = 'overdue_14';
+                else if (absDays === 30) stageTag = 'overdue_30';
+                else if (absDays === 60) stageTag = 'overdue_60';
 
-                isUrgent = true;
-                const kmDepasse = Math.abs(kmRemaining).toLocaleString('fr-FR');
-                const daysOverdueText = daysRemaining < 0 ? ` (J+${Math.abs(daysRemaining)})` : '';
-                title = `⚠️ Vidange Dépassée${daysOverdueText} : ${vehicleName}`;
-                body = `Vous avez dépassé de ${kmDepasse} km la limite prévue pour la vidange (actuel : ${latestEvent.mileage.toLocaleString('fr-FR')} km / prévu : ${nextDueMileage.toLocaleString('fr-FR')} km). Effectuez-la dès que possible ou marquez-la comme faite dans l’application.`;
+                if (stageTag) {
+                    isUrgent = true;
+                    const kmDepasse = Math.abs(kmRemaining).toLocaleString('fr-FR');
+                    const daysOverdueText = daysRemaining < 0 ? ` (J+${Math.abs(daysRemaining)})` : '';
+                    title = `⚠️ Vidange Dépassée${daysOverdueText} : ${vehicleName}`;
+                    body = `Vous avez dépassé de ${kmDepasse} km la limite prévue pour la vidange (actuel : ${latestEvent.mileage.toLocaleString('fr-FR')} km / prévu : ${nextDueMileage.toLocaleString('fr-FR')} km). Effectuez-la dès que possible ou marquez-la comme faite dans l’application.`;
+                }
             } else if (estimatedDate && daysRemaining < 0) {
                 const absDays = Math.abs(daysRemaining);
                 if (absDays === 1) stageTag = 'overdue_1';
                 else if (absDays === 2) stageTag = 'overdue_2';
                 else if (absDays === 3) stageTag = 'overdue_3';
-                else if (absDays <= 7) stageTag = 'overdue_7';
-                else if (absDays <= 14) stageTag = 'overdue_14';
-                else if (absDays <= 30) stageTag = 'overdue_30';
-                else stageTag = 'overdue_60';
+                else if (absDays === 7) stageTag = 'overdue_7';
+                else if (absDays === 14) stageTag = 'overdue_14';
+                else if (absDays === 30) stageTag = 'overdue_30';
+                else if (absDays === 60) stageTag = 'overdue_60';
 
-                isUrgent = true;
-                title = `⚠️ Vidange en retard (J+${absDays}) : ${vehicleName}`;
-                body = `Selon votre rythme de conduite, votre vidange aurait dû être faite le ${formatDateToFrench(estimatedDate)} (${absDays} jour${absDays > 1 ? 's' : ''} de retard). Reste ${kmRemaining.toLocaleString('fr-FR')} km avant le terme. Pensez à l'effectuer dès que possible.`;
+                if (stageTag) {
+                    isUrgent = true;
+                    title = `⚠️ Vidange en retard (J+${absDays}) : ${vehicleName}`;
+                    body = `Selon votre rythme de conduite, votre vidange aurait dû être faite le ${formatDateToFrench(estimatedDate)} (${absDays} jour${absDays > 1 ? 's' : ''} de retard). Reste ${kmRemaining.toLocaleString('fr-FR')} km avant le terme. Pensez à l'effectuer dès que possible.`;
+                }
             } else if (estimatedDate) {
                 if (daysRemaining === 0) {
                     stageTag = 'j0';
@@ -662,24 +993,103 @@ export async function GET(request: Request) {
                 const logKey = `vidange_${doc.id}_${stageTag}_${estimatedDateString || nextDueMileage}`;
                 const existingLog = await getNotifLog(logKey);
 
-                console.log(`--------------------------------------------------`);
-                console.log(`[CRON] Maintenance trouvée: "Vidange" (ID: ${doc.id})`);
-                console.log(`[CRON] Véhicule: ${vehicleName}`);
-                console.log(`[CRON] Tâche: Vidange`);
-                console.log(`[CRON] Due mileage: ${nextDueMileage} km (reste ${kmRemaining} km)`);
-                console.log(`[CRON] Stage: ${stageTag}`);
-
                 if (existingLog && existingLog.status === 'sent') {
-                    console.log(`[CRON] Notification déjà envoyée: OUI (${logKey})`);
+                    recordDiagnostic({
+                        maintenanceId: doc.id,
+                        vehicleId,
+                        vehicleName,
+                        task: 'Vidange',
+                        dueDate: estimatedDateString || String(nextDueMileage),
+                        diffDays: daysRemaining,
+                        daysOverdue: daysRemaining < 0 ? Math.abs(daysRemaining) : 0,
+                        stage: stageTag,
+                        decision: 'ignored',
+                        reason: 'ALREADY_SENT',
+                        details: `Déjà envoyé le ${existingLog.sentAt || 'précédemment'}`,
+                        tokenCount: 0,
+                        attemptCount: existingLog.attemptCount || 1,
+                    });
                     continue;
                 }
 
-                console.log(`[CRON] Notification déjà envoyée: NON`);
-                const tokens = await getUserTokens(userId);
-                console.log(`[CRON] Token FCM: ${tokens.length}`);
+                if (existingLog && existingLog.status === 'in_progress') {
+                    const lastAttemptMs = new Date(existingLog.lastAttemptAt || 0).getTime();
+                    if (Date.now() - lastAttemptMs < IN_PROGRESS_TIMEOUT_MS) {
+                        recordDiagnostic({
+                            maintenanceId: doc.id,
+                            vehicleId,
+                            vehicleName,
+                            task: 'Vidange',
+                            dueDate: estimatedDateString || String(nextDueMileage),
+                            diffDays: daysRemaining,
+                            daysOverdue: daysRemaining < 0 ? Math.abs(daysRemaining) : 0,
+                            stage: stageTag,
+                            decision: 'ignored',
+                            reason: 'IN_PROGRESS_LOCK',
+                            details: 'Processus concurrent en cours',
+                            tokenCount: 0,
+                            attemptCount: existingLog.attemptCount || 1,
+                        });
+                        continue;
+                    }
+                }
 
+                const tokens = await getUserTokens(userId);
                 if (tokens.length === 0) {
-                    console.warn(`[CRON] EN ATTENTE - aucun token FCM pour ${userId}`);
+                    if (!isSimulation) {
+                        await adminDb.collection(NOTIF_LOGS_COLLECTION).doc(logKey).set({
+                            id: logKey,
+                            maintenanceId: doc.id,
+                            vehicleId,
+                            userId,
+                            task: 'Vidange',
+                            stage: stageTag,
+                            dueDate: estimatedDateString || String(nextDueMileage),
+                            status: 'pending',
+                            pendingReason: 'NO_FCM_TOKEN',
+                            attemptCount: admin.firestore.FieldValue.increment(1),
+                            lastAttemptAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString(),
+                        }, { merge: true });
+                    }
+                    recordDiagnostic({
+                        maintenanceId: doc.id,
+                        vehicleId,
+                        vehicleName,
+                        task: 'Vidange',
+                        dueDate: estimatedDateString || String(nextDueMileage),
+                        diffDays: daysRemaining,
+                        daysOverdue: daysRemaining < 0 ? Math.abs(daysRemaining) : 0,
+                        stage: stageTag,
+                        decision: isSimulation ? 'ignored' : 'pending',
+                        reason: isSimulation ? 'SIMULATION_ONLY' : 'NO_FCM_TOKEN',
+                        details: 'Aucun token FCM enregistré',
+                        tokenCount: 0,
+                        attemptCount: 1,
+                    });
+                    continue;
+                }
+
+                const targetUrl = `/maintenance?vehicleId=${vehicleId}&highlight=${doc.id}`;
+                const tag = `vidange-${doc.id}-${stageTag}`;
+
+                if (isSimulation) {
+                    recordDiagnostic({
+                        maintenanceId: doc.id,
+                        vehicleId,
+                        vehicleName,
+                        task: 'Vidange',
+                        dueDate: estimatedDateString || String(nextDueMileage),
+                        diffDays: daysRemaining,
+                        daysOverdue: daysRemaining < 0 ? Math.abs(daysRemaining) : 0,
+                        stage: stageTag,
+                        decision: 'ignored',
+                        reason: 'SIMULATION_ONLY',
+                        details: `Message préparé: "${title}"`,
+                        tokenCount: tokens.length,
+                        attemptCount: 0,
+                    });
+                } else {
                     await adminDb.collection(NOTIF_LOGS_COLLECTION).doc(logKey).set({
                         id: logKey,
                         maintenanceId: doc.id,
@@ -688,55 +1098,65 @@ export async function GET(request: Request) {
                         task: 'Vidange',
                         stage: stageTag,
                         dueDate: estimatedDateString || String(nextDueMileage),
-                        status: 'pending',
-                        pendingReason: 'NO_FCM_TOKEN',
-                        attemptCount: admin.firestore.FieldValue.increment(1),
+                        status: 'in_progress',
                         lastAttemptAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString(),
                     }, { merge: true });
-                    continue;
-                }
 
-                const targetUrl = `/maintenance?vehicleId=${vehicleId}&highlight=${doc.id}`;
-                const tag = `vidange-${doc.id}-${stageTag}`;
-
-                messagesToSend.push({
-                    logKey,
-                    maintenanceId: doc.id,
-                    vehicleId,
-                    userId,
-                    task: 'Vidange',
-                    stage: stageTag,
-                    dueDate: estimatedDateString || String(nextDueMileage),
-                    tokens,
-                    payload: {
+                    messagesToSend.push({
+                        logKey,
+                        maintenanceId: doc.id,
+                        vehicleId,
+                        userId,
+                        task: 'Vidange',
+                        stage: stageTag,
+                        dueDate: estimatedDateString || String(nextDueMileage),
                         tokens,
-                        notification: { title, body },
-                        data: {
-                            url: targetUrl,
-                            title,
-                            body,
-                            type: 'vidange-reminder',
-                            taskId: String(doc.id),
-                            vehicleId: String(vehicleId),
-                            priority: isUrgent ? 'high' : 'normal',
-                            tag
-                        },
-                        webpush: {
-                            headers: { Urgency: isUrgent ? 'high' : 'normal' },
-                            notification: {
+                        payload: {
+                            tokens,
+                            notification: { title, body },
+                            data: {
+                                url: targetUrl,
                                 title,
                                 body,
-                                icon: '/android-chrome-192x192.png',
-                                badge: '/badge-72x72.png',
-                                tag,
-                                renotify: true,
-                                requireInteraction: isUrgent,
-                                data: { url: targetUrl, tag }
+                                type: 'vidange-reminder',
+                                taskId: String(doc.id),
+                                vehicleId: String(vehicleId),
+                                priority: isUrgent ? 'high' : 'normal',
+                                tag
                             },
-                            fcmOptions: { link: targetUrl }
+                            webpush: {
+                                headers: { Urgency: isUrgent ? 'high' : 'normal' },
+                                notification: {
+                                    title,
+                                    body,
+                                    icon: '/android-chrome-192x192.png',
+                                    badge: '/badge-72x72.png',
+                                    tag,
+                                    renotify: true,
+                                    requireInteraction: isUrgent,
+                                    data: { url: targetUrl, tag }
+                                },
+                                fcmOptions: { link: targetUrl }
+                            }
                         }
-                    }
+                    });
+                }
+            } else {
+                recordDiagnostic({
+                    maintenanceId: doc.id,
+                    vehicleId,
+                    vehicleName,
+                    task: 'Vidange',
+                    dueDate: estimatedDateString || String(nextDueMileage),
+                    diffDays: daysRemaining,
+                    daysOverdue: daysRemaining < 0 ? Math.abs(daysRemaining) : 0,
+                    stage: 'none',
+                    decision: 'ignored',
+                    reason: 'OUTSIDE_REMINDER_WINDOW',
+                    details: `${daysRemaining} j restants, kmRemaining: ${kmRemaining}`,
+                    tokenCount: 0,
+                    attemptCount: 0,
                 });
             }
         }
@@ -749,34 +1169,103 @@ export async function GET(request: Request) {
         const deadTokensToDelete: string[] = [];
 
         console.log(`--------------------------------------------------`);
-        console.log(`[CRON] Messages prêts à être envoyés: ${messagesToSend.length}`);
+        console.log(`[CRON] Messages prêts à être envoyés: ${messagesToSend.length} (Simulation: ${isSimulation ? 'OUI' : 'NON'})`);
 
-        for (const msg of messagesToSend) {
-            console.log(`[CRON] Envoi FCM en cours pour: "${msg.task}" (${msg.stage}) → ${msg.tokens.length} token(s)`);
-            try {
-                const response = await adminMessaging.sendEachForMulticast(msg.payload);
-                console.log(`[CRON] Envoi FCM: ${response.successCount > 0 ? 'SUCCESS' : 'FAILED'} (${response.successCount} succès, ${response.failureCount} échecs)`);
-                successCount += response.successCount;
-                failureCount += response.failureCount;
+        if (!isSimulation) {
+            for (const msg of messagesToSend) {
+                console.log(`[CRON] Envoi FCM en cours pour: "${msg.task}" (${msg.stage}) → ${msg.tokens.length} token(s)`);
+                try {
+                    const response = await adminMessaging.sendEachForMulticast(msg.payload);
+                    const isSuccess = response.successCount > 0;
+                    console.log(`[CRON] Envoi FCM: ${isSuccess ? 'SUCCESS' : 'FAILED'} (${response.successCount} succès, ${response.failureCount} échecs)`);
+                    successCount += response.successCount;
+                    failureCount += response.failureCount;
 
-                if (response.successCount > 0) {
-                    // Marquer comme envoyé définitivement dans notificationLogs
-                    await adminDb.collection(NOTIF_LOGS_COLLECTION).doc(msg.logKey).set({
-                        id: msg.logKey,
-                        maintenanceId: msg.maintenanceId,
-                        vehicleId: msg.vehicleId,
-                        userId: msg.userId,
-                        task: msg.task,
-                        stage: msg.stage,
-                        dueDate: msg.dueDate,
-                        status: 'sent',
-                        sentAt: new Date().toISOString(),
-                        lastAttemptAt: new Date().toISOString(),
-                        attemptCount: admin.firestore.FieldValue.increment(1),
-                        updatedAt: new Date().toISOString(),
-                    }, { merge: true });
-                } else {
-                    // Échec temporaire FCM -> marquer comme pending
+                    if (isSuccess) {
+                        // Accepté par Firebase : enregistrer comme 'sent'
+                        await adminDb.collection(NOTIF_LOGS_COLLECTION).doc(msg.logKey).set({
+                            id: msg.logKey,
+                            maintenanceId: msg.maintenanceId,
+                            vehicleId: msg.vehicleId,
+                            userId: msg.userId,
+                            task: msg.task,
+                            stage: msg.stage,
+                            dueDate: msg.dueDate,
+                            status: 'sent',
+                            sentAt: new Date().toISOString(),
+                            lastAttemptAt: new Date().toISOString(),
+                            attemptCount: admin.firestore.FieldValue.increment(1),
+                            updatedAt: new Date().toISOString(),
+                            successTokensCount: response.successCount,
+                        }, { merge: true });
+
+                        recordDiagnostic({
+                            maintenanceId: msg.maintenanceId,
+                            vehicleId: msg.vehicleId,
+                            vehicleName: vehicleMap.get(msg.vehicleId) ? `${vehicleMap.get(msg.vehicleId).brand} ${vehicleMap.get(msg.vehicleId).model}` : 'Véhicule',
+                            task: msg.task,
+                            dueDate: msg.dueDate,
+                            diffDays: 0,
+                            daysOverdue: 0,
+                            stage: msg.stage as ReminderStage,
+                            decision: 'sent',
+                            reason: 'FCM_SEND_SUCCESS',
+                            sendResult: `${response.successCount} succès`,
+                            tokenCount: msg.tokens.length,
+                            attemptCount: 1,
+                        });
+                    } else {
+                        // Échec Firebase : marquer 'pending' pour retentative ultérieure
+                        await adminDb.collection(NOTIF_LOGS_COLLECTION).doc(msg.logKey).set({
+                            id: msg.logKey,
+                            maintenanceId: msg.maintenanceId,
+                            vehicleId: msg.vehicleId,
+                            userId: msg.userId,
+                            task: msg.task,
+                            stage: msg.stage,
+                            dueDate: msg.dueDate,
+                            status: 'pending',
+                            pendingReason: 'FCM_TEMP_ERROR',
+                            lastAttemptAt: new Date().toISOString(),
+                            attemptCount: admin.firestore.FieldValue.increment(1),
+                            updatedAt: new Date().toISOString(),
+                        }, { merge: true });
+
+                        recordDiagnostic({
+                            maintenanceId: msg.maintenanceId,
+                            vehicleId: msg.vehicleId,
+                            vehicleName: vehicleMap.get(msg.vehicleId) ? `${vehicleMap.get(msg.vehicleId).brand} ${vehicleMap.get(msg.vehicleId).model}` : 'Véhicule',
+                            task: msg.task,
+                            dueDate: msg.dueDate,
+                            diffDays: 0,
+                            daysOverdue: 0,
+                            stage: msg.stage as ReminderStage,
+                            decision: 'failed',
+                            reason: 'FCM_SEND_FAILED',
+                            sendResult: `0 succès, ${response.failureCount} échecs`,
+                            tokenCount: msg.tokens.length,
+                            attemptCount: 1,
+                        });
+                    }
+
+                    // Détection des tokens expirés ou non enregistrés pour nettoyage
+                    response.responses.forEach((resp, idx) => {
+                        if (!resp.success && resp.error) {
+                            const errCode = resp.error.code;
+                            if (
+                                errCode === 'messaging/registration-token-not-registered' ||
+                                errCode === 'messaging/invalid-registration-token' ||
+                                errCode === 'messaging/invalid-argument'
+                            ) {
+                                deadTokensToDelete.push(msg.tokens[idx]);
+                            }
+                        }
+                    });
+
+                } catch (err: any) {
+                    console.error(`[CRON] Envoi FCM FAILED avec exception :`, err);
+                    failureCount += msg.tokens.length;
+
                     await adminDb.collection(NOTIF_LOGS_COLLECTION).doc(msg.logKey).set({
                         id: msg.logKey,
                         maintenanceId: msg.maintenanceId,
@@ -791,68 +1280,87 @@ export async function GET(request: Request) {
                         attemptCount: admin.firestore.FieldValue.increment(1),
                         updatedAt: new Date().toISOString(),
                     }, { merge: true });
+
+                    recordDiagnostic({
+                        maintenanceId: msg.maintenanceId,
+                        vehicleId: msg.vehicleId,
+                        vehicleName: vehicleMap.get(msg.vehicleId) ? `${vehicleMap.get(msg.vehicleId).brand} ${vehicleMap.get(msg.vehicleId).model}` : 'Véhicule',
+                        task: msg.task,
+                        dueDate: msg.dueDate,
+                        diffDays: 0,
+                        daysOverdue: 0,
+                        stage: msg.stage as ReminderStage,
+                        decision: 'failed',
+                        reason: 'FCM_SEND_FAILED',
+                        sendResult: err?.message || 'Exception FCM',
+                        tokenCount: msg.tokens.length,
+                        attemptCount: 1,
+                    });
                 }
+            }
 
-                // Détection des tokens expirés ou non enregistrés pour nettoyage
-                response.responses.forEach((resp, idx) => {
-                    if (!resp.success && resp.error) {
-                        const errCode = resp.error.code;
-                        if (
-                            errCode === 'messaging/registration-token-not-registered' ||
-                            errCode === 'messaging/invalid-registration-token' ||
-                            errCode === 'messaging/invalid-argument'
-                        ) {
-                            deadTokensToDelete.push(msg.tokens[idx]);
-                        }
+            // Nettoyage asynchrone des tokens morts
+            if (deadTokensToDelete.length > 0) {
+                console.log(`Suppression de ${deadTokensToDelete.length} tokens FCM invalides...`);
+                const uniqueDeadTokens = Array.from(new Set(deadTokensToDelete));
+                for (const deadToken of uniqueDeadTokens) {
+                    try {
+                        const deadDocs = await adminDb.collection('fcmTokens').where('token', '==', deadToken).get();
+                        deadDocs.forEach(d => d.ref.delete());
+                    } catch (e) {
+                        console.error('Erreur suppression token mort :', e);
                     }
-                });
-
-            } catch (err) {
-                console.error(`[CRON] Envoi FCM: FAILED avec exception :`, err);
-                failureCount += msg.tokens.length;
-
-                await adminDb.collection(NOTIF_LOGS_COLLECTION).doc(msg.logKey).set({
-                    id: msg.logKey,
-                    maintenanceId: msg.maintenanceId,
-                    vehicleId: msg.vehicleId,
-                    userId: msg.userId,
-                    task: msg.task,
-                    stage: msg.stage,
-                    dueDate: msg.dueDate,
-                    status: 'pending',
-                    pendingReason: 'FCM_TEMP_ERROR',
-                    lastAttemptAt: new Date().toISOString(),
-                    attemptCount: admin.firestore.FieldValue.increment(1),
-                    updatedAt: new Date().toISOString(),
-                }, { merge: true });
+                }
             }
         }
 
-        // Nettoyage asynchrone des tokens morts
-        if (deadTokensToDelete.length > 0) {
-            console.log(`Suppression de ${deadTokensToDelete.length} tokens FCM invalides...`);
-            const uniqueDeadTokens = Array.from(new Set(deadTokensToDelete));
-            for (const deadToken of uniqueDeadTokens) {
-                try {
-                    const deadDocs = await adminDb.collection('fcmTokens').where('token', '==', deadToken).get();
-                    deadDocs.forEach(d => d.ref.delete());
-                } catch (e) {
-                    console.error('Erreur suppression token mort :', e);
+        // =========================================================================
+        // SECTION 5: HISTORIQUE DES DIAGNOSTICS & RÉTENTION (30 JOURS)
+        // =========================================================================
+        try {
+            // Sauvegarde batch des diagnostics de cette exécution
+            if (diagnosticLogs.length > 0) {
+                const batch = adminDb.batch();
+                diagnosticLogs.forEach((diag, index) => {
+                    const docRef = adminDb.collection(DIAGNOSTICS_COLLECTION).doc(`${runId}_${index}`);
+                    batch.set(docRef, diag);
+                });
+                await batch.commit();
+            }
+
+            // Nettoyage régulier des anciens logs de diagnostic (> 30 jours)
+            if (!isSimulation) {
+                const thirtyDaysAgoIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+                const oldDiagsSnap = await adminDb.collection(DIAGNOSTICS_COLLECTION)
+                    .where('executedAt', '<', thirtyDaysAgoIso)
+                    .limit(100)
+                    .get();
+
+                if (!oldDiagsSnap.empty) {
+                    const cleanBatch = adminDb.batch();
+                    oldDiagsSnap.docs.forEach(d => cleanBatch.delete(d.ref));
+                    await cleanBatch.commit();
                 }
             }
+        } catch (diagError) {
+            console.error('[CRON] Erreur enregistrement diagnostic Firestore:', diagError);
         }
 
         return NextResponse.json({
             success: true,
-            executionDate: dateString0,
+            runId,
+            isSimulation,
+            referenceDate: dateString0,
             messagesPrepared: messagesToSend.length,
             notificationsSent: successCount,
             notificationsFailed: failureCount,
             tokensCleaned: deadTokensToDelete.length,
+            diagnosticsCount: diagnosticLogs.length,
+            diagnostics: diagnosticLogs,
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Erreur lors de l\'exécution du Cron Job:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
     }
 }
