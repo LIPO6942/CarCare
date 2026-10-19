@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from './ui/skeleton';
-import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Euro, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw } from 'lucide-react';
+import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Euro, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw, Eye, ChevronLeft, ChevronRight, ExternalLink, Layers } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -63,6 +63,7 @@ export function DocumentsClient() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [dialogMode, setDialogMode] = useState<'add' | 'edit' | 'renew'>('add');
     const [itemToEdit, setItemToEdit] = useState<Document | null>(null);
+    const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<Document | null>(null);
     const [objectUrls, setObjectUrls] = useState<Map<number, { recto: string; verso?: string }>>(new Map());
@@ -343,20 +344,21 @@ export function DocumentsClient() {
                                                     {doc.invoiceAmount && <p className="flex items-center gap-2"><Euro className="h-4 w-4" /> {safeFormatCurrency(doc.invoiceAmount)}</p>}
                                                 </div>
                                             )}
-                                            <div className="flex flex-wrap gap-2">
-                                                <Button asChild variant="secondary" className="flex-1 min-w-[110px] text-xs sm:text-sm" disabled={!docUrls?.recto}>
-                                                    <Link href={docUrls?.recto || '#'} target="_blank" rel="noopener noreferrer">
-                                                        <Download className="mr-2 h-4 w-4 shrink-0" /> <span className="truncate">Voir Recto</span>
-                                                    </Link>
-                                                </Button>
-                                                {docUrls?.verso && (
-                                                    <Button asChild variant="secondary" className="flex-1 min-w-[110px] text-xs sm:text-sm">
-                                                        <Link href={docUrls.verso} target="_blank" rel="noopener noreferrer">
-                                                            <Download className="mr-2 h-4 w-4 shrink-0" /> <span className="truncate">Verso</span>
-                                                        </Link>
-                                                    </Button>
+                                            <Button
+                                                variant="secondary"
+                                                className="w-full text-xs sm:text-sm flex items-center justify-center gap-2 font-medium bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 h-9"
+                                                disabled={!docUrls?.recto}
+                                                onClick={() => setViewingDoc(doc)}
+                                            >
+                                                <Eye className="h-4 w-4 shrink-0" />
+                                                <span>Consulter le document</span>
+                                                {doc.fileVerso && (
+                                                    <span className="text-[10px] bg-primary/20 text-primary font-semibold px-2 py-0.5 rounded-full ml-1">
+                                                        Recto & Verso
+                                                    </span>
                                                 )}
-                                            </div>
+                                            </Button>
+
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -367,6 +369,15 @@ export function DocumentsClient() {
                                             </Button>
                                         </CardContent>
                                         <div className="absolute top-2 right-2 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-background/80 sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none rounded-md p-0.5">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                                                title="Consulter"
+                                                onClick={() => setViewingDoc(doc)}
+                                            >
+                                                <Eye className="h-4 w-4" />
+                                            </Button>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
@@ -418,6 +429,16 @@ export function DocumentsClient() {
                 mode={dialogMode}
                 existingDocuments={documents}
             />}
+
+            <DocumentViewerDialog
+                doc={viewingDoc}
+                docUrls={viewingDoc ? objectUrls.get(viewingDoc.id) : undefined}
+                open={!!viewingDoc}
+                onOpenChange={(open) => {
+                    if (!open) setViewingDoc(null);
+                }}
+                onRenew={handleRenew}
+            />
 
             <DeleteConfirmationDialog
                 open={!!itemToDelete}
@@ -827,5 +848,270 @@ function DeleteConfirmationDialog({ open, onOpenChange, onConfirm, isDeleting, t
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+    );
+}
+
+function DocumentViewerDialog({
+    doc,
+    docUrls,
+    open,
+    onOpenChange,
+    onRenew,
+}: {
+    doc: Document | null;
+    docUrls?: { recto: string; verso?: string };
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onRenew?: (doc: Document) => void;
+}) {
+    const [activeSide, setActiveSide] = useState<'recto' | 'verso'>('recto');
+    const [viewMode, setViewMode] = useState<'single' | 'both'>('single');
+
+    useEffect(() => {
+        if (open) {
+            setActiveSide('recto');
+            setViewMode('single');
+        }
+    }, [open, doc]);
+
+    // Keyboard navigation (ArrowLeft for Recto, ArrowRight for Verso)
+    useEffect(() => {
+        if (!open) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'ArrowLeft') {
+                setActiveSide('recto');
+            } else if (e.key === 'ArrowRight' && docUrls?.verso) {
+                setActiveSide('verso');
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [open, docUrls]);
+
+    if (!doc || !docUrls?.recto) return null;
+
+    const hasBoth = Boolean(docUrls?.verso);
+
+    const isPdf = (file?: File) => {
+        if (!file) return false;
+        return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    };
+
+    const currentFile = activeSide === 'recto' ? doc.fileRecto : doc.fileVerso;
+    const currentUrl = activeSide === 'recto' ? docUrls.recto : docUrls.verso;
+
+    const renderFilePreview = (file?: File, url?: string, label?: string) => {
+        if (!url || !file) {
+            return (
+                <div className="py-12 text-center text-muted-foreground text-sm">
+                    Aucun fichier disponible
+                </div>
+            );
+        }
+        if (isPdf(file)) {
+            return (
+                <iframe
+                    src={url}
+                    title={`${label || 'Document'} - ${doc.name}`}
+                    className="w-full h-[62vh] rounded-md border bg-background"
+                />
+            );
+        }
+        return (
+            <div className="relative w-full flex items-center justify-center p-2">
+                <img
+                    src={url}
+                    alt={`${label || 'Document'} - ${doc.name}`}
+                    className="max-h-[62vh] max-w-full object-contain rounded-md shadow-md transition-all duration-200"
+                />
+            </div>
+        );
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-6 overflow-hidden">
+                <DialogHeader className="space-y-1 pb-3 border-b">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pr-6">
+                        <div>
+                            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                                <FileText className="h-5 w-5 text-primary" />
+                                <span>{doc.name}</span>
+                            </DialogTitle>
+                            <DialogDescription className="text-xs">
+                                {doc.type} • {doc.updatedAt ? `Renouvelé le ${safeFormatDate(doc.updatedAt)}` : `Ajouté le ${safeFormatDate(doc.createdAt)}`}
+                            </DialogDescription>
+                        </div>
+
+                        {/* Switcher Controls */}
+                        {hasBoth && (
+                            <div className="flex items-center gap-1 bg-muted/80 p-1 rounded-lg border self-start sm:self-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setViewMode('single');
+                                        setActiveSide('recto');
+                                    }}
+                                    className={cn(
+                                        "px-3 py-1 text-xs rounded-md transition-all font-medium flex items-center gap-1.5",
+                                        viewMode === 'single' && activeSide === 'recto'
+                                            ? "bg-background text-foreground shadow-sm font-semibold"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    Recto
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setViewMode('single');
+                                        setActiveSide('verso');
+                                    }}
+                                    className={cn(
+                                        "px-3 py-1 text-xs rounded-md transition-all font-medium flex items-center gap-1.5",
+                                        viewMode === 'single' && activeSide === 'verso'
+                                            ? "bg-background text-foreground shadow-sm font-semibold"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    Verso
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode('both')}
+                                    className={cn(
+                                        "px-2.5 py-1 text-xs rounded-md transition-all font-medium flex items-center gap-1",
+                                        viewMode === 'both'
+                                            ? "bg-background text-foreground shadow-sm font-semibold"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                    title="Afficher les 2 pages ensemble pour défiler"
+                                >
+                                    <Layers className="h-3.5 w-3.5" />
+                                    <span className="hidden sm:inline">Dérouler les 2</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </DialogHeader>
+
+                {/* Content Viewer */}
+                <div className="flex-1 overflow-y-auto py-3">
+                    {viewMode === 'single' ? (
+                        <div className="relative flex items-center justify-center min-h-[350px] bg-muted/20 rounded-xl p-2 border">
+                            {hasBoth && (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        className="absolute left-2 top-1/2 -translate-y-1/2 z-10 rounded-full shadow-md bg-background/95 hover:bg-background h-9 w-9"
+                                        disabled={activeSide === 'recto'}
+                                        onClick={() => setActiveSide('recto')}
+                                        title="Voir Recto (Touche Flèche Gauche)"
+                                    >
+                                        <ChevronLeft className="h-5 w-5" />
+                                    </Button>
+
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 z-10 rounded-full shadow-md bg-background/95 hover:bg-background h-9 w-9"
+                                        disabled={activeSide === 'verso'}
+                                        onClick={() => setActiveSide('verso')}
+                                        title="Voir Verso (Touche Flèche Droite)"
+                                    >
+                                        <ChevronRight className="h-5 w-5" />
+                                    </Button>
+                                </>
+                            )}
+
+                            {renderFilePreview(currentFile, currentUrl, activeSide === 'recto' ? 'Recto' : 'Verso')}
+
+                            {hasBoth && (
+                                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium border shadow-sm">
+                                    {activeSide === 'recto' ? 'Page 1 : Recto' : 'Page 2 : Verso'}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        /* Mode déroulant (les 2 pages affichées l'une après l'autre pour défilement direct) */
+                        <div className="space-y-4 pr-1">
+                            <div className="space-y-1.5">
+                                <div className="text-xs font-semibold text-primary flex items-center gap-1.5 px-1">
+                                    <span className="w-2 h-2 rounded-full bg-primary" />
+                                    Page 1 : Recto
+                                </div>
+                                <div className="border rounded-xl bg-muted/20 p-2 flex items-center justify-center">
+                                    {renderFilePreview(doc.fileRecto, docUrls.recto, 'Recto')}
+                                </div>
+                            </div>
+
+                            {doc.fileVerso && docUrls.verso && (
+                                <div className="space-y-1.5">
+                                    <div className="text-xs font-semibold text-primary flex items-center gap-1.5 px-1">
+                                        <span className="w-2 h-2 rounded-full bg-primary" />
+                                        Page 2 : Verso
+                                    </div>
+                                    <div className="border rounded-xl bg-muted/20 p-2 flex items-center justify-center">
+                                        {renderFilePreview(doc.fileVerso, docUrls.verso, 'Verso')}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                <DialogFooter className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 pt-2 border-t">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {currentUrl && (
+                            <>
+                                <Button asChild variant="outline" size="sm" className="h-8 text-xs">
+                                    <a
+                                        href={currentUrl}
+                                        download={currentFile?.name || `${doc.name}-${activeSide}`}
+                                    >
+                                        <Download className="h-3.5 w-3.5 mr-1.5" />
+                                        Télécharger {hasBoth && viewMode === 'single' ? (activeSide === 'recto' ? 'Recto' : 'Verso') : ''}
+                                    </a>
+                                </Button>
+                                <Button asChild variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground">
+                                    <a
+                                        href={currentUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                                        Plein écran
+                                    </a>
+                                </Button>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => {
+                                onOpenChange(false);
+                                if (onRenew) onRenew(doc);
+                            }}
+                        >
+                            <RefreshCw className="h-3.5 w-3.5 mr-1.5 text-primary" />
+                            Renouveler
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => onOpenChange(false)}
+                        >
+                            Fermer
+                        </Button>
+                    </div>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
