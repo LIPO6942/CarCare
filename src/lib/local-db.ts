@@ -64,13 +64,27 @@ export async function getLocalDocumentsForVehicle(vehicleId: string): Promise<Do
   return documents.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-export async function updateLocalDocument(id: number, data: Partial<Omit<Document, 'id' | 'fileRecto' | 'fileVerso'>>): Promise<void> {
+export async function updateLocalDocument(
+    id: number,
+    data: Partial<Omit<Document, 'id'>>,
+    files?: { recto?: File | null; verso?: File | null }
+): Promise<void> {
     const db = await getDb();
     const tx = db.transaction(DOC_STORE_NAME, 'readwrite');
     const store = tx.objectStore(DOC_STORE_NAME);
     const currentDoc = await store.get(id);
     if (currentDoc) {
-        const updatedDoc = { ...currentDoc, ...data };
+        const updatedDoc: Document = {
+            ...currentDoc,
+            ...data,
+            updatedAt: new Date().toISOString(),
+        };
+        if (files?.recto) {
+            updatedDoc.fileRecto = files.recto;
+        }
+        if (files && files.verso !== undefined) {
+            updatedDoc.fileVerso = files.verso || undefined;
+        }
         await store.put(updatedDoc);
     }
     await tx.done;

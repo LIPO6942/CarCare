@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from './ui/skeleton';
-import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Euro, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle } from 'lucide-react';
+import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Euro, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -61,6 +61,7 @@ export function DocumentsClient() {
     const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [dialogMode, setDialogMode] = useState<'add' | 'edit' | 'renew'>('add');
     const [itemToEdit, setItemToEdit] = useState<Document | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<Document | null>(null);
@@ -140,13 +141,21 @@ export function DocumentsClient() {
 
     const handleAdd = () => {
         setItemToEdit(null);
+        setDialogMode('add');
         setIsDialogOpen(true);
     };
 
     const handleEdit = (doc: Document) => {
         setItemToEdit(doc);
+        setDialogMode('edit');
         setIsDialogOpen(true);
-    }
+    };
+
+    const handleRenew = (doc: Document) => {
+        setItemToEdit(doc);
+        setDialogMode('renew');
+        setIsDialogOpen(true);
+    };
 
     const handleDeleteConfirm = async () => {
         if (!itemToDelete) return;
@@ -323,7 +332,9 @@ export function DocumentsClient() {
                                                 <FileText className="h-5 w-5 text-primary" />
                                                 <span className="truncate">{doc.name}</span>
                                             </CardTitle>
-                                            <CardDescription>{doc.type} - Ajouté le {safeFormatDate(doc.createdAt)}</CardDescription>
+                                            <CardDescription className="text-xs">
+                                                {doc.type} • {doc.updatedAt ? `Renouvelé le ${safeFormatDate(doc.updatedAt)}` : `Ajouté le ${safeFormatDate(doc.createdAt)}`}
+                                            </CardDescription>
                                         </CardHeader>
                                         <CardContent className="flex-1 space-y-3">
                                             {doc.type === 'Facture' && (doc.invoiceDate || doc.invoiceAmount) && (
@@ -333,25 +344,54 @@ export function DocumentsClient() {
                                                 </div>
                                             )}
                                             <div className="flex flex-wrap gap-2">
-                                                <Button asChild variant="secondary" className="flex-1 min-w-[120px] text-xs sm:text-sm" disabled={!docUrls?.recto}>
+                                                <Button asChild variant="secondary" className="flex-1 min-w-[110px] text-xs sm:text-sm" disabled={!docUrls?.recto}>
                                                     <Link href={docUrls?.recto || '#'} target="_blank" rel="noopener noreferrer">
                                                         <Download className="mr-2 h-4 w-4 shrink-0" /> <span className="truncate">Voir Recto</span>
                                                     </Link>
                                                 </Button>
                                                 {docUrls?.verso && (
-                                                    <Button asChild variant="secondary" className="flex-1 min-w-[120px] text-xs sm:text-sm">
+                                                    <Button asChild variant="secondary" className="flex-1 min-w-[110px] text-xs sm:text-sm">
                                                         <Link href={docUrls.verso} target="_blank" rel="noopener noreferrer">
                                                             <Download className="mr-2 h-4 w-4 shrink-0" /> <span className="truncate">Verso</span>
                                                         </Link>
                                                     </Button>
                                                 )}
                                             </div>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleRenew(doc)}
+                                                className="w-full text-xs font-medium border-dashed hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5 h-8 mt-1"
+                                            >
+                                                <RefreshCw className="h-3.5 w-3.5 text-primary" /> Renouveler ce document
+                                            </Button>
                                         </CardContent>
-                                        <div className="absolute top-2 right-2 flex opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => handleEdit(doc)}>
+                                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-background/80 sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none rounded-md p-0.5">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                                                title="Renouveler"
+                                                onClick={() => handleRenew(doc)}
+                                            >
+                                                <RefreshCw className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                                title="Modifier"
+                                                onClick={() => handleEdit(doc)}
+                                            >
                                                 <Edit className="h-4 w-4" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setItemToDelete(doc)}>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                                title="Supprimer"
+                                                onClick={() => setItemToDelete(doc)}
+                                            >
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </div>
@@ -369,12 +409,14 @@ export function DocumentsClient() {
                 </CardContent>
             </Card>
             {selectedVehicleId && <DocumentDialog
-                key={itemToEdit ? `edit-${itemToEdit.id}` : 'add'}
+                key={itemToEdit ? `${dialogMode}-${itemToEdit.id}` : `add-${dialogMode}`}
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 vehicleId={selectedVehicleId}
                 onDataChange={onDataChange}
                 initialData={itemToEdit}
+                mode={dialogMode}
+                existingDocuments={documents}
             />}
 
             <DeleteConfirmationDialog
@@ -390,26 +432,77 @@ export function DocumentsClient() {
 }
 
 
-function DocumentDialog({ open, onOpenChange, vehicleId, onDataChange, initialData }: { open: boolean, onOpenChange: (open: boolean) => void, vehicleId: string, onDataChange: () => void, initialData: Document | null }) {
+function suggestNextName(currentName: string): string {
+    const yearMatch = currentName.match(/\b(20\d\d)\b/);
+    if (yearMatch) {
+        const nextYear = parseInt(yearMatch[1], 10) + 1;
+        return currentName.replace(yearMatch[1], String(nextYear));
+    }
+    const currentYear = new Date().getFullYear();
+    return `${currentName} (${currentYear})`;
+}
+
+function DocumentDialog({
+    open,
+    onOpenChange,
+    vehicleId,
+    onDataChange,
+    initialData,
+    mode = 'add',
+    existingDocuments = []
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    vehicleId: string;
+    onDataChange: () => void;
+    initialData: Document | null;
+    mode: 'add' | 'edit' | 'renew';
+    existingDocuments: Document[];
+}) {
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [files, setFiles] = useState<{ recto: File | null; verso: File | null }>({ recto: null, verso: null });
     const [docType, setDocType] = useState<Document['type'] | ''>(initialData?.type || '');
+    const [docName, setDocName] = useState<string>('');
+    const [docToReplaceId, setDocToReplaceId] = useState<number | null>(null);
     const fileInputRectoRef = useRef<HTMLInputElement>(null);
     const fileInputVersoRef = useRef<HTMLInputElement>(null);
 
-    const documentTypes: Document['type'][] = ['Carte Grise', 'Assurance', 'Facture', 'Visite Technique', 'Permis de Conduite', 'Autre'];
+    const documentTypes: Document['type'][] = [
+        'Carte Grise',
+        'Assurance',
+        'Facture',
+        'Visite Technique',
+        'Permis de Conduite',
+        'CIN',
+        'Vignette',
+        'Autre'
+    ];
 
     useEffect(() => {
         if (!open) {
             setFiles({ recto: null, verso: null });
             setDocType('');
+            setDocName('');
+            setDocToReplaceId(null);
             if (fileInputRectoRef.current) fileInputRectoRef.current.value = '';
             if (fileInputVersoRef.current) fileInputVersoRef.current.value = '';
         } else {
-            setDocType(initialData?.type || '');
+            if (mode === 'renew' && initialData) {
+                setDocType(initialData.type);
+                setDocName(suggestNextName(initialData.name));
+                setDocToReplaceId(initialData.id);
+            } else if (mode === 'edit' && initialData) {
+                setDocType(initialData.type);
+                setDocName(initialData.name);
+                setDocToReplaceId(null);
+            } else {
+                setDocType('');
+                setDocName('');
+                setDocToReplaceId(null);
+            }
         }
-    }, [open, initialData]);
+    }, [open, initialData, mode]);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, side: 'recto' | 'verso') => {
         if (event.target.files && event.target.files[0]) {
@@ -417,11 +510,34 @@ function DocumentDialog({ open, onOpenChange, vehicleId, onDataChange, initialDa
         }
     };
 
+    const handleTypeChange = (newType: Document['type']) => {
+        setDocType(newType);
+        if (mode === 'add') {
+            setDocToReplaceId(null);
+        }
+    };
+
+    const matchingExistingDocs = mode === 'add' && docType
+        ? existingDocuments.filter(d => d.type === docType)
+        : [];
+
+    const isReplacing = (mode === 'renew' && !!initialData) || (mode === 'add' && docToReplaceId !== null);
+
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        if (!initialData && !files.recto) {
-            toast({ title: 'Erreur', description: 'Veuillez sélectionner un fichier (recto) pour un nouveau document.', variant: 'destructive' });
+        if (mode === 'add' && !docToReplaceId && !files.recto) {
+            toast({ title: 'Erreur', description: 'Veuillez sélectionner un fichier (recto) pour le nouveau document.', variant: 'destructive' });
+            return;
+        }
+
+        if (mode === 'renew' && !files.recto) {
+            toast({ title: 'Erreur', description: 'Veuillez sélectionner le nouveau fichier (recto) pour le renouvellement.', variant: 'destructive' });
+            return;
+        }
+
+        if (mode === 'add' && docToReplaceId !== null && !files.recto) {
+            toast({ title: 'Erreur', description: 'Veuillez sélectionner le fichier du nouveau document de remplacement.', variant: 'destructive' });
             return;
         }
 
@@ -432,33 +548,58 @@ function DocumentDialog({ open, onOpenChange, vehicleId, onDataChange, initialDa
 
         setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
-        const name = formData.get('name') as string;
+        const name = (formData.get('name') as string)?.trim() || docName || (files.recto ? files.recto.name.replace(/\.[^/.]+$/, "") : 'Document');
 
         try {
-            if (initialData) {
-                // UPDATE
-                const documentInfo: Partial<Omit<Document, 'id' | 'fileRecto' | 'fileVerso'>> = { name, type: docType };
-                if (docType === 'Facture') {
-                    const invoiceDate = formData.get('invoiceDate') as string;
-                    const invoiceAmount = formData.get('invoiceAmount') as string;
-                    documentInfo.invoiceDate = invoiceDate || undefined;
-                    documentInfo.invoiceAmount = invoiceAmount ? parseFloat(invoiceAmount) : undefined;
-                }
-                await updateLocalDocument(initialData.id, documentInfo);
-                toast({ title: "Succès", description: "Document mis à jour." });
+            const invoiceDate = docType === 'Facture' ? ((formData.get('invoiceDate') as string) || undefined) : undefined;
+            const invoiceAmountRaw = docType === 'Facture' ? (formData.get('invoiceAmount') as string) : undefined;
+            const invoiceAmount = invoiceAmountRaw ? parseFloat(invoiceAmountRaw) : undefined;
 
+            const targetId = (mode === 'renew' && initialData) ? initialData.id : docToReplaceId;
+
+            if (targetId !== null && targetId !== undefined) {
+                // Remplacement / Renouvellement : mise à jour en écrasant l'ancien fichier
+                await updateLocalDocument(
+                    targetId,
+                    {
+                        name,
+                        type: docType,
+                        invoiceDate,
+                        invoiceAmount,
+                    },
+                    files.recto || files.verso ? {
+                        recto: files.recto,
+                        verso: files.verso,
+                    } : undefined
+                );
+                toast({
+                    title: "Succès",
+                    description: mode === 'renew' ? "Document renouvelé avec succès." : "Document remplacé avec succès."
+                });
+            } else if (mode === 'edit' && initialData) {
+                // Modification standard
+                await updateLocalDocument(
+                    initialData.id,
+                    {
+                        name,
+                        type: docType,
+                        invoiceDate,
+                        invoiceAmount,
+                    },
+                    files.recto || files.verso ? {
+                        recto: files.recto,
+                        verso: files.verso,
+                    } : undefined
+                );
+                toast({ title: "Succès", description: "Document mis à jour." });
             } else {
-                // ADD
+                // Ajout d'un nouveau document
                 const documentInfo: Omit<Document, 'id' | 'vehicleId' | 'fileRecto' | 'fileVerso' | 'createdAt'> & { vehicleId?: string } = {
-                    name: name || files.recto!.name.replace(/\.[^/.]+$/, ""),
+                    name,
                     type: docType,
+                    invoiceDate,
+                    invoiceAmount,
                 };
-                if (docType === 'Facture') {
-                    const invoiceDate = formData.get('invoiceDate') as string;
-                    const invoiceAmount = formData.get('invoiceAmount') as string;
-                    if (invoiceDate) documentInfo.invoiceDate = invoiceDate;
-                    if (invoiceAmount) documentInfo.invoiceAmount = parseFloat(invoiceAmount);
-                }
                 await addLocalDocument(vehicleId, files as { recto: File; verso?: File | null }, documentInfo);
                 toast({ title: "Succès", description: "Document ajouté localement." });
             }
@@ -474,31 +615,128 @@ function DocumentDialog({ open, onOpenChange, vehicleId, onDataChange, initialDa
         }
     };
 
+    let dialogTitle = "Ajouter un document";
+    let dialogDesc = "Téléchargez les fichiers qui seront stockés localement dans votre navigateur.";
+
+    if (mode === 'renew') {
+        dialogTitle = `Renouveler : ${initialData?.name || 'Document'}`;
+        dialogDesc = "Importez la nouvelle version du document pour remplacer l'ancienne sans la recréer.";
+    } else if (mode === 'edit') {
+        dialogTitle = `Modifier le document`;
+        dialogDesc = "Modifiez les informations ou mettez à jour les fichiers du document.";
+    } else if (isReplacing) {
+        dialogTitle = "Remplacer un document existant";
+        dialogDesc = "Le document existant sélectionné sera remplacé par le nouveau fichier.";
+    }
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>{initialData ? 'Modifier le' : 'Ajouter un'} document</DialogTitle>
-                    <DialogDescription>
-                        {initialData ? "Modifiez les informations du document." : "Téléchargez les fichiers qui seront stockés dans votre navigateur."}
-                    </DialogDescription>
+                    <DialogTitle>{dialogTitle}</DialogTitle>
+                    <DialogDescription>{dialogDesc}</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                     <div className="space-y-2">
                         <Label htmlFor="doc-name">Nom du document</Label>
-                        <Input id="doc-name" name="name" placeholder="Ex: Facture garage du 15/05" required defaultValue={initialData?.name} />
+                        <Input
+                            id="doc-name"
+                            name="name"
+                            placeholder="Ex: Assurance 2026, Facture garage..."
+                            required
+                            value={docName}
+                            onChange={(e) => setDocName(e.target.value)}
+                        />
                     </div>
+
                     <div className="space-y-2">
                         <Label>Type de document</Label>
-                        <Select onValueChange={(value) => setDocType(value as Document['type'])} value={docType} required>
+                        <Select
+                            onValueChange={(value) => handleTypeChange(value as Document['type'])}
+                            value={docType}
+                            required
+                            disabled={mode === 'renew'}
+                        >
                             <SelectTrigger>
                                 <SelectValue placeholder="Sélectionnez un type" />
                             </SelectTrigger>
                             <SelectContent>
-                                {documentTypes.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                                {documentTypes.map(type => (
+                                    <SelectItem key={type} value={type}>
+                                        {type}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {mode === 'add' && matchingExistingDocs.length > 0 && (
+                        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                                <RefreshCw className="h-3.5 w-3.5" />
+                                Document « {docType} » déjà existant
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Un document de ce type existe déjà. Souhaitez-vous le remplacer par cette nouvelle version ?
+                            </p>
+                            <div className="grid grid-cols-2 gap-2 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setDocToReplaceId(null)}
+                                    className={cn(
+                                        "p-2 text-xs rounded-md border text-center transition-all",
+                                        docToReplaceId === null
+                                            ? "border-primary bg-primary text-primary-foreground font-medium shadow-sm"
+                                            : "border-border bg-background hover:bg-muted text-foreground"
+                                    )}
+                                >
+                                    Nouveau document
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (matchingExistingDocs.length > 0) {
+                                            const target = matchingExistingDocs[0];
+                                            setDocToReplaceId(target.id);
+                                            setDocName(suggestNextName(target.name));
+                                        }
+                                    }}
+                                    className={cn(
+                                        "p-2 text-xs rounded-md border text-center transition-all",
+                                        docToReplaceId !== null
+                                            ? "border-primary bg-primary text-primary-foreground font-medium shadow-sm"
+                                            : "border-border bg-background hover:bg-muted text-foreground"
+                                    )}
+                                >
+                                    Remplacer l'existant
+                                </button>
+                            </div>
+                            {docToReplaceId !== null && matchingExistingDocs.length > 1 && (
+                                <div className="pt-2 space-y-1">
+                                    <Label className="text-xs">Document à remplacer :</Label>
+                                    <Select
+                                        value={String(docToReplaceId)}
+                                        onValueChange={(val) => {
+                                            const target = matchingExistingDocs.find(d => d.id === Number(val));
+                                            setDocToReplaceId(Number(val));
+                                            if (target) setDocName(suggestNextName(target.name));
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-8 text-xs">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {matchingExistingDocs.map(d => (
+                                                <SelectItem key={d.id} value={String(d.id)} className="text-xs">
+                                                    {d.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {docType === 'Facture' && (
                         <div className="space-y-4 rounded-md border p-4">
@@ -516,36 +754,56 @@ function DocumentDialog({ open, onOpenChange, vehicleId, onDataChange, initialDa
                         </div>
                     )}
 
-                    {!initialData && (
-                        <>
-                            <div className="space-y-2">
-                                <Label htmlFor="file-upload-recto">Fichier Recto (obligatoire)</Label>
-                                <Input id="file-upload-recto" type="file" required onChange={(e) => handleFileChange(e, 'recto')} ref={fileInputRectoRef} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="file-upload-verso">Fichier Verso (optionnel)</Label>
-                                <Input id="file-upload-verso" type="file" onChange={(e) => handleFileChange(e, 'verso')} ref={fileInputVersoRef} />
-                            </div>
-                        </>
-                    )}
+                    <div className="space-y-3">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="file-upload-recto">
+                                {mode === 'edit'
+                                    ? "Remplacer le fichier Recto (Optionnel)"
+                                    : (isReplacing ? "Nouveau fichier Recto (Obligatoire)" : "Fichier Recto (Obligatoire)")}
+                            </Label>
+                            <Input
+                                id="file-upload-recto"
+                                type="file"
+                                required={mode !== 'edit'}
+                                onChange={(e) => handleFileChange(e, 'recto')}
+                                ref={fileInputRectoRef}
+                            />
+                            {mode === 'edit' && (
+                                <p className="text-xs text-muted-foreground">Laisser vide pour conserver le fichier Recto actuel.</p>
+                            )}
+                        </div>
 
-                    {initialData && (
-                        <p className="text-xs text-muted-foreground p-2 rounded-md bg-muted/50 border">
-                            La modification des fichiers n'est pas prise en charge. Pour changer de fichier, veuillez supprimer cette entrée et en créer une nouvelle.
-                        </p>
-                    )}
+                        <div className="space-y-1.5">
+                            <Label htmlFor="file-upload-verso">
+                                {mode === 'edit'
+                                    ? "Remplacer le fichier Verso (Optionnel)"
+                                    : (isReplacing ? "Nouveau fichier Verso (Optionnel)" : "Fichier Verso (Optionnel)")}
+                            </Label>
+                            <Input
+                                id="file-upload-verso"
+                                type="file"
+                                onChange={(e) => handleFileChange(e, 'verso')}
+                                ref={fileInputVersoRef}
+                            />
+                            {mode === 'edit' && (
+                                <p className="text-xs text-muted-foreground">Laisser vide pour conserver le fichier Verso actuel.</p>
+                            )}
+                        </div>
+                    </div>
 
                     <DialogFooter>
-                        <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
+                        <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+                            Annuler
+                        </Button>
                         <Button type="submit" disabled={isSubmitting}>
                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Enregistrer
+                            {mode === 'renew' ? 'Renouveler' : (isReplacing ? 'Remplacer' : (mode === 'edit' ? 'Enregistrer' : 'Ajouter'))}
                         </Button>
                     </DialogFooter>
                 </form>
             </DialogContent>
         </Dialog>
-    )
+    );
 }
 
 function DeleteConfirmationDialog({ open, onOpenChange, onConfirm, isDeleting, title, description }: { open: boolean, onOpenChange: (open: boolean) => void, onConfirm: () => void, isDeleting: boolean, title: string, description: string }) {
