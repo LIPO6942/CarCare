@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Skeleton } from './ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Euro, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw, Eye, ChevronLeft, ChevronRight, ExternalLink, Layers, Maximize2, ZoomIn, ZoomOut, X, RotateCcw } from 'lucide-react';
+import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Banknote, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw, Eye, ChevronLeft, ChevronRight, ExternalLink, Layers, Maximize2, ZoomIn, ZoomOut, X, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -23,7 +23,19 @@ import { fr } from "date-fns/locale";
 import { Label } from './ui/label';
 import { cn } from '@/lib/utils';
 
-
+const createSafeUrl = (file: any): string | undefined => {
+    if (!file) return undefined;
+    if (typeof file === 'string') return file;
+    if (file instanceof Blob || file instanceof File || (typeof file === 'object' && typeof file.slice === 'function')) {
+        try {
+            return URL.createObjectURL(file);
+        } catch (e) {
+            console.error("Error creating object URL:", e);
+            return undefined;
+        }
+    }
+    return undefined;
+};
 
 const safeFormatDate = (dateInput: any, formatString: string = 'P') => {
     try {
@@ -46,12 +58,12 @@ const safeFormatDate = (dateInput: any, formatString: string = 'P') => {
 const safeFormatCurrency = (numInput: any): string => {
     try {
         const num = Number(numInput);
-        if (isNaN(num)) return (0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
-        return num.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
+        if (isNaN(num)) return '0.000 TND';
+        return `${num.toLocaleString('fr-FR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} TND`;
     } catch {
-        return (0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' });
+        return '0.000 TND';
     }
-}
+};
 
 export function DocumentsClient() {
     const { user } = useAuth();
@@ -110,23 +122,20 @@ export function DocumentsClient() {
     useEffect(() => {
         const newUrls = new Map<number, { recto: string, verso?: string }>();
         documents.forEach(doc => {
-            const urls: { recto: string, verso?: string } = {} as any;
-            if (doc.fileRecto instanceof File) {
-                urls.recto = URL.createObjectURL(doc.fileRecto);
-            }
-            if (doc.fileVerso instanceof File) {
-                urls.verso = URL.createObjectURL(doc.fileVerso);
-            }
-            if (urls.recto) {
-                newUrls.set(doc.id, urls);
+            const recto = createSafeUrl(doc.fileRecto);
+            const verso = createSafeUrl(doc.fileVerso);
+            if (recto) {
+                newUrls.set(doc.id, { recto, verso });
             }
         });
         setObjectUrls(newUrls);
 
         return () => {
             newUrls.forEach(urlObj => {
-                URL.revokeObjectURL(urlObj.recto);
-                if (urlObj.verso) {
+                if (urlObj.recto && urlObj.recto.startsWith('blob:')) {
+                    URL.revokeObjectURL(urlObj.recto);
+                }
+                if (urlObj.verso && urlObj.verso.startsWith('blob:')) {
                     URL.revokeObjectURL(urlObj.verso);
                 }
             });
@@ -413,7 +422,7 @@ export function DocumentsClient() {
                                                     )}
                                                     {doc.invoiceAmount && (
                                                         <span className="flex items-center gap-1 font-semibold text-foreground">
-                                                            <Euro className="h-3 w-3 text-primary" /> {safeFormatCurrency(doc.invoiceAmount)}
+                                                            <Banknote className="h-3.5 w-3.5 text-primary" /> {safeFormatCurrency(doc.invoiceAmount)}
                                                         </span>
                                                     )}
                                                 </div>
@@ -929,6 +938,25 @@ function DocumentViewerDialog({
 }) {
     const [fullscreenSide, setFullscreenSide] = useState<'recto' | 'verso' | null>(null);
     const [zoomScale, setZoomScale] = useState<number>(1);
+    const [localUrls, setLocalUrls] = useState<{ recto?: string; verso?: string }>({});
+    const touchStartX = useRef<number | null>(null);
+
+    // Ensure we always have valid URLs for both recto and verso
+    useEffect(() => {
+        if (!doc) return;
+        const r = docUrls?.recto || createSafeUrl(doc.fileRecto);
+        const v = docUrls?.verso || createSafeUrl(doc.fileVerso);
+        setLocalUrls({ recto: r, verso: v });
+
+        return () => {
+            if (!docUrls?.recto && r?.startsWith('blob:')) URL.revokeObjectURL(r);
+            if (!docUrls?.verso && v?.startsWith('blob:')) URL.revokeObjectURL(v);
+        };
+    }, [doc, docUrls]);
+
+    const effectiveRectoUrl = docUrls?.recto || localUrls.recto;
+    const effectiveVersoUrl = docUrls?.verso || localUrls.verso;
+    const hasBoth = Boolean(doc?.fileVerso && (effectiveVersoUrl || doc.fileVerso));
 
     useEffect(() => {
         if (!open) {
@@ -937,7 +965,11 @@ function DocumentViewerDialog({
         }
     }, [open]);
 
-    const hasBoth = Boolean(docUrls?.verso);
+    const toggleSide = () => {
+        if (!hasBoth) return;
+        setFullscreenSide(prev => (prev === 'recto' ? 'verso' : 'recto'));
+        setZoomScale(1);
+    };
 
     // Keyboard navigation in Fullscreen Lightbox
     useEffect(() => {
@@ -946,12 +978,8 @@ function DocumentViewerDialog({
             if (e.key === 'Escape') {
                 setFullscreenSide(null);
                 setZoomScale(1);
-            } else if (e.key === 'ArrowLeft' && hasBoth) {
-                setFullscreenSide('recto');
-                setZoomScale(1);
-            } else if (e.key === 'ArrowRight' && hasBoth) {
-                setFullscreenSide('verso');
-                setZoomScale(1);
+            } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && hasBoth) {
+                toggleSide();
             } else if (e.key === '+' || e.key === '=') {
                 setZoomScale(z => Math.min(3, Number((z + 0.25).toFixed(2))));
             } else if (e.key === '-') {
@@ -962,15 +990,28 @@ function DocumentViewerDialog({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [fullscreenSide, hasBoth]);
 
-    if (!doc || !docUrls?.recto) return null;
+    const handleTouchStart = (e: React.TouchEvent) => {
+        touchStartX.current = e.touches[0].clientX;
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        if (touchStartX.current === null) return;
+        const diff = e.changedTouches[0].clientX - touchStartX.current;
+        if (Math.abs(diff) > 40 && hasBoth) {
+            toggleSide();
+        }
+        touchStartX.current = null;
+    };
+
+    if (!doc || !effectiveRectoUrl) return null;
 
     const isPdf = (file?: File) => {
         if (!file) return false;
         return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     };
 
-    const activeFullscreenUrl = fullscreenSide === 'recto' ? docUrls.recto : docUrls.verso;
-    const activeFullscreenFile = fullscreenSide === 'recto' ? doc.fileRecto : doc.fileVerso;
+    const activeFullscreenUrl = fullscreenSide === 'recto' ? effectiveRectoUrl : (effectiveVersoUrl || effectiveRectoUrl);
+    const activeFullscreenFile = fullscreenSide === 'recto' ? doc.fileRecto : (doc.fileVerso || doc.fileRecto);
 
     const renderLayerCard = (side: 'recto' | 'verso', file?: File, url?: string, label?: string) => {
         if (!url || !file) return null;
@@ -999,7 +1040,7 @@ function DocumentViewerDialog({
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-7 text-xs px-2.5 gap-1.5 font-medium text-primary hover:text-primary hover:bg-primary/10 border-primary/25 rounded-lg"
+                            className="h-7 text-xs px-2.5 gap-1.5 font-medium text-primary hover:text-primary hover:bg-primary/10 border-primary/25 rounded-lg cursor-pointer"
                             onClick={() => {
                                 setFullscreenSide(side);
                                 setZoomScale(1);
@@ -1096,23 +1137,25 @@ function DocumentViewerDialog({
                     {/* Content: View in LAYERS (une photo au-dessus de l'autre) */}
                     <div className="flex-1 overflow-y-auto py-3 space-y-4 pr-1">
                         {/* Layer 1: Recto */}
-                        {renderLayerCard('recto', doc.fileRecto, docUrls.recto, 'Recto')}
+                        {renderLayerCard('recto', doc.fileRecto, effectiveRectoUrl, 'Recto')}
 
                         {/* Layer 2: Verso (au-dessous de Recto) */}
-                        {hasBoth && renderLayerCard('verso', doc.fileVerso, docUrls.verso, 'Verso')}
+                        {hasBoth && renderLayerCard('verso', doc.fileVerso, effectiveVersoUrl, 'Verso')}
                     </div>
 
                     <DialogFooter className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 pt-3 border-t border-border/60">
                         <div className="flex flex-wrap items-center gap-2">
-                            <Button asChild variant="outline" size="sm" className="h-8 text-xs rounded-lg">
-                                <a href={docUrls.recto} download={doc.fileRecto?.name || `${doc.name}-recto`}>
-                                    <Download className="h-3.5 w-3.5 mr-1.5" />
-                                    Télécharger Recto
-                                </a>
-                            </Button>
-                            {hasBoth && docUrls.verso && (
+                            {effectiveRectoUrl && (
                                 <Button asChild variant="outline" size="sm" className="h-8 text-xs rounded-lg">
-                                    <a href={docUrls.verso} download={doc.fileVerso?.name || `${doc.name}-verso`}>
+                                    <a href={effectiveRectoUrl} download={doc.fileRecto?.name || `${doc.name}-recto`}>
+                                        <Download className="h-3.5 w-3.5 mr-1.5" />
+                                        Télécharger Recto
+                                    </a>
+                                </Button>
+                            )}
+                            {hasBoth && effectiveVersoUrl && (
+                                <Button asChild variant="outline" size="sm" className="h-8 text-xs rounded-lg">
+                                    <a href={effectiveVersoUrl} download={doc.fileVerso?.name || `${doc.name}-verso`}>
                                         <Download className="h-3.5 w-3.5 mr-1.5" />
                                         Télécharger Verso
                                     </a>
@@ -1124,7 +1167,7 @@ function DocumentViewerDialog({
                             <Button
                                 variant="secondary"
                                 size="sm"
-                                className="h-8 text-xs font-medium rounded-lg"
+                                className="h-8 text-xs font-medium rounded-lg cursor-pointer"
                                 onClick={() => {
                                     onOpenChange(false);
                                     if (onRenew) onRenew(doc);
@@ -1136,7 +1179,7 @@ function DocumentViewerDialog({
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-8 text-xs rounded-lg"
+                                className="h-8 text-xs rounded-lg cursor-pointer"
                                 onClick={() => onOpenChange(false)}
                             >
                                 Fermer
@@ -1146,49 +1189,68 @@ function DocumentViewerDialog({
                 </DialogContent>
             </Dialog>
 
-            {/* LIGHTBOX PLEIN ÉCRAN INTERACTIVE AU CLIC SUR UNE DES PHOTOS */}
-            {fullscreenSide && activeFullscreenUrl && (
-                <div className="fixed inset-0 z-[150] bg-black/95 backdrop-blur-md flex flex-col justify-between text-white select-none animate-in fade-in duration-200">
+            {/* LIGHTBOX PLEIN ÉCRAN INTERACTIVE AU CLIC SUR UNE DES PHOTOS (NESTED DIALOG PORTAL) */}
+            <Dialog
+                open={!!fullscreenSide}
+                onOpenChange={(isOpen) => {
+                    if (!isOpen) {
+                        setFullscreenSide(null);
+                        setZoomScale(1);
+                    }
+                }}
+            >
+                <DialogContent className="!fixed !inset-0 !top-0 !left-0 !translate-x-0 !translate-y-0 !w-screen !h-screen !max-w-none !max-h-none !p-0 !m-0 !border-0 !rounded-none !bg-black/95 !backdrop-blur-md flex flex-col justify-between text-white select-none z-[200] overflow-hidden outline-none [&>button:last-child]:hidden">
+                    <DialogTitle className="sr-only">
+                        {doc.name} - {fullscreenSide === 'recto' ? 'Recto' : 'Verso'}
+                    </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Affichage plein écran du document
+                    </DialogDescription>
+
                     {/* Top Toolbar */}
-                    <div className="h-14 px-3 sm:px-6 flex items-center justify-between border-b border-white/10 bg-black/40 backdrop-blur-md shrink-0">
+                    <div className="h-14 px-3 sm:px-6 flex items-center justify-between border-b border-white/10 bg-black/50 backdrop-blur-md shrink-0 z-50">
                         <div className="flex items-center gap-2 min-w-0">
                             <span className="font-semibold text-sm sm:text-base text-white truncate max-w-[140px] sm:max-w-xs">
                                 {doc.name}
                             </span>
-                            <Badge className="bg-primary text-primary-foreground text-xs font-semibold rounded-full px-2 py-0.5">
+                            <Badge className="bg-primary text-primary-foreground text-xs font-semibold rounded-full px-2.5 py-0.5">
                                 {fullscreenSide === 'recto' ? 'Page 1 • Recto' : 'Page 2 • Verso'}
                             </Badge>
                         </div>
 
                         {/* Switcher Recto / Verso si disponible */}
                         {hasBoth && (
-                            <div className="flex items-center bg-white/10 p-0.5 rounded-lg border border-white/10">
+                            <div className="flex items-center bg-white/10 p-1 rounded-xl border border-white/15 gap-1 z-50">
                                 <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
                                         setFullscreenSide('recto');
                                         setZoomScale(1);
                                     }}
                                     className={cn(
-                                        "px-3 py-1 text-xs rounded-md font-medium transition-all",
+                                        "px-3.5 py-1.5 text-xs rounded-lg font-bold transition-all cursor-pointer",
                                         fullscreenSide === 'recto'
-                                            ? "bg-white text-black font-semibold shadow-xs"
-                                            : "text-white/70 hover:text-white"
+                                            ? "bg-primary text-primary-foreground shadow-md scale-105"
+                                            : "text-white/80 hover:text-white hover:bg-white/10"
                                     )}
                                 >
                                     Recto
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
                                         setFullscreenSide('verso');
                                         setZoomScale(1);
                                     }}
                                     className={cn(
-                                        "px-3 py-1 text-xs rounded-md font-medium transition-all",
+                                        "px-3.5 py-1.5 text-xs rounded-lg font-bold transition-all cursor-pointer",
                                         fullscreenSide === 'verso'
-                                            ? "bg-white text-black font-semibold shadow-xs"
-                                            : "text-white/70 hover:text-white"
+                                            ? "bg-primary text-primary-foreground shadow-md scale-105"
+                                            : "text-white/80 hover:text-white hover:bg-white/10"
                                     )}
                                 >
                                     Verso
@@ -1197,53 +1259,69 @@ function DocumentViewerDialog({
                         )}
 
                         {/* Actions Plein Écran: Zoom, Télécharger, Fermer */}
-                        <div className="flex items-center gap-1 sm:gap-1.5">
+                        <div className="flex items-center gap-1 sm:gap-1.5 z-50">
                             <Button
+                                type="button"
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 text-white hover:bg-white/20 rounded-md"
+                                className="h-8 w-8 text-white hover:bg-white/20 rounded-md cursor-pointer"
                                 title="Zoom arrière (-)"
-                                onClick={() => setZoomScale(z => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setZoomScale(z => Math.max(0.5, Number((z - 0.25).toFixed(2))));
+                                }}
                             >
                                 <ZoomOut className="h-4 w-4" />
                             </Button>
                             <button
                                 type="button"
-                                onClick={() => setZoomScale(1)}
-                                className="text-xs font-mono px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white/90"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setZoomScale(1);
+                                }}
+                                className="text-xs font-mono px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white/90 cursor-pointer"
                                 title="Réinitialiser zoom"
                             >
                                 {Math.round(zoomScale * 100)}%
                             </button>
                             <Button
+                                type="button"
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 text-white hover:bg-white/20 rounded-md"
+                                className="h-8 w-8 text-white hover:bg-white/20 rounded-md cursor-pointer"
                                 title="Zoom avant (+)"
-                                onClick={() => setZoomScale(z => Math.min(3, Number((z + 0.25).toFixed(2))))}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setZoomScale(z => Math.min(3, Number((z + 0.25).toFixed(2))));
+                                }}
                             >
                                 <ZoomIn className="h-4 w-4" />
                             </Button>
-                            <Button
-                                asChild
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-white hover:bg-white/20 rounded-md"
-                                title="Télécharger"
-                            >
-                                <a
-                                    href={activeFullscreenUrl}
-                                    download={activeFullscreenFile?.name || `${doc.name}-${fullscreenSide}`}
+                            {activeFullscreenUrl && (
+                                <Button
+                                    asChild
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-white hover:bg-white/20 rounded-md cursor-pointer"
+                                    title="Télécharger"
                                 >
-                                    <Download className="h-4 w-4" />
-                                </a>
-                            </Button>
+                                    <a
+                                        href={activeFullscreenUrl}
+                                        download={activeFullscreenFile?.name || `${doc.name}-${fullscreenSide}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <Download className="h-4 w-4" />
+                                    </a>
+                                </Button>
+                            )}
                             <Button
+                                type="button"
                                 size="icon"
                                 variant="ghost"
-                                className="h-9 w-9 rounded-full bg-white/15 hover:bg-white/30 text-white ml-2"
+                                className="h-9 w-9 rounded-full bg-white/15 hover:bg-white/30 text-white ml-2 cursor-pointer"
                                 title="Fermer (Échap)"
-                                onClick={() => {
+                                onClick={(e) => {
+                                    e.stopPropagation();
                                     setFullscreenSide(null);
                                     setZoomScale(1);
                                 }}
@@ -1256,6 +1334,8 @@ function DocumentViewerDialog({
                     {/* Canvas Image Plein Écran */}
                     <div
                         className="flex-1 w-full h-full overflow-auto flex items-center justify-center p-2 sm:p-6 relative cursor-default"
+                        onTouchStart={handleTouchStart}
+                        onTouchEnd={handleTouchEnd}
                         onClick={(e) => {
                             if (e.target === e.currentTarget) {
                                 setFullscreenSide(null);
@@ -1269,7 +1349,7 @@ function DocumentViewerDialog({
                                 title={`${doc.name} - Plein écran`}
                                 className="w-full h-full max-h-[85vh] rounded-lg border-0 bg-white"
                             />
-                        ) : (
+                        ) : activeFullscreenUrl ? (
                             <img
                                 src={activeFullscreenUrl}
                                 alt={`${doc.name} - ${fullscreenSide}`}
@@ -1277,51 +1357,75 @@ function DocumentViewerDialog({
                                     transform: `scale(${zoomScale})`,
                                     transformOrigin: 'center center',
                                 }}
-                                className="max-h-[84vh] max-w-[95vw] object-contain transition-transform duration-200 cursor-zoom-in rounded-lg shadow-2xl"
-                                onClick={() => setZoomScale(z => (z === 1 ? 1.75 : 1))}
+                                className="max-h-[84vh] max-w-[95vw] object-contain transition-transform duration-200 cursor-zoom-in rounded-lg shadow-2xl select-none"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setZoomScale(z => (z === 1 ? 1.75 : 1));
+                                }}
                                 title="Cliquer pour basculer le zoom"
                             />
-                        )}
+                        ) : null}
 
                         {/* Flèches de navigation gauche/droite si Recto & Verso */}
                         {hasBoth && (
                             <>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    disabled={fullscreenSide === 'recto'}
-                                    onClick={() => {
-                                        setFullscreenSide('recto');
-                                        setZoomScale(1);
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleSide();
                                     }}
-                                    className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/15 backdrop-blur-sm disabled:opacity-20"
-                                    title="Voir Recto (Flèche Gauche)"
+                                    className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-40 h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-black/75 hover:bg-primary text-white hover:text-primary-foreground border border-white/30 hover:border-primary shadow-2xl backdrop-blur-md flex items-center justify-center transition-all cursor-pointer active:scale-95 group/arrow"
+                                    title="Basculer vers l'autre face (Recto / Verso)"
                                 >
-                                    <ChevronLeft className="h-6 w-6" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    disabled={fullscreenSide === 'verso'}
-                                    onClick={() => {
-                                        setFullscreenSide('verso');
-                                        setZoomScale(1);
+                                    <ChevronLeft className="h-7 w-7 sm:h-9 sm:w-9 transition-transform group-hover/arrow:-translate-x-0.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleSide();
                                     }}
-                                    className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/15 backdrop-blur-sm disabled:opacity-20"
-                                    title="Voir Verso (Flèche Droite)"
+                                    className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-40 h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-black/75 hover:bg-primary text-white hover:text-primary-foreground border border-white/30 hover:border-primary shadow-2xl backdrop-blur-md flex items-center justify-center transition-all cursor-pointer active:scale-95 group/arrow"
+                                    title="Basculer vers l'autre face (Recto / Verso)"
                                 >
-                                    <ChevronRight className="h-6 w-6" />
-                                </Button>
+                                    <ChevronRight className="h-7 w-7 sm:h-9 sm:w-9 transition-transform group-hover/arrow:translate-x-0.5" />
+                                </button>
                             </>
                         )}
                     </div>
 
-                    {/* Bottom Hint */}
-                    <div className="py-2.5 px-4 text-center border-t border-white/10 bg-black/40 text-[11px] sm:text-xs text-white/60 shrink-0">
-                        Cliquer sur l&apos;image pour zoomer • {hasBoth ? "Flèches du clavier pour changer de face • " : ""}Échap ou cliquer en dehors pour fermer
+                    {/* Bottom Toolbar & Switcher */}
+                    <div className="py-2.5 px-4 flex items-center justify-between border-t border-white/10 bg-black/50 text-[11px] sm:text-xs text-white/70 shrink-0 z-30">
+                        <div className="hidden sm:block">
+                            Cliquer sur l&apos;image pour zoomer • Échap pour fermer
+                        </div>
+
+                        {hasBoth && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    toggleSide();
+                                }}
+                                className="mx-auto sm:mx-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/15 hover:bg-primary text-white hover:text-primary-foreground border border-white/20 transition-all font-semibold cursor-pointer shadow-md active:scale-95"
+                            >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                                <span>
+                                    Basculer vers {fullscreenSide === 'recto' ? 'Page 2 (Verso)' : 'Page 1 (Recto)'} ➔
+                                </span>
+                            </button>
+                        )}
+
+                        <div className="hidden sm:block text-white/50 text-[10px]">
+                            {hasBoth ? "Glisser ou Flèches ← / → pour basculer" : ""}
+                        </div>
                     </div>
-                </div>
-            )}
+                </DialogContent>
+            </Dialog>
         </>
     );
 }
