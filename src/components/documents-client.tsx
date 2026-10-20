@@ -10,7 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from './ui/skeleton';
-import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Euro, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw, Eye, ChevronLeft, ChevronRight, ExternalLink, Layers } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Euro, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw, Eye, ChevronLeft, ChevronRight, ExternalLink, Layers, Maximize2, ZoomIn, ZoomOut, X, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -311,114 +312,176 @@ export function DocumentsClient() {
                 </Card>
             )}
 
-            <Card className="mt-6">
-                <CardHeader>
-                    <CardTitle>Documents du Véhicule</CardTitle>
-                    <CardDescription>Stockez et consultez tous vos documents importants.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {isLoadingDocuments ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                            <Loader2 className="mx-auto h-12 w-12 animate-spin mb-4" />
-                            <p>Chargement des documents...</p>
-                        </div>
-                    ) : documents.length > 0 ? (
-                        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                            {documents.map((doc) => {
-                                const docUrls = objectUrls.get(doc.id);
-                                return (
-                                    <Card key={doc.id} className="group relative flex flex-col overflow-hidden">
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-2 text-lg">
-                                                <FileText className="h-5 w-5 text-primary" />
-                                                <span className="truncate">{doc.name}</span>
-                                            </CardTitle>
-                                            <CardDescription className="text-xs">
-                                                {doc.type} • {doc.updatedAt ? `Renouvelé le ${safeFormatDate(doc.updatedAt)}` : `Ajouté le ${safeFormatDate(doc.createdAt)}`}
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent className="flex-1 space-y-3">
+            <div className="mt-6 space-y-3 sm:space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 px-1">
+                    <div>
+                        <h2 className="text-base sm:text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+                            <FileText className="h-5 w-5 text-primary" />
+                            <span>Documents du Véhicule</span>
+                            {documents.length > 0 && (
+                                <Badge variant="secondary" className="font-semibold text-xs px-2 py-0.5 rounded-full">
+                                    {documents.length}
+                                </Badge>
+                            )}
+                        </h2>
+                        <p className="text-xs sm:text-sm text-muted-foreground">
+                            Stockez, consultez et gérez tous vos documents importants.
+                        </p>
+                    </div>
+                </div>
+
+                {isLoadingDocuments ? (
+                    <div className="text-center py-12 text-muted-foreground border rounded-2xl bg-card/60 backdrop-blur-sm">
+                        <Loader2 className="mx-auto h-10 w-10 animate-spin mb-3 text-primary" />
+                        <p className="text-sm font-medium">Chargement des documents...</p>
+                    </div>
+                ) : documents.length > 0 ? (
+                    <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 w-full">
+                        {documents.map((doc) => {
+                            const docUrls = objectUrls.get(doc.id);
+                            const hasBoth = Boolean(doc.fileVerso);
+                            return (
+                                <div
+                                    key={doc.id}
+                                    className="group relative flex flex-col justify-between w-full rounded-2xl border border-border/80 bg-card/90 hover:bg-card hover:border-primary/40 shadow-sm hover:shadow-md transition-all duration-200 p-3.5 sm:p-4 overflow-hidden"
+                                >
+                                    <div className="space-y-3">
+                                        {/* Card Header: Icon + Info + Actions */}
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex items-start gap-2.5 min-w-0">
+                                                <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0 mt-0.5">
+                                                    <FileText className="h-4 w-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h3 className="font-bold text-sm sm:text-base leading-snug truncate text-foreground" title={doc.name}>
+                                                        {doc.name}
+                                                    </h3>
+                                                    <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                                        <span className="text-[11px] font-medium text-muted-foreground">
+                                                            {doc.type}
+                                                        </span>
+                                                        <span className="text-[11px] text-muted-foreground/60">•</span>
+                                                        <span className="text-[11px] text-muted-foreground">
+                                                            {doc.updatedAt ? `Renouvelé le ${safeFormatDate(doc.updatedAt)}` : `Ajouté le ${safeFormatDate(doc.createdAt)}`}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Actions en haut à droite: Modifier & Supprimer UNIQUEMENT (Pas de doublons d'œil ou d'actualisation) */}
+                                            <div className="flex items-center gap-0.5 shrink-0 bg-muted/40 rounded-lg p-0.5">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 text-muted-foreground hover:text-foreground rounded-md"
+                                                    title="Modifier"
+                                                    onClick={() => handleEdit(doc)}
+                                                >
+                                                    <Edit className="h-3.5 w-3.5" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 text-destructive/80 hover:text-destructive hover:bg-destructive/10 rounded-md"
+                                                    title="Supprimer"
+                                                    onClick={() => setItemToDelete(doc)}
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* Badges / Facture Info / Recto-Verso */}
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {hasBoth ? (
+                                                <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-semibold bg-primary/5 text-primary border-primary/20 gap-1 rounded-full">
+                                                    <Layers className="h-3 w-3" />
+                                                    Recto & Verso (2 pages)
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-normal text-muted-foreground border-border/80 rounded-full">
+                                                    1 page (Recto)
+                                                </Badge>
+                                            )}
+
                                             {doc.type === 'Facture' && (doc.invoiceDate || doc.invoiceAmount) && (
-                                                <div className="text-sm text-muted-foreground space-y-1">
-                                                    {doc.invoiceDate && <p className="flex items-center gap-2"><Calendar className="h-4 w-4" /> {safeFormatDate(doc.invoiceDate)}</p>}
-                                                    {doc.invoiceAmount && <p className="flex items-center gap-2"><Euro className="h-4 w-4" /> {safeFormatCurrency(doc.invoiceAmount)}</p>}
+                                                <div className="flex items-center gap-3 text-xs text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-md">
+                                                    {doc.invoiceDate && (
+                                                        <span className="flex items-center gap-1 font-medium">
+                                                            <Calendar className="h-3 w-3 text-primary" /> {safeFormatDate(doc.invoiceDate)}
+                                                        </span>
+                                                    )}
+                                                    {doc.invoiceAmount && (
+                                                        <span className="flex items-center gap-1 font-semibold text-foreground">
+                                                            <Euro className="h-3 w-3 text-primary" /> {safeFormatCurrency(doc.invoiceAmount)}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             )}
-                                            <Button
-                                                variant="secondary"
-                                                className="w-full text-xs sm:text-sm flex items-center justify-center gap-2 font-medium bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 h-9"
-                                                disabled={!docUrls?.recto}
-                                                onClick={() => setViewingDoc(doc)}
-                                            >
-                                                <Eye className="h-4 w-4 shrink-0" />
-                                                <span>Consulter le document</span>
-                                                {doc.fileVerso && (
-                                                    <span className="text-[10px] bg-primary/20 text-primary font-semibold px-2 py-0.5 rounded-full ml-1">
-                                                        Recto & Verso
-                                                    </span>
-                                                )}
-                                            </Button>
-
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => handleRenew(doc)}
-                                                className="w-full text-xs font-medium border-dashed hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5 h-8 mt-1"
-                                            >
-                                                <RefreshCw className="h-3.5 w-3.5 text-primary" /> Renouveler ce document
-                                            </Button>
-                                        </CardContent>
-                                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-background/80 sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none rounded-md p-0.5">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
-                                                title="Consulter"
-                                                onClick={() => setViewingDoc(doc)}
-                                            >
-                                                <Eye className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
-                                                title="Renouveler"
-                                                onClick={() => handleRenew(doc)}
-                                            >
-                                                <RefreshCw className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                                title="Modifier"
-                                                onClick={() => handleEdit(doc)}
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                                title="Supprimer"
-                                                onClick={() => setItemToDelete(doc)}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
                                         </div>
-                                    </Card>
-                                )
-                            })}
-                        </div>
-                    ) : (
-                        <div className="text-center py-12 text-muted-foreground">
-                            <FileText className="mx-auto h-12 w-12 mb-4" />
-                            <h3 className="text-lg font-semibold">Aucun document</h3>
-                            <p>Ajoutez les documents importants de votre véhicule.</p>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+
+                                        {/* Aperçu miniature cliquable si disponible */}
+                                        {docUrls?.recto && (
+                                            <div
+                                                onClick={() => setViewingDoc(doc)}
+                                                className="relative cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-muted/20 hover:border-primary/40 transition-all h-24 sm:h-28 flex items-center justify-center group/thumb"
+                                                title="Cliquer pour consulter ce document"
+                                            >
+                                                <img
+                                                    src={docUrls.recto}
+                                                    alt={doc.name}
+                                                    className="w-full h-full object-cover object-center filter blur-0 opacity-90 group-hover/thumb:opacity-100 group-hover/thumb:scale-105 transition-all duration-300"
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent flex items-end justify-between p-2">
+                                                    <span className="text-[10px] text-white/90 font-medium flex items-center gap-1 backdrop-blur-xs bg-black/40 px-2 py-0.5 rounded-full">
+                                                        <Eye className="h-3 w-3" /> Aperçu
+                                                    </span>
+                                                    {hasBoth && (
+                                                        <span className="text-[10px] text-white/90 font-medium flex items-center gap-1 backdrop-blur-xs bg-primary/70 px-2 py-0.5 rounded-full">
+                                                            <Layers className="h-3 w-3" /> 2 faces
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Boutons d'action clairs et non dupliqués */}
+                                    <div className="flex items-center gap-2 pt-3 mt-1 border-t border-border/50">
+                                        <Button
+                                            variant="default"
+                                            size="sm"
+                                            className="flex-1 h-9 text-xs sm:text-sm font-semibold gap-1.5 shadow-sm"
+                                            disabled={!docUrls?.recto}
+                                            onClick={() => setViewingDoc(doc)}
+                                        >
+                                            <Eye className="h-3.5 w-3.5" />
+                                            <span>Consulter</span>
+                                        </Button>
+
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleRenew(doc)}
+                                            className="h-9 px-3 text-xs sm:text-sm font-medium border-border hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors gap-1.5 shrink-0"
+                                            title="Renouveler ce document"
+                                        >
+                                            <RefreshCw className="h-3.5 w-3.5 text-primary" />
+                                            <span>Renouveler</span>
+                                        </Button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="text-center py-12 text-muted-foreground border rounded-2xl bg-card">
+                        <FileText className="mx-auto h-12 w-12 mb-3 text-muted-foreground/60" />
+                        <h3 className="text-base font-semibold text-foreground">Aucun document</h3>
+                        <p className="text-xs sm:text-sm">Ajoutez les documents importants de votre véhicule.</p>
+                    </div>
+                )}
+            </div>
             {selectedVehicleId && <DocumentDialog
                 key={itemToEdit ? `${dialogMode}-${itemToEdit.id}` : `add-${dialogMode}`}
                 open={isDialogOpen}
@@ -864,99 +927,253 @@ function DocumentViewerDialog({
     onOpenChange: (open: boolean) => void;
     onRenew?: (doc: Document) => void;
 }) {
-    const [activeSide, setActiveSide] = useState<'recto' | 'verso'>('recto');
-    const [viewMode, setViewMode] = useState<'single' | 'both'>('single');
+    const [fullscreenSide, setFullscreenSide] = useState<'recto' | 'verso' | null>(null);
+    const [zoomScale, setZoomScale] = useState<number>(1);
 
     useEffect(() => {
-        if (open) {
-            setActiveSide('recto');
-            setViewMode('single');
+        if (!open) {
+            setFullscreenSide(null);
+            setZoomScale(1);
         }
-    }, [open, doc]);
+    }, [open]);
 
-    // Keyboard navigation (ArrowLeft for Recto, ArrowRight for Verso)
+    const hasBoth = Boolean(docUrls?.verso);
+
+    // Keyboard navigation in Fullscreen Lightbox
     useEffect(() => {
-        if (!open) return;
+        if (!fullscreenSide) return;
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'ArrowLeft') {
-                setActiveSide('recto');
-            } else if (e.key === 'ArrowRight' && docUrls?.verso) {
-                setActiveSide('verso');
+            if (e.key === 'Escape') {
+                setFullscreenSide(null);
+                setZoomScale(1);
+            } else if (e.key === 'ArrowLeft' && hasBoth) {
+                setFullscreenSide('recto');
+                setZoomScale(1);
+            } else if (e.key === 'ArrowRight' && hasBoth) {
+                setFullscreenSide('verso');
+                setZoomScale(1);
+            } else if (e.key === '+' || e.key === '=') {
+                setZoomScale(z => Math.min(3, Number((z + 0.25).toFixed(2))));
+            } else if (e.key === '-') {
+                setZoomScale(z => Math.max(0.5, Number((z - 0.25).toFixed(2))));
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [open, docUrls]);
+    }, [fullscreenSide, hasBoth]);
 
     if (!doc || !docUrls?.recto) return null;
-
-    const hasBoth = Boolean(docUrls?.verso);
 
     const isPdf = (file?: File) => {
         if (!file) return false;
         return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     };
 
-    const currentFile = activeSide === 'recto' ? doc.fileRecto : doc.fileVerso;
-    const currentUrl = activeSide === 'recto' ? docUrls.recto : docUrls.verso;
+    const activeFullscreenUrl = fullscreenSide === 'recto' ? docUrls.recto : docUrls.verso;
+    const activeFullscreenFile = fullscreenSide === 'recto' ? doc.fileRecto : doc.fileVerso;
 
-    const renderFilePreview = (file?: File, url?: string, label?: string) => {
-        if (!url || !file) {
-            return (
-                <div className="py-12 text-center text-muted-foreground text-sm">
-                    Aucun fichier disponible
-                </div>
-            );
-        }
-        if (isPdf(file)) {
-            return (
-                <iframe
-                    src={url}
-                    title={`${label || 'Document'} - ${doc.name}`}
-                    className="w-full h-[62vh] rounded-md border bg-background"
-                />
-            );
-        }
+    const renderLayerCard = (side: 'recto' | 'verso', file?: File, url?: string, label?: string) => {
+        if (!url || !file) return null;
+        const isFilePdf = isPdf(file);
+
         return (
-            <div className="relative w-full flex items-center justify-center p-2">
-                <img
-                    src={url}
-                    alt={`${label || 'Document'} - ${doc.name}`}
-                    className="max-h-[62vh] max-w-full object-contain rounded-md shadow-md transition-all duration-200"
-                />
+            <div className="rounded-2xl border border-border/80 bg-card/60 backdrop-blur-xs p-3 sm:p-4 space-y-2.5 transition-all hover:border-primary/40 hover:shadow-md group">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <Badge
+                            variant={side === 'recto' ? 'default' : 'secondary'}
+                            className="text-xs font-semibold px-2.5 py-0.5 rounded-full shadow-2xs"
+                        >
+                            {side === 'recto' ? 'Page 1 • Recto' : 'Page 2 • Verso'}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground font-medium hidden sm:inline">
+                            {side === 'recto' ? 'Face avant' : 'Face arrière'}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground/60 hidden md:inline truncate max-w-[200px]">
+                            {file.name}
+                        </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs px-2.5 gap-1.5 font-medium text-primary hover:text-primary hover:bg-primary/10 border-primary/25 rounded-lg"
+                            onClick={() => {
+                                setFullscreenSide(side);
+                                setZoomScale(1);
+                            }}
+                        >
+                            <Maximize2 className="h-3.5 w-3.5" />
+                            <span>Agrandir plein écran</span>
+                        </Button>
+                        <Button
+                            asChild
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground rounded-lg"
+                            title={`Télécharger ${side}`}
+                        >
+                            <a href={url} download={file.name || `${doc.name}-${side}`}>
+                                <Download className="h-3.5 w-3.5" />
+                            </a>
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Photo Viewer Frame (click to open fullscreen) */}
+                <div
+                    onClick={() => {
+                        setFullscreenSide(side);
+                        setZoomScale(1);
+                    }}
+                    className={cn(
+                        "relative cursor-zoom-in overflow-hidden rounded-xl border border-border/60 bg-muted/30 hover:border-primary/60 transition-all flex items-center justify-center p-2 group/layer select-none",
+                        isFilePdf ? "min-h-[350px]" : "min-h-[200px] sm:min-h-[260px] max-h-[50vh]"
+                    )}
+                    title="Cliquer pour afficher en plein écran"
+                >
+                    {isFilePdf ? (
+                        <iframe
+                            src={url}
+                            title={`${label || 'Document'} - ${doc.name}`}
+                            className="w-full h-[45vh] rounded-lg border-0 bg-background"
+                        />
+                    ) : (
+                        <>
+                            <img
+                                src={url}
+                                alt={`${label || 'Document'} - ${doc.name}`}
+                                className="max-h-[46vh] max-w-full object-contain rounded-lg shadow-sm transition-transform duration-300 group-hover/layer:scale-[1.01]"
+                            />
+                            {/* Hover overlay hint */}
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/layer:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[0.5px]">
+                                <div className="bg-background/95 text-foreground px-4 py-2 rounded-full text-xs font-semibold shadow-xl flex items-center gap-2 border border-border">
+                                    <Maximize2 className="h-3.5 w-3.5 text-primary" />
+                                    <span>Cliquer pour agrandir en plein écran</span>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
         );
     };
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-6 overflow-hidden">
-                <DialogHeader className="space-y-1 pb-3 border-b">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pr-6">
-                        <div>
-                            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                                <FileText className="h-5 w-5 text-primary" />
-                                <span>{doc.name}</span>
-                            </DialogTitle>
-                            <DialogDescription className="text-xs">
-                                {doc.type} • {doc.updatedAt ? `Renouvelé le ${safeFormatDate(doc.updatedAt)}` : `Ajouté le ${safeFormatDate(doc.createdAt)}`}
-                            </DialogDescription>
+        <>
+            <Dialog open={open} onOpenChange={onOpenChange}>
+                <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[92vh] flex flex-col p-3 sm:p-6 overflow-hidden rounded-2xl">
+                    <DialogHeader className="space-y-1 pb-3 border-b border-border/60">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pr-6">
+                            <div>
+                                <DialogTitle className="flex items-center gap-2 text-base sm:text-xl font-bold">
+                                    <FileText className="h-5 w-5 text-primary" />
+                                    <span className="truncate">{doc.name}</span>
+                                </DialogTitle>
+                                <DialogDescription className="text-xs flex items-center gap-2 mt-0.5">
+                                    <span>{doc.type}</span>
+                                    <span>•</span>
+                                    <span>{doc.updatedAt ? `Renouvelé le ${safeFormatDate(doc.updatedAt)}` : `Ajouté le ${safeFormatDate(doc.createdAt)}`}</span>
+                                </DialogDescription>
+                            </div>
+
+                            {/* Badge indiquant les layers Recto & Verso */}
+                            {hasBoth ? (
+                                <Badge variant="outline" className="text-xs px-2.5 py-1 font-semibold bg-primary/5 text-primary border-primary/20 gap-1.5 self-start sm:self-auto rounded-full">
+                                    <Layers className="h-3.5 w-3.5" />
+                                    Vue en layers (Recto & Verso)
+                                </Badge>
+                            ) : (
+                                <Badge variant="outline" className="text-xs px-2.5 py-1 font-normal text-muted-foreground self-start sm:self-auto rounded-full">
+                                    Document 1 face (Recto)
+                                </Badge>
+                            )}
+                        </div>
+                    </DialogHeader>
+
+                    {/* Content: View in LAYERS (une photo au-dessus de l'autre) */}
+                    <div className="flex-1 overflow-y-auto py-3 space-y-4 pr-1">
+                        {/* Layer 1: Recto */}
+                        {renderLayerCard('recto', doc.fileRecto, docUrls.recto, 'Recto')}
+
+                        {/* Layer 2: Verso (au-dessous de Recto) */}
+                        {hasBoth && renderLayerCard('verso', doc.fileVerso, docUrls.verso, 'Verso')}
+                    </div>
+
+                    <DialogFooter className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 pt-3 border-t border-border/60">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button asChild variant="outline" size="sm" className="h-8 text-xs rounded-lg">
+                                <a href={docUrls.recto} download={doc.fileRecto?.name || `${doc.name}-recto`}>
+                                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                                    Télécharger Recto
+                                </a>
+                            </Button>
+                            {hasBoth && docUrls.verso && (
+                                <Button asChild variant="outline" size="sm" className="h-8 text-xs rounded-lg">
+                                    <a href={docUrls.verso} download={doc.fileVerso?.name || `${doc.name}-verso`}>
+                                        <Download className="h-3.5 w-3.5 mr-1.5" />
+                                        Télécharger Verso
+                                    </a>
+                                </Button>
+                            )}
                         </div>
 
-                        {/* Switcher Controls */}
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="h-8 text-xs font-medium rounded-lg"
+                                onClick={() => {
+                                    onOpenChange(false);
+                                    if (onRenew) onRenew(doc);
+                                }}
+                            >
+                                <RefreshCw className="h-3.5 w-3.5 mr-1.5 text-primary" />
+                                Renouveler
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs rounded-lg"
+                                onClick={() => onOpenChange(false)}
+                            >
+                                Fermer
+                            </Button>
+                        </div>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* LIGHTBOX PLEIN ÉCRAN INTERACTIVE AU CLIC SUR UNE DES PHOTOS */}
+            {fullscreenSide && activeFullscreenUrl && (
+                <div className="fixed inset-0 z-[150] bg-black/95 backdrop-blur-md flex flex-col justify-between text-white select-none animate-in fade-in duration-200">
+                    {/* Top Toolbar */}
+                    <div className="h-14 px-3 sm:px-6 flex items-center justify-between border-b border-white/10 bg-black/40 backdrop-blur-md shrink-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-semibold text-sm sm:text-base text-white truncate max-w-[140px] sm:max-w-xs">
+                                {doc.name}
+                            </span>
+                            <Badge className="bg-primary text-primary-foreground text-xs font-semibold rounded-full px-2 py-0.5">
+                                {fullscreenSide === 'recto' ? 'Page 1 • Recto' : 'Page 2 • Verso'}
+                            </Badge>
+                        </div>
+
+                        {/* Switcher Recto / Verso si disponible */}
                         {hasBoth && (
-                            <div className="flex items-center gap-1 bg-muted/80 p-1 rounded-lg border self-start sm:self-auto">
+                            <div className="flex items-center bg-white/10 p-0.5 rounded-lg border border-white/10">
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setViewMode('single');
-                                        setActiveSide('recto');
+                                        setFullscreenSide('recto');
+                                        setZoomScale(1);
                                     }}
                                     className={cn(
-                                        "px-3 py-1 text-xs rounded-md transition-all font-medium flex items-center gap-1.5",
-                                        viewMode === 'single' && activeSide === 'recto'
-                                            ? "bg-background text-foreground shadow-sm font-semibold"
-                                            : "text-muted-foreground hover:text-foreground"
+                                        "px-3 py-1 text-xs rounded-md font-medium transition-all",
+                                        fullscreenSide === 'recto'
+                                            ? "bg-white text-black font-semibold shadow-xs"
+                                            : "text-white/70 hover:text-white"
                                     )}
                                 >
                                     Recto
@@ -964,154 +1181,147 @@ function DocumentViewerDialog({
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setViewMode('single');
-                                        setActiveSide('verso');
+                                        setFullscreenSide('verso');
+                                        setZoomScale(1);
                                     }}
                                     className={cn(
-                                        "px-3 py-1 text-xs rounded-md transition-all font-medium flex items-center gap-1.5",
-                                        viewMode === 'single' && activeSide === 'verso'
-                                            ? "bg-background text-foreground shadow-sm font-semibold"
-                                            : "text-muted-foreground hover:text-foreground"
+                                        "px-3 py-1 text-xs rounded-md font-medium transition-all",
+                                        fullscreenSide === 'verso'
+                                            ? "bg-white text-black font-semibold shadow-xs"
+                                            : "text-white/70 hover:text-white"
                                     )}
                                 >
                                     Verso
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setViewMode('both')}
-                                    className={cn(
-                                        "px-2.5 py-1 text-xs rounded-md transition-all font-medium flex items-center gap-1",
-                                        viewMode === 'both'
-                                            ? "bg-background text-foreground shadow-sm font-semibold"
-                                            : "text-muted-foreground hover:text-foreground"
-                                    )}
-                                    title="Afficher les 2 pages ensemble pour défiler"
-                                >
-                                    <Layers className="h-3.5 w-3.5" />
-                                    <span className="hidden sm:inline">Dérouler les 2</span>
-                                </button>
                             </div>
                         )}
+
+                        {/* Actions Plein Écran: Zoom, Télécharger, Fermer */}
+                        <div className="flex items-center gap-1 sm:gap-1.5">
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-white hover:bg-white/20 rounded-md"
+                                title="Zoom arrière (-)"
+                                onClick={() => setZoomScale(z => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
+                            >
+                                <ZoomOut className="h-4 w-4" />
+                            </Button>
+                            <button
+                                type="button"
+                                onClick={() => setZoomScale(1)}
+                                className="text-xs font-mono px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white/90"
+                                title="Réinitialiser zoom"
+                            >
+                                {Math.round(zoomScale * 100)}%
+                            </button>
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-white hover:bg-white/20 rounded-md"
+                                title="Zoom avant (+)"
+                                onClick={() => setZoomScale(z => Math.min(3, Number((z + 0.25).toFixed(2))))}
+                            >
+                                <ZoomIn className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                asChild
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-white hover:bg-white/20 rounded-md"
+                                title="Télécharger"
+                            >
+                                <a
+                                    href={activeFullscreenUrl}
+                                    download={activeFullscreenFile?.name || `${doc.name}-${fullscreenSide}`}
+                                >
+                                    <Download className="h-4 w-4" />
+                                </a>
+                            </Button>
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-9 w-9 rounded-full bg-white/15 hover:bg-white/30 text-white ml-2"
+                                title="Fermer (Échap)"
+                                onClick={() => {
+                                    setFullscreenSide(null);
+                                    setZoomScale(1);
+                                }}
+                            >
+                                <X className="h-5 w-5" />
+                            </Button>
+                        </div>
                     </div>
-                </DialogHeader>
 
-                {/* Content Viewer */}
-                <div className="flex-1 overflow-y-auto py-3">
-                    {viewMode === 'single' ? (
-                        <div className="relative flex items-center justify-center min-h-[350px] bg-muted/20 rounded-xl p-2 border">
-                            {hasBoth && (
-                                <>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className="absolute left-2 top-1/2 -translate-y-1/2 z-10 rounded-full shadow-md bg-background/95 hover:bg-background h-9 w-9"
-                                        disabled={activeSide === 'recto'}
-                                        onClick={() => setActiveSide('recto')}
-                                        title="Voir Recto (Touche Flèche Gauche)"
-                                    >
-                                        <ChevronLeft className="h-5 w-5" />
-                                    </Button>
+                    {/* Canvas Image Plein Écran */}
+                    <div
+                        className="flex-1 w-full h-full overflow-auto flex items-center justify-center p-2 sm:p-6 relative cursor-default"
+                        onClick={(e) => {
+                            if (e.target === e.currentTarget) {
+                                setFullscreenSide(null);
+                                setZoomScale(1);
+                            }
+                        }}
+                    >
+                        {isPdf(activeFullscreenFile) ? (
+                            <iframe
+                                src={activeFullscreenUrl}
+                                title={`${doc.name} - Plein écran`}
+                                className="w-full h-full max-h-[85vh] rounded-lg border-0 bg-white"
+                            />
+                        ) : (
+                            <img
+                                src={activeFullscreenUrl}
+                                alt={`${doc.name} - ${fullscreenSide}`}
+                                style={{
+                                    transform: `scale(${zoomScale})`,
+                                    transformOrigin: 'center center',
+                                }}
+                                className="max-h-[84vh] max-w-[95vw] object-contain transition-transform duration-200 cursor-zoom-in rounded-lg shadow-2xl"
+                                onClick={() => setZoomScale(z => (z === 1 ? 1.75 : 1))}
+                                title="Cliquer pour basculer le zoom"
+                            />
+                        )}
 
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 z-10 rounded-full shadow-md bg-background/95 hover:bg-background h-9 w-9"
-                                        disabled={activeSide === 'verso'}
-                                        onClick={() => setActiveSide('verso')}
-                                        title="Voir Verso (Touche Flèche Droite)"
-                                    >
-                                        <ChevronRight className="h-5 w-5" />
-                                    </Button>
-                                </>
-                            )}
-
-                            {renderFilePreview(currentFile, currentUrl, activeSide === 'recto' ? 'Recto' : 'Verso')}
-
-                            {hasBoth && (
-                                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium border shadow-sm">
-                                    {activeSide === 'recto' ? 'Page 1 : Recto' : 'Page 2 : Verso'}
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        /* Mode déroulant (les 2 pages affichées l'une après l'autre pour défilement direct) */
-                        <div className="space-y-4 pr-1">
-                            <div className="space-y-1.5">
-                                <div className="text-xs font-semibold text-primary flex items-center gap-1.5 px-1">
-                                    <span className="w-2 h-2 rounded-full bg-primary" />
-                                    Page 1 : Recto
-                                </div>
-                                <div className="border rounded-xl bg-muted/20 p-2 flex items-center justify-center">
-                                    {renderFilePreview(doc.fileRecto, docUrls.recto, 'Recto')}
-                                </div>
-                            </div>
-
-                            {doc.fileVerso && docUrls.verso && (
-                                <div className="space-y-1.5">
-                                    <div className="text-xs font-semibold text-primary flex items-center gap-1.5 px-1">
-                                        <span className="w-2 h-2 rounded-full bg-primary" />
-                                        Page 2 : Verso
-                                    </div>
-                                    <div className="border rounded-xl bg-muted/20 p-2 flex items-center justify-center">
-                                        {renderFilePreview(doc.fileVerso, docUrls.verso, 'Verso')}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                <DialogFooter className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 pt-2 border-t">
-                    <div className="flex flex-wrap items-center gap-2">
-                        {currentUrl && (
+                        {/* Flèches de navigation gauche/droite si Recto & Verso */}
+                        {hasBoth && (
                             <>
-                                <Button asChild variant="outline" size="sm" className="h-8 text-xs">
-                                    <a
-                                        href={currentUrl}
-                                        download={currentFile?.name || `${doc.name}-${activeSide}`}
-                                    >
-                                        <Download className="h-3.5 w-3.5 mr-1.5" />
-                                        Télécharger {hasBoth && viewMode === 'single' ? (activeSide === 'recto' ? 'Recto' : 'Verso') : ''}
-                                    </a>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={fullscreenSide === 'recto'}
+                                    onClick={() => {
+                                        setFullscreenSide('recto');
+                                        setZoomScale(1);
+                                    }}
+                                    className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/15 backdrop-blur-sm disabled:opacity-20"
+                                    title="Voir Recto (Flèche Gauche)"
+                                >
+                                    <ChevronLeft className="h-6 w-6" />
                                 </Button>
-                                <Button asChild variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground">
-                                    <a
-                                        href={currentUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                                        Plein écran
-                                    </a>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={fullscreenSide === 'verso'}
+                                    onClick={() => {
+                                        setFullscreenSide('verso');
+                                        setZoomScale(1);
+                                    }}
+                                    className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/15 backdrop-blur-sm disabled:opacity-20"
+                                    title="Voir Verso (Flèche Droite)"
+                                >
+                                    <ChevronRight className="h-6 w-6" />
                                 </Button>
                             </>
                         )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() => {
-                                onOpenChange(false);
-                                if (onRenew) onRenew(doc);
-                            }}
-                        >
-                            <RefreshCw className="h-3.5 w-3.5 mr-1.5 text-primary" />
-                            Renouveler
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() => onOpenChange(false)}
-                        >
-                            Fermer
-                        </Button>
+                    {/* Bottom Hint */}
+                    <div className="py-2.5 px-4 text-center border-t border-white/10 bg-black/40 text-[11px] sm:text-xs text-white/60 shrink-0">
+                        Cliquer sur l&apos;image pour zoomer • {hasBoth ? "Flèches du clavier pour changer de face • " : ""}Échap ou cliquer en dehors pour fermer
                     </div>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                </div>
+            )}
+        </>
     );
 }
