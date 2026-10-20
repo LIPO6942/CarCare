@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Skeleton } from './ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Banknote, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw, Eye, ChevronLeft, ChevronRight, ExternalLink, Layers, Maximize2, ZoomIn, ZoomOut, X, RotateCcw } from 'lucide-react';
+import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Banknote, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw, Eye, ChevronLeft, ChevronRight, ExternalLink, Layers, Maximize2, X, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -1199,7 +1199,7 @@ function DocumentViewerDialog({
                     }
                 }}
             >
-                <DialogContent className="!fixed !inset-0 !top-0 !left-0 !translate-x-0 !translate-y-0 !w-screen !h-screen !max-w-none !max-h-none !p-0 !m-0 !border-0 !rounded-none !bg-black/95 !backdrop-blur-md flex flex-col justify-between text-white select-none z-[200] overflow-hidden outline-none [&>button:last-child]:hidden">
+                <DialogContent className="!fixed !inset-0 !top-0 !left-0 !translate-x-0 !translate-y-0 !w-full !h-full !max-w-none !max-h-none !p-0 !m-0 !border-0 !rounded-none !bg-black/95 !backdrop-blur-md flex flex-col justify-between text-white select-none z-[200] overflow-hidden outline-none [&>button:last-child]:hidden">
                     <DialogTitle className="sr-only">
                         {doc.name} - {fullscreenSide === 'recto' ? 'Recto' : 'Verso'}
                     </DialogTitle>
@@ -1208,19 +1208,25 @@ function DocumentViewerDialog({
                     </DialogDescription>
 
                     {/* Top Toolbar */}
-                    <div className="h-14 px-3 sm:px-6 flex items-center justify-between border-b border-white/10 bg-black/50 backdrop-blur-md shrink-0 z-50">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-semibold text-sm sm:text-base text-white truncate max-w-[140px] sm:max-w-xs">
+                    <div className="h-14 w-full max-w-full px-2.5 sm:px-6 flex items-center justify-between gap-2 border-b border-white/10 bg-black/60 backdrop-blur-md shrink-0 z-50 overflow-hidden">
+                        <div className="flex items-center gap-1.5 min-w-0 shrink">
+                            <span className="font-semibold text-xs sm:text-base text-white truncate max-w-[120px] xs:max-w-[160px] sm:max-w-xs" title={doc.name}>
                                 {doc.name}
                             </span>
-                            <Badge className="bg-primary text-primary-foreground text-xs font-semibold rounded-full px-2.5 py-0.5">
-                                {fullscreenSide === 'recto' ? 'Page 1 • Recto' : 'Page 2 • Verso'}
-                            </Badge>
+                            {hasBoth ? (
+                                <Badge className="hidden sm:inline-flex bg-primary text-primary-foreground text-[10px] sm:text-xs font-semibold rounded-full px-2 py-0.5 shrink-0">
+                                    {fullscreenSide === 'recto' ? 'Page 1 • Recto' : 'Page 2 • Verso'}
+                                </Badge>
+                            ) : (
+                                <Badge className="bg-primary text-primary-foreground text-[10px] sm:text-xs font-semibold rounded-full px-2 py-0.5 shrink-0">
+                                    Recto
+                                </Badge>
+                            )}
                         </div>
 
                         {/* Switcher Recto / Verso si disponible */}
                         {hasBoth && (
-                            <div className="flex items-center bg-white/10 p-1 rounded-xl border border-white/15 gap-1 z-50">
+                            <div className="flex items-center bg-white/10 p-0.5 rounded-lg border border-white/15 gap-0.5 shrink-0 z-50">
                                 <button
                                     type="button"
                                     onClick={(e) => {
@@ -1230,9 +1236,9 @@ function DocumentViewerDialog({
                                         setZoomScale(1);
                                     }}
                                     className={cn(
-                                        "px-3.5 py-1.5 text-xs rounded-lg font-bold transition-all cursor-pointer",
+                                        "px-2.5 sm:px-3.5 py-1 text-xs rounded-md font-bold transition-all cursor-pointer",
                                         fullscreenSide === 'recto'
-                                            ? "bg-primary text-primary-foreground shadow-md scale-105"
+                                            ? "bg-primary text-primary-foreground shadow-sm"
                                             : "text-white/80 hover:text-white hover:bg-white/10"
                                     )}
                                 >
@@ -1247,9 +1253,9 @@ function DocumentViewerDialog({
                                         setZoomScale(1);
                                     }}
                                     className={cn(
-                                        "px-3.5 py-1.5 text-xs rounded-lg font-bold transition-all cursor-pointer",
+                                        "px-2.5 sm:px-3.5 py-1 text-xs rounded-md font-bold transition-all cursor-pointer",
                                         fullscreenSide === 'verso'
-                                            ? "bg-primary text-primary-foreground shadow-md scale-105"
+                                            ? "bg-primary text-primary-foreground shadow-sm"
                                             : "text-white/80 hover:text-white hover:bg-white/10"
                                     )}
                                 >
@@ -1258,51 +1264,14 @@ function DocumentViewerDialog({
                             </div>
                         )}
 
-                        {/* Actions Plein Écran: Zoom, Télécharger, Fermer */}
-                        <div className="flex items-center gap-1 sm:gap-1.5 z-50">
-                            <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-white hover:bg-white/20 rounded-md cursor-pointer"
-                                title="Zoom arrière (-)"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setZoomScale(z => Math.max(0.5, Number((z - 0.25).toFixed(2))));
-                                }}
-                            >
-                                <ZoomOut className="h-4 w-4" />
-                            </Button>
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setZoomScale(1);
-                                }}
-                                className="text-xs font-mono px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white/90 cursor-pointer"
-                                title="Réinitialiser zoom"
-                            >
-                                {Math.round(zoomScale * 100)}%
-                            </button>
-                            <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-white hover:bg-white/20 rounded-md cursor-pointer"
-                                title="Zoom avant (+)"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setZoomScale(z => Math.min(3, Number((z + 0.25).toFixed(2))));
-                                }}
-                            >
-                                <ZoomIn className="h-4 w-4" />
-                            </Button>
+                        {/* Actions Plein Écran: Télécharger & Fermer (X toujours ancré et visible) */}
+                        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto z-50">
                             {activeFullscreenUrl && (
                                 <Button
                                     asChild
                                     size="icon"
                                     variant="ghost"
-                                    className="h-8 w-8 text-white hover:bg-white/20 rounded-md cursor-pointer"
+                                    className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/20 rounded-md cursor-pointer shrink-0"
                                     title="Télécharger"
                                 >
                                     <a
@@ -1318,7 +1287,7 @@ function DocumentViewerDialog({
                                 type="button"
                                 size="icon"
                                 variant="ghost"
-                                className="h-9 w-9 rounded-full bg-white/15 hover:bg-white/30 text-white ml-2 cursor-pointer"
+                                className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/20 hover:bg-white/30 active:scale-95 text-white cursor-pointer shrink-0 border border-white/10"
                                 title="Fermer (Échap)"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -1326,7 +1295,8 @@ function DocumentViewerDialog({
                                     setZoomScale(1);
                                 }}
                             >
-                                <X className="h-5 w-5" />
+                                <X className="h-4 w-4 sm:h-5 sm:w-5" />
+                                <span className="sr-only">Fermer</span>
                             </Button>
                         </div>
                     </div>
@@ -1399,7 +1369,7 @@ function DocumentViewerDialog({
 
                     {/* Bottom Toolbar & Switcher */}
                     <div className="py-2.5 px-4 flex items-center justify-between border-t border-white/10 bg-black/50 text-[11px] sm:text-xs text-white/70 shrink-0 z-30">
-                        <div className="hidden sm:block">
+                        <div className={hasBoth ? "hidden sm:block" : "text-center sm:text-left w-full sm:w-auto"}>
                             Cliquer sur l&apos;image pour zoomer • Échap pour fermer
                         </div>
 
