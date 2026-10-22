@@ -49,6 +49,7 @@ export async function GET(request: Request) {
     const targetVehicleId = searchParams.get('targetVehicleId');
     const targetMaintenanceId = searchParams.get('targetMaintenanceId');
     const viewDiagnostics = searchParams.get('viewDiagnostics') === 'true';
+    const forceParam = searchParams.get('force') === 'true';
 
     console.log('[CRON] Déclenchement détecté.');
     console.log('[CRON] Authorization header reçu:', authHeader ? `Bearer ***${authHeader.slice(-6)}` : 'ABSENT');
@@ -478,8 +479,8 @@ export async function GET(request: Request) {
                 const logKey = buildNotificationLogKey(doc.id, stage, nextDueDate);
                 const existingLog = await getNotifLog(logKey);
 
-                if (existingLog && existingLog.status === 'sent') {
-                    console.log(`[CRON] Notification déjà envoyée: OUI (${logKey})`);
+                if (existingLog && existingLog.status === 'sent' && !forceParam) {
+                    console.log(`[CRON] Notification déjà envoyée: OUI (${logKey}) le ${existingLog.sentAt || 'précédemment'}`);
                     recordDiagnostic({
                         maintenanceId: doc.id,
                         vehicleId: vehicleId || '',
@@ -499,7 +500,7 @@ export async function GET(request: Request) {
                 }
 
                 // Protection contre les exécutions concurrentes (verrou en cours)
-                if (existingLog && existingLog.status === 'in_progress') {
+                if (existingLog && existingLog.status === 'in_progress' && !forceParam) {
                     const lastAttemptMs = new Date(existingLog.lastAttemptAt || 0).getTime();
                     if (Date.now() - lastAttemptMs < IN_PROGRESS_TIMEOUT_MS) {
                         console.log(`[CRON] Traitement concurrent en cours: (${logKey})`);
@@ -520,6 +521,10 @@ export async function GET(request: Request) {
                         });
                         continue;
                     }
+                }
+
+                if (forceParam && existingLog) {
+                    console.log(`[CRON] Mode FORCE activé : renvoi forcé pour (${logKey})`);
                 }
 
                 // Récupération des tokens FCM
@@ -699,8 +704,8 @@ export async function GET(request: Request) {
                 console.log(`--------------------------------------------------`);
                 console.log(`[CRON] Vignette trouvée pour ${vehicleName} (Due: ${calculatedString}, Stage: ${stage})`);
 
-                if (existingLog && existingLog.status === 'sent') {
-                    console.log(`[CRON] Notification Vignette déjà envoyée (${logKey})`);
+                if (existingLog && existingLog.status === 'sent' && !forceParam) {
+                    console.log(`[CRON] Notification Vignette déjà envoyée (${logKey}) le ${existingLog.sentAt || 'précédemment'}`);
                     recordDiagnostic({
                         maintenanceId: virtualId,
                         vehicleId,
@@ -719,7 +724,7 @@ export async function GET(request: Request) {
                     continue;
                 }
 
-                if (existingLog && existingLog.status === 'in_progress') {
+                if (existingLog && existingLog.status === 'in_progress' && !forceParam) {
                     const lastAttemptMs = new Date(existingLog.lastAttemptAt || 0).getTime();
                     if (Date.now() - lastAttemptMs < IN_PROGRESS_TIMEOUT_MS) {
                         recordDiagnostic({
@@ -739,6 +744,10 @@ export async function GET(request: Request) {
                         });
                         continue;
                     }
+                }
+
+                if (forceParam && existingLog) {
+                    console.log(`[CRON] Mode FORCE activé : renvoi forcé pour Vignette (${logKey})`);
                 }
 
                 const tokens = await getUserTokens(vehicle.userId);
@@ -993,7 +1002,7 @@ export async function GET(request: Request) {
                 const logKey = `vidange_${doc.id}_${stageTag}_${estimatedDateString || nextDueMileage}`;
                 const existingLog = await getNotifLog(logKey);
 
-                if (existingLog && existingLog.status === 'sent') {
+                if (existingLog && existingLog.status === 'sent' && !forceParam) {
                     recordDiagnostic({
                         maintenanceId: doc.id,
                         vehicleId,
@@ -1012,7 +1021,7 @@ export async function GET(request: Request) {
                     continue;
                 }
 
-                if (existingLog && existingLog.status === 'in_progress') {
+                if (existingLog && existingLog.status === 'in_progress' && !forceParam) {
                     const lastAttemptMs = new Date(existingLog.lastAttemptAt || 0).getTime();
                     if (Date.now() - lastAttemptMs < IN_PROGRESS_TIMEOUT_MS) {
                         recordDiagnostic({
@@ -1032,6 +1041,10 @@ export async function GET(request: Request) {
                         });
                         continue;
                     }
+                }
+
+                if (forceParam && existingLog) {
+                    console.log(`[CRON] Mode FORCE activé : renvoi forcé pour Vidange (${logKey})`);
                 }
 
                 const tokens = await getUserTokens(userId);
