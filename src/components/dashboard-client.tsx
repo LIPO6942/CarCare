@@ -7,7 +7,7 @@ import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { AddVehicleSheet } from '@/components/add-vehicle-sheet';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, CheckCircle2, Gauge, ClipboardList, ExternalLink } from 'lucide-react';
+import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, CheckCircle2, Gauge, ClipboardList, ExternalLink, Droplets, History, Sparkles } from 'lucide-react';
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -17,6 +17,7 @@ import { getDeadlineAnticipationInfo } from '@/lib/tunisia-holidays';
 import { getVehicleTankCapacity, calculateAverageFuelConsumption, calculateIntervalConsumption, calculateSmartAutonomie, calculateAverageRefillGaugeLevel } from '@/lib/fuel-utils';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance } from '@/lib/data';
 import { getCanonicalTask } from '@/lib/reminder-utils';
+import { getLastVidangeSummary, STANDARD_VIDANGE_ITEMS, type LastVidangeSummary } from '@/lib/vidange';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -26,6 +27,8 @@ import { QuickFuelLogForm } from './quick-fuel-log-form';
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogDescription, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { Checkbox } from './ui/checkbox';
+import { Badge } from './ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { getSettings } from '@/lib/settings';
@@ -66,10 +69,11 @@ function StatCard({
   onComplete?: () => void,
   secondaryAction?: {
     label: string,
-    url: string,
+    url?: string,
     isExternal?: boolean,
     icon?: ComponentType<{ className?: string }>,
     variantClass?: string,
+    onClick?: () => void,
   },
   gradient?: string,
   iconGradient?: string,
@@ -135,9 +139,11 @@ function StatCard({
               )}
               onClick={(e) => {
                 e.stopPropagation();
-                if (secondaryAction.isExternal) {
+                if (secondaryAction.onClick) {
+                  secondaryAction.onClick();
+                } else if (secondaryAction.isExternal && secondaryAction.url) {
                   window.open(secondaryAction.url, '_blank', 'noopener,noreferrer');
-                } else {
+                } else if (secondaryAction.url) {
                   window.location.href = secondaryAction.url;
                 }
               }}
@@ -213,6 +219,7 @@ export function DashboardClient() {
   const [vehicleForInitialMaintenance, setVehicleForInitialMaintenance] = useState<Vehicle | null>(null);
 
   const [deadlineToComplete, setDeadlineToComplete] = useState<Deadline | null>(null);
+  const [vidangeHistoryVehicleId, setVidangeHistoryVehicleId] = useState<string | null>(null);
 
   const fetchData = useCallback(async (showLoadingIndicators = true) => {
     if (!user) return;
@@ -473,6 +480,24 @@ export function DashboardClient() {
     }
   }, [vehicles, repairs, maintenance, fuelLogs]);
 
+  const vidangeHistoryVehicle = useMemo(() => {
+    if (!vidangeHistoryVehicleId) return null;
+    return vehicles.find(v => v.id === vidangeHistoryVehicleId) || null;
+  }, [vidangeHistoryVehicleId, vehicles]);
+
+  const vidangeHistorySummary = useMemo(() => {
+    if (!vidangeHistoryVehicleId) return null;
+    const latestEvent = allEvents
+      .filter(e => e.vehicleId === vidangeHistoryVehicleId)
+      .sort((a, b) => b.eventDate.getTime() - a.eventDate.getTime())[0];
+    return getLastVidangeSummary({
+      vehicleId: vidangeHistoryVehicleId,
+      maintenanceList: maintenance,
+      repairsList: repairs,
+      currentMileage: latestEvent?.mileage || 0,
+    });
+  }, [vidangeHistoryVehicleId, maintenance, repairs, allEvents]);
+
   const fuelStats = useMemo(() => {
     const stats = new Map<string, {
       consumption: number | null;
@@ -675,10 +700,31 @@ export function DashboardClient() {
     if (canonical === 'vignette') {
       return {
         label: 'Amendes',
-        url: 'https://amendes.finances.gov.tn/',
+        url: 'https://amendes.finances.gov.tn/cons_amende.jsp',
         isExternal: true,
         icon: ExternalLink,
         variantClass: 'border-amber-500/40 text-amber-600 dark:text-amber-400',
+        onClick: () => {
+          const veh = getVehicleForStat(deadline.vehicleId);
+          if (veh?.licensePlate && typeof navigator !== 'undefined' && navigator.clipboard) {
+            navigator.clipboard.writeText(veh.licensePlate);
+            toast({
+              title: "Matricule copié !",
+              description: `${veh.licensePlate} copié dans le presse-papier. Collez-le (Ctrl+V) sur le portail des amendes.`,
+            });
+          }
+          window.open('https://amendes.finances.gov.tn/cons_amende.jsp', '_blank', 'noopener,noreferrer');
+        }
+      };
+    }
+    if (canonical === 'vidange') {
+      return {
+        label: 'Dernière vidange',
+        icon: History,
+        variantClass: 'border-blue-500/40 text-blue-600 dark:text-blue-400',
+        onClick: () => {
+          setVidangeHistoryVehicleId(deadline.vehicleId);
+        }
       };
     }
     return undefined;
@@ -889,9 +935,18 @@ export function DashboardClient() {
         onFinished={handleInitialMaintenanceFinished}
       />
 
+      <LastVidangeModal
+        open={!!vidangeHistoryVehicleId}
+        onOpenChange={(isOpen) => !isOpen && setVidangeHistoryVehicleId(null)}
+        summary={vidangeHistorySummary}
+        vehicle={vidangeHistoryVehicle}
+      />
+
       <CompleteDeadlineDialog
         deadline={deadlineToComplete}
         allEvents={allEvents}
+        maintenance={maintenance}
+        repairs={repairs}
         open={!!deadlineToComplete}
         onOpenChange={(isOpen) => !isOpen && setDeadlineToComplete(null)}
         onComplete={() => {
@@ -905,7 +960,159 @@ export function DashboardClient() {
 }
 
 
-function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehicles, allEvents }: { deadline: Deadline | null, open: boolean, onOpenChange: (open: boolean) => void, onComplete: () => void, vehicles: Vehicle[], allEvents: any[] }) {
+function LastVidangeModal({
+  open,
+  onOpenChange,
+  summary,
+  vehicle,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  summary: LastVidangeSummary | null;
+  vehicle: Vehicle | null;
+}) {
+  if (!vehicle || !summary) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <Droplets className="h-5 w-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg">Historique dernière vidange</DialogTitle>
+              <DialogDescription className="text-xs">
+                {vehicle.brand} {vehicle.model} ({vehicle.licensePlate || 'N/A'})
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {summary.hasHistory ? (
+          <div className="space-y-4 py-2">
+            {/* Résumé général */}
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-muted/40 border text-xs">
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Réalisée le :</span>
+                <span className="font-semibold text-foreground text-sm">
+                  {summary.date ? format(new Date(summary.date), 'd MMMM yyyy', { locale: fr }) : 'Date inconnue'}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Kilométrage :</span>
+                <span className="font-semibold text-foreground text-sm">
+                  {summary.mileage ? `${summary.mileage.toLocaleString('fr-FR')} km` : 'Non renseigné'}
+                </span>
+                {summary.kmSinceLastVidange !== null && (
+                  <span className="text-[10px] text-muted-foreground block">
+                    (il y a {summary.kmSinceLastVidange.toLocaleString('fr-FR')} km)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Éléments remplacés */}
+            <div className="space-y-2">
+              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                Pièces remplacées lors de cette vidange :
+              </span>
+              {summary.replacedItems.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {summary.replacedItems.map((item) => (
+                    <Badge
+                      key={item}
+                      className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs font-medium"
+                    >
+                      ✓ {item}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">Vidange moteur standard enregistrée.</p>
+              )}
+            </div>
+
+            {/* Suggestions pour la prochaine vidange */}
+            {summary.notReplacedItems.length > 0 && (
+              <div className="space-y-2 pt-2 border-t">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                  À vérifier / prévoir pour la prochaine vidange :
+                </span>
+                <p className="text-[11px] text-muted-foreground">
+                  Ces éléments n'avaient pas été changés lors de la dernière vidange :
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {summary.notReplacedItems.map((item) => (
+                    <Badge
+                      key={item}
+                      variant="outline"
+                      className="border-amber-500/40 text-amber-800 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/20 text-xs"
+                    >
+                      • {item}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Interventions concomitantes (dans les 3 jours) */}
+            {summary.nearbyEvents.length > 0 && (
+              <div className="pt-2 border-t text-xs space-y-1.5">
+                <span className="font-medium text-muted-foreground text-[11px]">
+                  Autres opérations effectuées au même moment (± 3 jours) :
+                </span>
+                <ul className="space-y-1">
+                  {summary.nearbyEvents.map((evt, idx) => (
+                    <li key={idx} className="flex justify-between text-muted-foreground bg-muted/30 px-2 py-1 rounded text-xs">
+                      <span>• {evt.title}</span>
+                      {evt.cost > 0 && <span className="font-medium">{evt.cost.toLocaleString('fr-FR')} TND</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="py-6 text-center space-y-2 text-xs text-muted-foreground">
+            <p>Aucune vidange passée n'est encore enregistrée pour ce véhicule.</p>
+            <p>L'historique détaillé et les recommandations se construiront dès votre première vidange enregistrée !</p>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            Fermer
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+function CompleteDeadlineDialog({
+  deadline,
+  open,
+  onOpenChange,
+  onComplete,
+  vehicles,
+  allEvents,
+  maintenance = [],
+  repairs = [],
+}: {
+  deadline: Deadline | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onComplete: () => void;
+  vehicles: Vehicle[];
+  allEvents: any[];
+  maintenance?: Maintenance[];
+  repairs?: Repair[];
+}) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -942,6 +1149,24 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
     return canonicalTask === 'vidange';
   }, [deadline, canonicalTask]);
 
+  const lastVidangeSummary = useMemo(() => {
+    if (!vehicle || canonicalTask !== 'vidange') return null;
+    return getLastVidangeSummary({
+      vehicleId: vehicle.id,
+      maintenanceList: maintenance,
+      repairsList: repairs,
+      currentMileage: latestMileage,
+    });
+  }, [vehicle, canonicalTask, maintenance, repairs, latestMileage]);
+
+  const [selectedVidangeItems, setSelectedVidangeItems] = useState<string[]>(['huile', 'filtre_huile']);
+
+  useEffect(() => {
+    if (open && canonicalTask === 'vidange') {
+      setSelectedVidangeItems(['huile', 'filtre_huile']);
+    }
+  }, [open, canonicalTask]);
+
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -967,6 +1192,12 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
         cost: 0,
         mileage: 0,
       };
+
+      if (canonicalTask === 'vidange') {
+        newMaintenance.replacedItems = selectedVidangeItems;
+        const itemLabels = STANDARD_VIDANGE_ITEMS.filter(i => selectedVidangeItems.includes(i.id)).map(i => i.shortLabel);
+        newMaintenance.notes = `Pack vidange : ${itemLabels.join(', ')}`;
+      }
 
       if (needsCost) newMaintenance.cost = cost;
 
@@ -1057,7 +1288,7 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className={canonicalTask === 'vidange' ? "max-w-lg" : "max-w-md"}>
         <DialogHeader>
           <DialogTitle>Confirmer l'entretien</DialogTitle>
           <DialogDescription>
@@ -1068,16 +1299,98 @@ function CompleteDeadlineDialog({ deadline, open, onOpenChange, onComplete, vehi
         </DialogHeader>
         <form ref={formRef} onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
+            {/* Rappel intelligent de la précédente vidange */}
+            {canonicalTask === 'vidange' && lastVidangeSummary?.hasHistory && (
+              <div className="p-3 rounded-lg bg-blue-50/70 dark:bg-blue-950/20 border border-blue-500/20 text-xs text-blue-900 dark:text-blue-200 space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold">
+                  <History className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                  <span>Rappel de la précédente vidange :</span>
+                </div>
+                <p className="text-muted-foreground leading-relaxed text-[11px]">
+                  Effectuée le {lastVidangeSummary.date ? format(new Date(lastVidangeSummary.date), 'd MMMM yyyy', { locale: fr }) : ''} à {lastVidangeSummary.mileage?.toLocaleString('fr-FR')} km.
+                  {lastVidangeSummary.replacedItems.length > 0 && (
+                    <> Éléments remplacés : <strong className="text-foreground">{lastVidangeSummary.replacedItems.join(', ')}</strong>.</>
+                  )}
+                </p>
+                {lastVidangeSummary.notReplacedItems.length > 0 && (
+                  <p className="text-[10px] text-amber-700 dark:text-amber-300">
+                    💡 Non remplacés la dernière fois : {lastVidangeSummary.notReplacedItems.join(', ')}.
+                  </p>
+                )}
+              </div>
+            )}
+
             {needsMileage && (
               <div className="space-y-2">
                 <Label htmlFor="mileage">Kilométrage actuel</Label>
                 <Input id="mileage" name="mileage" type="number" required placeholder="ex: 125000" defaultValue={latestMileage || (deadline.originalTask.nextDueMileage ? deadline.originalTask.nextDueMileage - 10000 : undefined)} />
               </div>
             )}
+
+            {/* Pack Vidange : cases à cocher (Option 1) */}
+            {canonicalTask === 'vidange' && (
+              <div className="space-y-2.5 p-3 rounded-lg bg-muted/40 border">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-foreground">
+                    Pack d'entretien réalisé cette fois-ci :
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground font-normal">Cochez les éléments remplacés</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  {STANDARD_VIDANGE_ITEMS.map((item) => {
+                    const isChecked = selectedVidangeItems.includes(item.id);
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          setSelectedVidangeItems(prev =>
+                            prev.includes(item.id)
+                              ? prev.filter(x => x !== item.id)
+                              : [...prev, item.id]
+                          );
+                        }}
+                        className={cn(
+                          "flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer transition-colors select-none",
+                          isChecked
+                            ? "bg-primary/5 border-primary/40 text-foreground font-medium"
+                            : "bg-background/60 border-border/60 text-muted-foreground hover:bg-muted/60"
+                        )}
+                      >
+                        <Checkbox
+                          id={`vidange-item-${item.id}`}
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            setSelectedVidangeItems(prev =>
+                              checked
+                                ? (prev.includes(item.id) ? prev : [...prev, item.id])
+                                : prev.filter(x => x !== item.id)
+                            );
+                          }}
+                          className="h-4 w-4"
+                        />
+                        <span className="leading-tight">{item.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">
+                  Option 1 (Pack Vidange) : Indiquez ci-dessous le montant total global (huile + filtres cochés + main-d'œuvre).
+                </p>
+              </div>
+            )}
+
             {needsCost && (
               <div className="space-y-2">
-                <Label htmlFor="cost">Coût de l'entretien (TND)</Label>
-                <Input id="cost" name="cost" type="number" step="0.01" placeholder={deadline.name === 'Paiement Assurance' ? "Coût de l'assurance" : "0"} />
+                <Label htmlFor="cost">
+                  {canonicalTask === 'vidange' ? "Coût total du pack vidange (TND)" : "Coût de l'entretien (TND)"}
+                </Label>
+                <Input
+                  id="cost"
+                  name="cost"
+                  type="number"
+                  step="0.01"
+                  placeholder={canonicalTask === 'vidange' ? "Ex: 180.000" : (deadline.name === 'Paiement Assurance' ? "Coût de l'assurance" : "0")}
+                />
               </div>
             )}
             {!needsCost && !needsMileage && (

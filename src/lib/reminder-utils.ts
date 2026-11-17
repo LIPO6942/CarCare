@@ -299,16 +299,16 @@ export function buildVignetteMessage(params: {
         body = `La date limite de la Vignette (${dueDateFormatted}) pour ${vehicleName} est dépassée de ${daysOverdue} jour${daysOverdue > 1 ? 's' : ''}. Réglez-la dès que possible pour éviter les pénalités et ajoutez le reçu dans « Documents ».`;
     } else if (stage === 'j0') {
         title = `🚨 Jour J : Vignette (${vehicleName})`;
-        body = `Aujourd’hui est la date limite officielle pour le paiement de la Vignette de ${vehicleName}. Vérifiez vos amendes radar sur amendes.finances.gov.tn avant le règlement, puis ajoutez votre reçu dans « Documents ».`;
+        body = `Aujourd’hui est la date limite officielle pour le paiement de la Vignette de ${vehicleName}. Vérifiez vos amendes radar sur amendes.finances.gov.tn/cons_amende.jsp avant le règlement, puis ajoutez votre reçu dans « Documents ».`;
     } else if (stage === 'j3') {
         title = `⚠️ Rappel J-3 : Vignette (${vehicleName})`;
-        body = `Plus que 3 jours pour régler la Vignette de ${vehicleName} (${anticipation?.dueDateFormatted || dueDateFormatted}). ${anticipation?.warningText || ''} Vérifiez au préalable vos amendes radar sur amendes.finances.gov.tn.`.trim();
+        body = `Plus que 3 jours pour régler la Vignette de ${vehicleName} (${anticipation?.dueDateFormatted || dueDateFormatted}). ${anticipation?.warningText || ''} Vérifiez au préalable vos amendes radar sur amendes.finances.gov.tn/cons_amende.jsp.`.trim();
     } else if (stage === 'j7') {
         title = `Rappel J-7 : Vignette (${vehicleName})`;
-        body = `Dans 7 jours : échéance de la Vignette pour ${vehicleName} (${anticipation?.dueDateFormatted || dueDateFormatted}). ${anticipation?.warningText || ''} Pensez à vérifier vos amendes radar sur amendes.finances.gov.tn avant de payer.`.trim();
+        body = `Dans 7 jours : échéance de la Vignette pour ${vehicleName} (${anticipation?.dueDateFormatted || dueDateFormatted}). ${anticipation?.warningText || ''} Pensez à vérifier vos amendes radar sur amendes.finances.gov.tn/cons_amende.jsp avant de payer.`.trim();
     } else if (stage === 'j15') {
         title = `Rappel J-15 : Vignette (${vehicleName})`;
-        body = `Dans 15 jours : prévoyez le règlement de la Vignette pour votre ${vehicleName} (${anticipation?.dueDateFormatted || dueDateFormatted}). ${anticipation?.warningText || ''} Astuce : vérifiez vos amendes radar sur amendes.finances.gov.tn pour éviter tout blocage.`.trim();
+        body = `Dans 15 jours : prévoyez le règlement de la Vignette pour votre ${vehicleName} (${anticipation?.dueDateFormatted || dueDateFormatted}). ${anticipation?.warningText || ''} Astuce : vérifiez vos amendes radar sur amendes.finances.gov.tn/cons_amende.jsp pour éviter tout blocage.`.trim();
     }
 
     return { title, body, isUrgent };

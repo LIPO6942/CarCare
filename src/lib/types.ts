@@ -33,6 +33,8 @@ export type Maintenance = {
   cost: number;
   nextDueDate?: string;
   nextDueMileage?: number;
+  replacedItems?: string[];
+  notes?: string;
 };
 
 export type FuelLog = {

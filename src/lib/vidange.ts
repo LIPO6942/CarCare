@@ -1,4 +1,5 @@
 import type { FuelLog, Repair, Maintenance } from './types';
+import { calculateCalendarDaysDiff, getCanonicalTask } from './reminder-utils';
 
 /**
  * Calcule la moyenne de km par jour basée sur l'historique des pleins et entretiens
@@ -88,4 +89,167 @@ export function getDaysRemaining(targetDate: Date, fromDate: Date = new Date()):
   const startFrom = toLocalStartOfDay(fromDate);
   const diffTime = startTarget.getTime() - startFrom.getTime();
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+export interface VidangeStandardItem {
+  id: string;
+  label: string;
+  shortLabel: string;
+  category: string;
+  isMandatoryOrFrequent: boolean;
+}
+
+export const STANDARD_VIDANGE_ITEMS: VidangeStandardItem[] = [
+  { id: 'huile', label: 'Huile moteur', shortLabel: 'Huile', category: 'Lubrification', isMandatoryOrFrequent: true },
+  { id: 'filtre_huile', label: 'Filtre à huile', shortLabel: 'Filtre huile', category: 'Filtration', isMandatoryOrFrequent: true },
+  { id: 'filtre_air', label: 'Filtre à air', shortLabel: 'Filtre air', category: 'Filtration', isMandatoryOrFrequent: false },
+  { id: 'filtre_carburant', label: 'Filtre à carburant (gasoil/essence)', shortLabel: 'Filtre carburant', category: 'Filtration', isMandatoryOrFrequent: false },
+  { id: 'filtre_habitacle', label: 'Filtre habitacle (climatisation)', shortLabel: 'Filtre habitacle', category: 'Confort / Air', isMandatoryOrFrequent: false },
+  { id: 'bougies', label: 'Bougies d’allumage', shortLabel: 'Bougies', category: 'Allumage', isMandatoryOrFrequent: false },
+];
+
+export interface LastVidangeSummary {
+  hasHistory: boolean;
+  lastVidange: Maintenance | null;
+  date: string | null;
+  mileage: number | null;
+  kmSinceLastVidange: number | null;
+  cost: number;
+  replacedItems: string[];
+  replacedItemIds: string[];
+  notReplacedItems: string[];
+  nearbyEvents: Array<{ title: string; date: string; cost: number; source: 'maintenance' | 'repair' }>;
+}
+
+export function getLastVidangeSummary(params: {
+  vehicleId: string;
+  maintenanceList: Maintenance[];
+  repairsList: Repair[];
+  currentMileage?: number;
+}): LastVidangeSummary {
+  const { vehicleId, maintenanceList, repairsList, currentMileage } = params;
+
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  const pastVidanges = maintenanceList
+    .filter(m => m.vehicleId === vehicleId && getCanonicalTask(m.task) === 'vidange' && m.date && new Date(m.date).getTime() <= today.getTime())
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const lastVidange = pastVidanges[0] || null;
+
+  if (!lastVidange || !lastVidange.date) {
+    return {
+      hasHistory: false,
+      lastVidange: null,
+      date: null,
+      mileage: null,
+      kmSinceLastVidange: null,
+      cost: 0,
+      replacedItems: [],
+      replacedItemIds: [],
+      notReplacedItems: STANDARD_VIDANGE_ITEMS.map(i => i.label),
+      nearbyEvents: [],
+    };
+  }
+
+  // Événements dans la fenêtre de +/- 3 jours ou même kilométrage (+/- 50 km)
+  const nearbyEvents: Array<{ title: string; date: string; cost: number; source: 'maintenance' | 'repair' }> = [];
+
+  maintenanceList.forEach(m => {
+    if (m.vehicleId !== vehicleId || !m.date) return;
+    if (m.id === lastVidange.id) return;
+
+    const daysDiff = Math.abs(calculateCalendarDaysDiff(m.date, lastVidange.date));
+    const mileageDiff = (lastVidange.mileage > 0 && m.mileage > 0) ? Math.abs(m.mileage - lastVidange.mileage) : 9999;
+
+    if (daysDiff <= 3 || mileageDiff <= 50) {
+      nearbyEvents.push({
+        title: m.task || 'Entretien',
+        date: m.date,
+        cost: m.cost || 0,
+        source: 'maintenance'
+      });
+    }
+  });
+
+  repairsList.forEach(r => {
+    if (r.vehicleId !== vehicleId || !r.date) return;
+
+    const daysDiff = Math.abs(calculateCalendarDaysDiff(r.date, lastVidange.date));
+    const mileageDiff = (lastVidange.mileage > 0 && r.mileage > 0) ? Math.abs(r.mileage - lastVidange.mileage) : 9999;
+
+    if (daysDiff <= 3 || mileageDiff <= 50) {
+      nearbyEvents.push({
+        title: r.description || r.category || 'Réparation',
+        date: r.date,
+        cost: r.cost || 0,
+        source: 'repair'
+      });
+    }
+  });
+
+  // Identifier les éléments remplacés
+  const detectedIds = new Set<string>();
+
+  if (Array.isArray(lastVidange.replacedItems) && lastVidange.replacedItems.length > 0) {
+    lastVidange.replacedItems.forEach(id => detectedIds.add(id));
+  } else {
+    const textCorpus = [
+      lastVidange.task || '',
+      lastVidange.notes || '',
+      ...nearbyEvents.map(e => e.title)
+    ].join(' ').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    if (textCorpus.includes('huile') || textCorpus.includes('vidange')) {
+      detectedIds.add('huile');
+    }
+    if (textCorpus.includes('filtre a huile') || textCorpus.includes('filtre huile') || (textCorpus.includes('filtre') && textCorpus.includes('huile'))) {
+      detectedIds.add('filtre_huile');
+    } else if (textCorpus.includes('vidange')) {
+      detectedIds.add('filtre_huile');
+    }
+    if (textCorpus.includes('filtre a air') || textCorpus.includes('filtre air')) {
+      detectedIds.add('filtre_air');
+    }
+    if (textCorpus.includes('filtre a carburant') || textCorpus.includes('filtre carburant') || textCorpus.includes('filtre gasoil') || textCorpus.includes('filtre a gasoil') || textCorpus.includes('filtre essence') || textCorpus.includes('filtre a essence') || textCorpus.includes('gasoil')) {
+      detectedIds.add('filtre_carburant');
+    }
+    if (textCorpus.includes('filtre habitacle') || textCorpus.includes('filtre clim') || textCorpus.includes('filtre pollen') || textCorpus.includes('filtre a pollen') || textCorpus.includes('habitacle') || textCorpus.includes('climatisation')) {
+      detectedIds.add('filtre_habitacle');
+    }
+    if (textCorpus.includes('bougie') || textCorpus.includes('allumage')) {
+      detectedIds.add('bougies');
+    }
+  }
+
+  const replacedItems: string[] = [];
+  const replacedItemIds: string[] = [];
+  const notReplacedItems: string[] = [];
+
+  STANDARD_VIDANGE_ITEMS.forEach(item => {
+    if (detectedIds.has(item.id)) {
+      replacedItems.push(item.label);
+      replacedItemIds.push(item.id);
+    } else {
+      notReplacedItems.push(item.label);
+    }
+  });
+
+  const kmSince = (currentMileage && lastVidange.mileage && currentMileage >= lastVidange.mileage)
+    ? currentMileage - lastVidange.mileage
+    : null;
+
+  return {
+    hasHistory: true,
+    lastVidange,
+    date: lastVidange.date,
+    mileage: lastVidange.mileage || null,
+    kmSinceLastVidange: kmSince,
+    cost: lastVidange.cost || 0,
+    replacedItems,
+    replacedItemIds,
+    notReplacedItems,
+    nearbyEvents,
+  };
 }
