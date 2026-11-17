@@ -27,12 +27,13 @@ const messaging = firebase.messaging();
 // -------------------------------------------------------------
 // GESTION DU CACHE PWA (Offline & Performance)
 // -------------------------------------------------------------
-const CACHE_NAME = 'carcare-pro-v5';
+const CACHE_NAME = 'carcare-pro-v6';
 const ASSETS_TO_CACHE = [
   '/',
   '/documents',
   '/reports',
   '/settings',
+  '/checklist-visite-technique',
   '/manifest.json',
   '/android-chrome-192x192.png',
   '/android-chrome-512x512.png',

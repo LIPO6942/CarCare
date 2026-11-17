@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Skeleton } from './ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Banknote, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw, Eye, ChevronLeft, ChevronRight, ExternalLink, Layers, Maximize2, X, RotateCcw } from 'lucide-react';
+import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Banknote, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw, Eye, ChevronLeft, ChevronRight, ExternalLink, Layers, Maximize2, X, RotateCcw, ClipboardList } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -93,7 +93,7 @@ export function DocumentsClient() {
             setIsLoadingVehicles(true);
             const vehiclesData = await getVehicles(user.uid);
             setVehicles(vehiclesData);
-            
+
             // Priority: URL param > First vehicle in list
             if (vehicleIdParam && vehiclesData.some(v => v.id === vehicleIdParam)) {
                 setSelectedVehicleId(vehicleIdParam);
@@ -467,6 +467,21 @@ export function DocumentsClient() {
                                             <Eye className="h-3.5 w-3.5" />
                                             <span>Consulter</span>
                                         </Button>
+
+                                        {doc.type === 'Visite Technique' && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                asChild
+                                                className="h-9 px-3 text-xs sm:text-sm font-medium border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-colors gap-1.5 shrink-0"
+                                                title="Checklist avant la visite technique"
+                                            >
+                                                <Link href={`/checklist-visite-technique?vehicleId=${selectedVehicleId}`}>
+                                                    <ClipboardList className="h-3.5 w-3.5 text-blue-500" />
+                                                    <span>Checklist</span>
+                                                </Link>
+                                            </Button>
+                                        )}
 
                                         <Button
                                             variant="outline"

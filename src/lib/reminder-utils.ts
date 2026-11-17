@@ -248,7 +248,15 @@ export function buildReminderMessage(params: {
         }
     } else if (stage === 'j7') {
         const anticipation = getDeadlineAnticipationInfo(dueDate);
-        if (anticipation.isNonWorking) {
+        const canonical = getCanonicalTask(task);
+        if (canonical === 'visite_technique') {
+            title = `📋 Rappel J-7 : Visite technique (${vehicleName})`;
+            if (anticipation.isNonWorking) {
+                body = `Dans une semaine : la visite technique pour ${vehicleName} arrive à échéance le ${anticipation.dueDateFormatted}. ${anticipation.warningText} Consultez la checklist avant votre contrôle technique.`;
+            } else {
+                body = `Dans une semaine : la visite technique pour ${vehicleName} arrive à échéance. Consultez la checklist avant votre contrôle technique.`;
+            }
+        } else if (anticipation.isNonWorking) {
             title = `Rappel J-7 : ${task} (${vehicleName})`;
             body = `Dans une semaine : "${task}" (${vehicleName}) arrive à échéance le ${anticipation.dueDateFormatted}. ${anticipation.warningText}`;
         } else {

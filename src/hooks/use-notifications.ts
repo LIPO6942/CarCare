@@ -1,12 +1,13 @@
 // src/hooks/use-notifications.ts
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, createElement } from 'react';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { app } from '@/lib/firebase';
 import { useAuth } from '@/context/auth-context';
 import { saveFcmToken } from '@/lib/data';
 import { useToast } from './use-toast';
+import { ToastAction } from '@/components/ui/toast';
 
 async function getOrRegisterServiceWorker(): Promise<ServiceWorkerRegistration | undefined> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
@@ -39,31 +40,31 @@ export function useNotifications() {
       setIsPermissionGranted(false);
       return;
     }
-    
+
     try {
-        if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) {
-            console.error("VAPID key is missing from environment variables.");
-            throw new Error("La configuration des notifications est incomplète.");
-        }
+      if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) {
+        console.error("VAPID key is missing from environment variables.");
+        throw new Error("La configuration des notifications est incomplète.");
+      }
 
-        const registration = await getOrRegisterServiceWorker();
-        const messaging = getMessaging(app);
-        const currentToken = await getToken(messaging, {
-            vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-            serviceWorkerRegistration: registration,
-        });
+      const registration = await getOrRegisterServiceWorker();
+      const messaging = getMessaging(app);
+      const currentToken = await getToken(messaging, {
+        vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+        serviceWorkerRegistration: registration,
+      });
 
-        if (currentToken) {
-            await saveFcmToken({ userId: user.uid, token: currentToken });
-            setIsPermissionGranted(true);
-        } else {
-            console.warn("Permission granted, but no FCM token received.");
-            setIsPermissionGranted(false);
-        }
-
-    } catch(error) {
-        console.error("Error during token sync:", error);
+      if (currentToken) {
+        await saveFcmToken({ userId: user.uid, token: currentToken });
+        setIsPermissionGranted(true);
+      } else {
+        console.warn("Permission granted, but no FCM token received.");
         setIsPermissionGranted(false);
+      }
+
+    } catch (error) {
+      console.error("Error during token sync:", error);
+      setIsPermissionGranted(false);
     }
   }, [user]);
 
@@ -86,17 +87,17 @@ export function useNotifications() {
     checkPermission();
 
     const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible') {
-            checkPermission();
-        }
+      if (document.visibilityState === 'visible') {
+        checkPermission();
+      }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [checkPermission]);
-  
+
   // Effect for handling foreground messages (both Toast and native OS Notification)
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && isPermissionGranted) {
@@ -108,10 +109,22 @@ export function useNotifications() {
           const title = payload.notification?.title || payload.data?.title || 'Nouvelle Notification';
           const body = payload.notification?.body || payload.data?.body;
 
+          const targetUrl = payload.data?.url;
+
           // 1. Toast dans l'interface
           toast({
-              title,
-              description: body,
+            title,
+            description: body,
+            action: targetUrl ? createElement(
+              ToastAction,
+              {
+                altText: 'Ouvrir',
+                onClick: () => {
+                  window.location.href = targetUrl;
+                }
+              },
+              'Ouvrir'
+            ) : undefined,
           });
 
           // 2. Notification système OS native (bannière / centre de notifications)
@@ -164,15 +177,15 @@ export function useNotifications() {
       toast({ title: "Erreur", description: "Les notifications ne peuvent pas être activées sur cet appareil.", variant: "destructive" });
       return;
     }
-    
+
     if (Notification.permission === 'denied') {
-        toast({
-            title: "Permissions bloquées",
-            description: "Vous avez bloqué les notifications. Veuillez les autoriser dans les paramètres de votre navigateur pour ce site.",
-            variant: "destructive",
-            duration: 10000,
-        });
-        return;
+      toast({
+        title: "Permissions bloquées",
+        description: "Vous avez bloqué les notifications. Veuillez les autoriser dans les paramètres de votre navigateur pour ce site.",
+        variant: "destructive",
+        duration: 10000,
+      });
+      return;
     }
 
     setIsRequesting(true);
@@ -180,11 +193,11 @@ export function useNotifications() {
     try {
       const permission = await Notification.requestPermission();
       setPermissionStatus(permission);
-      
+
       if (permission === 'granted') {
         if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) {
-            console.error("VAPID key is missing from environment variables.");
-            throw new Error("La clé VAPID des notifications est manquante.");
+          console.error("VAPID key is missing from environment variables.");
+          throw new Error("La clé VAPID des notifications est manquante.");
         }
 
         const registration = await getOrRegisterServiceWorker();

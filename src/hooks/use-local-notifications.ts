@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, createElement } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { getAllUserMaintenance, getAllUserRepairs, getAllUserFuelLogs, getVehicles } from '@/lib/data';
 import type { Maintenance } from '@/lib/types';
@@ -9,6 +9,7 @@ import { calculateAverageKmPerDay, estimateVidangeDate, formatDateToFrench, getD
 import { getDeadlineAnticipationInfo } from '@/lib/tunisia-holidays';
 import { getReminderStageAndDays, isDeadlineAlreadyCompleted, getCanonicalTask } from '@/lib/reminder-utils';
 import { useToast, toast as globalToast } from './use-toast';
+import { ToastAction } from '@/components/ui/toast';
 
 const NOTIFICATION_SNOOZE_KEY = 'carcarepro_notified_deadlines';
 const REMINDER_DAYS_THRESHOLD = 15; // Notify up to 15 days before date-based deadline
@@ -338,7 +339,15 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
                 }
             } else if (stageTag === 'j7') {
                 const anticipation = getDeadlineAnticipationInfo(dueDate || dueDateStr);
-                if (anticipation.isNonWorking) {
+                const canonical = getCanonicalTask(task.task);
+                if (canonical === 'visite_technique') {
+                    title = `📋 Rappel J-7 : Visite technique (${vehicleName})`;
+                    if (anticipation.isNonWorking) {
+                        body = `Dans une semaine : la visite technique pour votre ${vehicleName} arrive à échéance le ${anticipation.dueDateFormatted}. ${anticipation.warningText} Consultez la checklist avant votre contrôle technique.`;
+                    } else {
+                        body = `Dans une semaine : la visite technique pour votre ${vehicleName} arrive à échéance (${dueDate ? dueDate.toLocaleDateString('fr-FR') : dueDateStr}). Consultez la checklist avant votre contrôle technique.`;
+                    }
+                } else if (anticipation.isNonWorking) {
                     title = `Rappel J-7 : ${task.task} (${vehicleName})`;
                     body = `N'oubliez pas : "${task.task}" est à faire pour le ${anticipation.dueDateFormatted}. ${anticipation.warningText}`;
                 } else {
@@ -359,7 +368,11 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
             if (title && stageTag) {
                 const snoozeKey = `${task.id}_${stageTag}_${dueDateStr}`;
                 if (!notifiedDeadlines[snoozeKey]) {
-                    const targetUrl = isUrgent ? `/documents?vehicleId=${task.vehicleId}` : `/?vehicleId=${task.vehicleId}`;
+                    const isVisiteTechniqueJ7 = getCanonicalTask(task.task) === 'visite_technique' && stageTag === 'j7';
+                    const targetUrl = isVisiteTechniqueJ7
+                        ? `/checklist-visite-technique?vehicleId=${task.vehicleId}`
+                        : (isUrgent ? `/documents?vehicleId=${task.vehicleId}` : `/?vehicleId=${task.vehicleId}`);
+
                     sendBrowserNotification(title, {
                         body,
                         icon: '/android-chrome-192x192.png',
@@ -374,6 +387,18 @@ async function checkDeadlinesAndNotify(userId: string, showToast?: typeof global
                             title,
                             description: body,
                             variant: isUrgent ? 'destructive' : 'default',
+                            action: isVisiteTechniqueJ7
+                                ? createElement(
+                                    ToastAction,
+                                    {
+                                        altText: 'Voir la checklist',
+                                        onClick: () => {
+                                            window.location.href = targetUrl;
+                                        },
+                                    },
+                                    'Checklist'
+                                )
+                                : undefined,
                         });
                     }
 

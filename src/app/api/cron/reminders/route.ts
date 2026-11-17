@@ -316,9 +316,12 @@ export async function GET(request: Request) {
                 daysRemaining: stage?.startsWith('overdue') ? -Number(stage.split('_')[1] || 1) : 0,
             });
 
-            const targetUrl = isDocumentTask(task) && (stage === 'j0' || (stage && stage.startsWith('overdue')))
-                ? `/documents?vehicleId=${vehicleId || ''}`
-                : `/maintenance?vehicleId=${vehicleId || ''}`;
+            const isVisiteTechniqueJ7 = getCanonicalTask(task) === 'visite_technique' && stage === 'j7';
+            const targetUrl = isVisiteTechniqueJ7
+                ? `/checklist-visite-technique?vehicleId=${vehicleId || ''}`
+                : (isDocumentTask(task) && (stage === 'j0' || (stage && stage.startsWith('overdue'))))
+                    ? `/documents?vehicleId=${vehicleId || ''}`
+                    : `/maintenance?vehicleId=${vehicleId || ''}`;
             const tag = `carcare-retry-${maintenanceId}-${stage}`;
 
             messagesToSend.push({
@@ -576,9 +579,12 @@ export async function GET(request: Request) {
                     daysRemaining,
                 });
 
-                const targetUrl = isDocumentTask(task) && (stage === 'j0' || stage.startsWith('overdue'))
-                    ? `/documents?vehicleId=${vehicleId || ''}`
-                    : `/maintenance?vehicleId=${vehicleId || ''}`;
+                const isVisiteTechniqueJ7 = getCanonicalTask(task) === 'visite_technique' && stage === 'j7';
+                const targetUrl = isVisiteTechniqueJ7
+                    ? `/checklist-visite-technique?vehicleId=${vehicleId || ''}`
+                    : (isDocumentTask(task) && (stage === 'j0' || stage.startsWith('overdue')))
+                        ? `/documents?vehicleId=${vehicleId || ''}`
+                        : `/maintenance?vehicleId=${vehicleId || ''}`;
                 const tag = `carcare-task-${doc.id}-${stage}`;
 
                 if (isSimulation) {

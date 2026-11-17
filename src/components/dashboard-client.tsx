@@ -7,7 +7,7 @@ import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { AddVehicleSheet } from '@/components/add-vehicle-sheet';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, CheckCircle2, Gauge } from 'lucide-react';
+import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, CheckCircle2, Gauge, ClipboardList } from 'lucide-react';
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import { calculateNextVignetteDate, formatDateToLocalISO, getCorrectVignetteDead
 import { getDeadlineAnticipationInfo } from '@/lib/tunisia-holidays';
 import { getVehicleTankCapacity, calculateAverageFuelConsumption, calculateIntervalConsumption, calculateSmartAutonomie, calculateAverageRefillGaugeLevel } from '@/lib/fuel-utils';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance } from '@/lib/data';
+import { getCanonicalTask } from '@/lib/reminder-utils';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -49,6 +50,7 @@ function StatCard({
   isLoading,
   isUrgent,
   onComplete,
+  checklistUrl,
   gradient = "from-primary/10 to-primary/5",
   iconGradient = "from-primary to-primary-foreground/50",
   shadow = "shadow-primary/10"
@@ -62,6 +64,7 @@ function StatCard({
   isLoading?: boolean,
   isUrgent?: boolean,
   onComplete?: () => void,
+  checklistUrl?: string,
   gradient?: string,
   iconGradient?: string,
   shadow?: string
@@ -114,17 +117,33 @@ function StatCard({
         )}
       </CardContent>
 
-      {onComplete && !disabled && (
-        <CardFooter className="p-2 border-t bg-background/40 backdrop-blur-sm mt-auto">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full text-[10px] h-7 font-bold uppercase tracking-tighter hover:bg-primary/10"
-            onClick={(e) => { e.stopPropagation(); onComplete(); }}
-          >
-            <CheckCircle2 className="mr-1.5 h-3 w-3" />
-            Échéance réglée
-          </Button>
+      {(onComplete || checklistUrl) && !disabled && (
+        <CardFooter className="p-2 border-t bg-background/40 backdrop-blur-sm mt-auto flex gap-1.5">
+          {checklistUrl && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-[10px] h-7 font-bold uppercase tracking-tighter hover:bg-primary/10 border-blue-500/40 text-blue-600 dark:text-blue-400 gap-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.location.href = checklistUrl;
+              }}
+            >
+              <ClipboardList className="h-3 w-3" />
+              Checklist
+            </Button>
+          )}
+          {onComplete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn("text-[10px] h-7 font-bold uppercase tracking-tighter hover:bg-primary/10", checklistUrl ? "flex-1" : "w-full")}
+              onClick={(e) => { e.stopPropagation(); onComplete(); }}
+            >
+              <CheckCircle2 className="mr-1.5 h-3 w-3" />
+              Échéance réglée
+            </Button>
+          )}
         </CardFooter>
       )}
 
@@ -291,26 +310,26 @@ export function DashboardClient() {
       .map(m => {
         let deadlineDate: Date;
         if (m.task === 'Vignette') {
-            const vehicle = vehicles.find(v => v.id === m.vehicleId);
-            if (vehicle && vehicle.licensePlate) {
-                if (m.date) {
-                    // Derive next deadline from the ACTUAL payment date:
-                    //  • paid 10 mars 2026 → next = 2027-04-05
-                    //  • paid 2025 → next = 2026-04-05
-                    deadlineDate = calculateNextVignetteDate(vehicle.licensePlate, new Date(m.date));
-                    // Safety cap: if the computed deadline is already in the past
-                    // (e.g. old missed record), fall back to the real upcoming date.
-                    if (deadlineDate < today) {
-                        deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
-                    }
-                } else {
-                    deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
-                }
+          const vehicle = vehicles.find(v => v.id === m.vehicleId);
+          if (vehicle && vehicle.licensePlate) {
+            if (m.date) {
+              // Derive next deadline from the ACTUAL payment date:
+              //  • paid 10 mars 2026 → next = 2027-04-05
+              //  • paid 2025 → next = 2026-04-05
+              deadlineDate = calculateNextVignetteDate(vehicle.licensePlate, new Date(m.date));
+              // Safety cap: if the computed deadline is already in the past
+              // (e.g. old missed record), fall back to the real upcoming date.
+              if (deadlineDate < today) {
+                deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
+              }
             } else {
-                deadlineDate = m.nextDueDate ? new Date(m.nextDueDate) : getCorrectVignetteDeadline('', today);
+              deadlineDate = getCorrectVignetteDeadline(vehicle.licensePlate, today);
             }
+          } else {
+            deadlineDate = m.nextDueDate ? new Date(m.nextDueDate) : getCorrectVignetteDeadline('', today);
+          }
         } else {
-            deadlineDate = new Date(m.nextDueDate!);
+          deadlineDate = new Date(m.nextDueDate!);
         }
         return {
           type: 'date' as const,
@@ -715,6 +734,7 @@ export function DashboardClient() {
                 setVehicleForDetailView(getVehicleForStat(nextDeadline?.vehicleId) || null);
               }}
               onComplete={() => setDeadlineToComplete(nextDeadline)}
+              checklistUrl={nextDeadline && getCanonicalTask(nextDeadline.name) === 'visite_technique' ? `/checklist-visite-technique?vehicleId=${nextDeadline.vehicleId}` : undefined}
               disabled={!nextDeadline}
               isLoading={isStatsLoading}
               isUrgent={isDeadlineUrgent}
@@ -731,6 +751,7 @@ export function DashboardClient() {
                 setVehicleForDetailView(getVehicleForStat(secondNextDeadline?.vehicleId) || null);
               }}
               onComplete={() => setDeadlineToComplete(secondNextDeadline)}
+              checklistUrl={secondNextDeadline && getCanonicalTask(secondNextDeadline.name) === 'visite_technique' ? `/checklist-visite-technique?vehicleId=${secondNextDeadline.vehicleId}` : undefined}
               disabled={!secondNextDeadline}
               isLoading={isStatsLoading}
               isUrgent={isSecondDeadlineUrgent}
