@@ -10,6 +10,7 @@ export type Vehicle = {
   estimatedTankCapacity?: number | null;
   vin?: string;
   imageUrl?: string;
+  nextVidangeNotes?: string;
 };
 
 export type Repair = {

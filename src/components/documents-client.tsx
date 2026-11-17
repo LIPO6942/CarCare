@@ -485,24 +485,30 @@ export function DocumentsClient() {
 
                                         {doc.type === 'Vignette' && (
                                             <Button
+                                                asChild
                                                 variant="outline"
                                                 size="sm"
-                                                onClick={() => {
-                                                    const v = vehicles.find(veh => veh.id === selectedVehicleId);
-                                                    if (v?.licensePlate && typeof navigator !== 'undefined' && navigator.clipboard) {
-                                                        navigator.clipboard.writeText(v.licensePlate);
-                                                        toast({
-                                                            title: "Matricule copié !",
-                                                            description: `${v.licensePlate} copié dans le presse-papier. Collez-le (Ctrl+V) sur le portail des amendes.`,
-                                                        });
-                                                    }
-                                                    window.open("https://amendes.finances.gov.tn/cons_amende.jsp", "_blank", "noopener,noreferrer");
-                                                }}
                                                 className="h-9 px-3 text-xs sm:text-sm font-medium border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors gap-1.5 shrink-0"
                                                 title="Vérifier les amendes radar (Ministère des Finances)"
                                             >
-                                                <ExternalLink className="h-3.5 w-3.5 text-amber-500" />
-                                                <span>Amendes radar</span>
+                                                <a
+                                                    href="https://amendes.finances.gov.tn/cons_amende.jsp"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    onClick={() => {
+                                                        const v = vehicles.find(veh => veh.id === selectedVehicleId);
+                                                        if (v?.licensePlate && typeof navigator !== 'undefined' && navigator.clipboard) {
+                                                            navigator.clipboard.writeText(v.licensePlate);
+                                                            toast({
+                                                                title: "Matricule copié !",
+                                                                description: `${v.licensePlate} copié dans le presse-papier. Collez-le (Ctrl+V) sur le portail des amendes.`,
+                                                            });
+                                                        }
+                                                    }}
+                                                >
+                                                    <ExternalLink className="h-3.5 w-3.5 text-amber-500" />
+                                                    <span>Amendes radar</span>
+                                                </a>
                                             </Button>
                                         )}
 
@@ -1196,6 +1202,34 @@ function DocumentViewerDialog({
                                     <a href={effectiveVersoUrl} download={doc.fileVerso?.name || `${doc.name}-verso`}>
                                         <Download className="h-3.5 w-3.5 mr-1.5" />
                                         Télécharger Verso
+                                    </a>
+                                </Button>
+                            )}
+                            {doc.type === 'Vignette' && (
+                                <Button
+                                    asChild
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-xs rounded-lg border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-50 gap-1.5"
+                                    title="Vérifier les amendes radar (Ministère des Finances)"
+                                >
+                                    <a
+                                        href="https://amendes.finances.gov.tn/cons_amende.jsp"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={() => {
+                                            const v = vehicles.find(veh => veh.id === selectedVehicleId);
+                                            if (v?.licensePlate && typeof navigator !== 'undefined' && navigator.clipboard) {
+                                                navigator.clipboard.writeText(v.licensePlate);
+                                                toast({
+                                                    title: "Matricule copié !",
+                                                    description: `${v.licensePlate} copié dans le presse-papier. Collez-le (Ctrl+V) sur le portail des amendes.`,
+                                                });
+                                            }
+                                        }}
+                                    >
+                                        <ExternalLink className="h-3.5 w-3.5 text-amber-500" />
+                                        Amendes radar
                                     </a>
                                 </Button>
                             )}

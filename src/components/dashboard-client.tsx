@@ -7,7 +7,7 @@ import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { AddVehicleSheet } from '@/components/add-vehicle-sheet';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, CheckCircle2, Gauge, ClipboardList, ExternalLink, Droplets, History, Sparkles } from 'lucide-react';
+import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, CheckCircle2, Gauge, ClipboardList, ExternalLink, Droplets, History, Sparkles, StickyNote, Save } from 'lucide-react';
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -15,7 +15,7 @@ import { VehicleCard } from '@/components/vehicle-card';
 import { calculateNextVignetteDate, formatDateToLocalISO, getCorrectVignetteDeadline } from '@/lib/vignette';
 import { getDeadlineAnticipationInfo } from '@/lib/tunisia-holidays';
 import { getVehicleTankCapacity, calculateAverageFuelConsumption, calculateIntervalConsumption, calculateSmartAutonomie, calculateAverageRefillGaugeLevel } from '@/lib/fuel-utils';
-import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance } from '@/lib/data';
+import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance, updateVehicle } from '@/lib/data';
 import { getCanonicalTask } from '@/lib/reminder-utils';
 import { getLastVidangeSummary, STANDARD_VIDANGE_ITEMS, type LastVidangeSummary } from '@/lib/vidange';
 import { useAuth } from '@/context/auth-context';
@@ -26,6 +26,7 @@ import { AddInitialMaintenanceForm } from './add-initial-maintenance-form';
 import { QuickFuelLogForm } from './quick-fuel-log-form';
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogDescription, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Checkbox } from './ui/checkbox';
 import { Badge } from './ui/badge';
@@ -130,27 +131,50 @@ function StatCard({
       {(onComplete || secondaryAction) && !disabled && (
         <CardFooter className="p-2 border-t bg-background/40 backdrop-blur-sm mt-auto flex gap-1.5">
           {secondaryAction && (
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn(
-                "flex-1 text-[10px] h-7 font-bold uppercase tracking-tighter hover:bg-primary/10 gap-1",
-                secondaryAction.variantClass || "border-blue-500/40 text-blue-600 dark:text-blue-400"
-              )}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (secondaryAction.onClick) {
-                  secondaryAction.onClick();
-                } else if (secondaryAction.isExternal && secondaryAction.url) {
-                  window.open(secondaryAction.url, '_blank', 'noopener,noreferrer');
-                } else if (secondaryAction.url) {
-                  window.location.href = secondaryAction.url;
-                }
-              }}
-            >
-              {secondaryAction.icon && <secondaryAction.icon className="h-3 w-3" />}
-              {secondaryAction.label}
-            </Button>
+            secondaryAction.url ? (
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "flex-1 text-[10px] h-7 font-bold uppercase tracking-tighter hover:bg-primary/10 gap-1",
+                  secondaryAction.variantClass || "border-blue-500/40 text-blue-600 dark:text-blue-400"
+                )}
+              >
+                <a
+                  href={secondaryAction.url}
+                  target={secondaryAction.isExternal ? "_blank" : undefined}
+                  rel={secondaryAction.isExternal ? "noopener noreferrer" : undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (secondaryAction.onClick) {
+                      secondaryAction.onClick();
+                    }
+                  }}
+                >
+                  {secondaryAction.icon && <secondaryAction.icon className="h-3 w-3" />}
+                  {secondaryAction.label}
+                </a>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "flex-1 text-[10px] h-7 font-bold uppercase tracking-tighter hover:bg-primary/10 gap-1",
+                  secondaryAction.variantClass || "border-blue-500/40 text-blue-600 dark:text-blue-400"
+                )}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (secondaryAction.onClick) {
+                    secondaryAction.onClick();
+                  }
+                }}
+              >
+                {secondaryAction.icon && <secondaryAction.icon className="h-3 w-3" />}
+                {secondaryAction.label}
+              </Button>
+            )
           )}
           {onComplete && (
             <Button
@@ -713,7 +737,6 @@ export function DashboardClient() {
               description: `${veh.licensePlate} copié dans le presse-papier. Collez-le (Ctrl+V) sur le portail des amendes.`,
             });
           }
-          window.open('https://amendes.finances.gov.tn/cons_amende.jsp', '_blank', 'noopener,noreferrer');
         }
       };
     }
@@ -940,6 +963,9 @@ export function DashboardClient() {
         onOpenChange={(isOpen) => !isOpen && setVidangeHistoryVehicleId(null)}
         summary={vidangeHistorySummary}
         vehicle={vidangeHistoryVehicle}
+        onVehicleUpdated={(updated) => {
+          setVehicles(prev => prev.map(v => v.id === updated.id ? updated : v));
+        }}
       />
 
       <CompleteDeadlineDialog
@@ -965,24 +991,73 @@ function LastVidangeModal({
   onOpenChange,
   summary,
   vehicle,
+  onVehicleUpdated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   summary: LastVidangeSummary | null;
   vehicle: Vehicle | null;
+  onVehicleUpdated?: (updatedVehicle: Vehicle) => void;
 }) {
+  const [memo, setMemo] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (vehicle && open) {
+      const localNotes = typeof window !== 'undefined' ? localStorage.getItem(`carcare_vidange_notes_${vehicle.id}`) : null;
+      setMemo(vehicle.nextVidangeNotes ?? (localNotes || ''));
+    }
+  }, [vehicle, open]);
+
   if (!vehicle || !summary) return null;
+
+  const handleSaveMemo = async () => {
+    if (!vehicle) return;
+    setIsSaving(true);
+    const trimmed = memo.trim();
+    try {
+      if (typeof window !== 'undefined') {
+        if (trimmed) {
+          localStorage.setItem(`carcare_vidange_notes_${vehicle.id}`, trimmed);
+        } else {
+          localStorage.removeItem(`carcare_vidange_notes_${vehicle.id}`);
+        }
+      }
+      await updateVehicle(vehicle.id, { nextVidangeNotes: trimmed });
+      toast({
+        title: "Pense-bête enregistré !",
+        description: trimmed
+          ? "Ce rappel sera affiché lors de votre prochain passage chez le mécanicien."
+          : "Le rappel pour le mécanicien a été réinitialisé.",
+      });
+      if (onVehicleUpdated) {
+        onVehicleUpdated({ ...vehicle, nextVidangeNotes: trimmed });
+      }
+    } catch (err) {
+      console.error("Error saving vidange memo:", err);
+      toast({
+        title: "Pense-bête sauvegardé en local",
+        description: "Votre note est bien conservée sur cet appareil.",
+      });
+      if (onVehicleUpdated) {
+        onVehicleUpdated({ ...vehicle, nextVidangeNotes: trimmed });
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
               <Droplets className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-lg">Historique dernière vidange</DialogTitle>
+              <DialogTitle className="text-lg">Historique & Préparation Vidange</DialogTitle>
               <DialogDescription className="text-xs">
                 {vehicle.brand} {vehicle.model} ({vehicle.licensePlate || 'N/A'})
               </DialogDescription>
@@ -1077,13 +1152,60 @@ function LastVidangeModal({
             )}
           </div>
         ) : (
-          <div className="py-6 text-center space-y-2 text-xs text-muted-foreground">
+          <div className="py-4 text-center space-y-2 text-xs text-muted-foreground border-b pb-4">
             <p>Aucune vidange passée n'est encore enregistrée pour ce véhicule.</p>
             <p>L'historique détaillé et les recommandations se construiront dès votre première vidange enregistrée !</p>
           </div>
         )}
 
-        <DialogFooter>
+        {/* Pense-bête / Saisie libre pour la prochaine vidange */}
+        <div className="space-y-2.5 pt-3 border-t">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="vidange-memo" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <StickyNote className="h-4 w-4 text-blue-500" />
+              Pense-bête pour le mécanicien (prochaine vidange) :
+            </Label>
+            {memo && (
+              <span className="text-[10px] text-muted-foreground font-normal">
+                {memo.length} car.
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-tight">
+            Saisie libre : notez d'autres vérifications ou pièces à changer chez le mécanicien lors de votre prochain rendez-vous (ex: plaquettes de frein, courroie, essuie-glaces, bruit à froid...).
+          </p>
+          <Textarea
+            id="vidange-memo"
+            rows={3}
+            placeholder="Ex : Vérifier les plaquettes avant, permuter les pneus avant/arrière, signaler un léger sifflement au freinage..."
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            className="text-xs resize-none bg-background"
+          />
+          <div className="flex items-center justify-between pt-1">
+            {memo ? (
+              <button
+                type="button"
+                className="text-[11px] text-muted-foreground hover:text-destructive underline transition-colors"
+                onClick={() => setMemo('')}
+              >
+                Effacer le texte
+              </button>
+            ) : <span />}
+            <Button
+              type="button"
+              size="sm"
+              disabled={isSaving}
+              className="h-8 text-xs gap-1.5 font-medium"
+              onClick={handleSaveMemo}
+            >
+              {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+              Enregistrer le pense-bête
+            </Button>
+          </div>
+        </div>
+
+        <DialogFooter className="pt-2">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             Fermer
           </Button>
@@ -1161,6 +1283,12 @@ function CompleteDeadlineDialog({
 
   const [selectedVidangeItems, setSelectedVidangeItems] = useState<string[]>(['huile', 'filtre_huile']);
 
+  const savedVidangeNotes = useMemo(() => {
+    if (!vehicle || canonicalTask !== 'vidange') return '';
+    const local = typeof window !== 'undefined' ? localStorage.getItem(`carcare_vidange_notes_${vehicle.id}`) : null;
+    return vehicle.nextVidangeNotes ?? (local || '');
+  }, [vehicle, canonicalTask]);
+
   useEffect(() => {
     if (open && canonicalTask === 'vidange') {
       setSelectedVidangeItems(['huile', 'filtre_huile']);
@@ -1196,7 +1324,17 @@ function CompleteDeadlineDialog({
       if (canonicalTask === 'vidange') {
         newMaintenance.replacedItems = selectedVidangeItems;
         const itemLabels = STANDARD_VIDANGE_ITEMS.filter(i => selectedVidangeItems.includes(i.id)).map(i => i.shortLabel);
-        newMaintenance.notes = `Pack vidange : ${itemLabels.join(', ')}`;
+        let notesContent = `Pack vidange : ${itemLabels.join(', ')}`;
+        if (savedVidangeNotes) {
+          notesContent += ` | Pense-bête mécanicien : ${savedVidangeNotes}`;
+        }
+        newMaintenance.notes = notesContent;
+
+        // Effacer le pense-bête une fois la vidange enregistrée
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(`carcare_vidange_notes_${vehicle.id}`);
+        }
+        await updateVehicle(vehicle.id, { nextVidangeNotes: '' });
       }
 
       if (needsCost) newMaintenance.cost = cost;
@@ -1317,6 +1455,44 @@ function CompleteDeadlineDialog({
                     💡 Non remplacés la dernière fois : {lastVidangeSummary.notReplacedItems.join(', ')}.
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* Rappel du pense-bête pour le mécanicien */}
+            {canonicalTask === 'vidange' && !!savedVidangeNotes && (
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-300">
+                  <StickyNote className="h-3.5 w-3.5" />
+                  <span>Votre pense-bête pour ce rendez-vous mécanicien :</span>
+                </div>
+                <p className="text-foreground text-[11px] whitespace-pre-wrap pl-5 italic">
+                  « {savedVidangeNotes} »
+                </p>
+              </div>
+            )}
+
+            {/* Lien direct amendes radar si l'utilisateur veut vérifier avant de marquer la vignette */}
+            {canonicalTask === 'vignette' && (
+              <div className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border border-amber-500/20">
+                <span className="text-muted-foreground text-[11px]">Un doute sur les amendes radar ?</span>
+                <a
+                  href="https://amendes.finances.gov.tn/cons_amende.jsp"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    if (vehicle?.licensePlate && typeof navigator !== 'undefined' && navigator.clipboard) {
+                      navigator.clipboard.writeText(vehicle.licensePlate);
+                      toast({
+                        title: "Matricule copié !",
+                        description: `${vehicle.licensePlate} copié dans le presse-papier.`,
+                      });
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 hover:underline font-medium"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Vérifier sur le portail officiel
+                </a>
               </div>
             )}
 
