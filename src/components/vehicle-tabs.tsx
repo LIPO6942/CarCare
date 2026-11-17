@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Wrench, Fuel, Calendar, Sparkles, Loader2, GaugeCircle, History, Trash2, Edit, MoreHorizontal, Milestone, Droplets, BarChart3, Edit2, AlertCircle } from 'lucide-react';
+import { PlusCircle, Wrench, Fuel, Calendar, Sparkles, Loader2, GaugeCircle, History, Trash2, Edit, MoreHorizontal, Milestone, Droplets, BarChart3, Edit2, AlertCircle, StickyNote } from 'lucide-react';
 import {
     Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
@@ -656,6 +656,19 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                     </div>
                 </CardHeader>
                 <CardContent>
+                    {vehicle.nextVidangeNotes && (
+                        <div className="mb-4 p-3 rounded-lg border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 flex items-start gap-2.5 text-xs">
+                            <StickyNote className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                            <div className="space-y-0.5">
+                                <span className="font-semibold text-amber-900 dark:text-amber-200">
+                                    Pense-bête en cours pour la prochaine vidange :
+                                </span>
+                                <p className="text-muted-foreground whitespace-pre-wrap">
+                                    « {vehicle.nextVidangeNotes} »
+                                </p>
+                            </div>
+                        </div>
+                    )}
                     {maintenance.length > 0 ? (
                         <div>
                             <div className="md:hidden space-y-4">
@@ -664,6 +677,9 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
                                                 <p className="font-semibold text-base leading-tight">{maint.task || 'N/A'}</p>
+                                                {maint.notes && (
+                                                    <p className="text-xs text-muted-foreground mt-1 leading-tight">{maint.notes}</p>
+                                                )}
                                             </div>
                                             <div className="flex-shrink-0 pl-2">
                                                 <ActionMenu onEdit={() => handleEdit(maint)} onDelete={() => setItemToDelete(maint)} />
@@ -706,7 +722,12 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                                         {maintenance.map((maint) => (
                                             <TableRow key={maint.id}>
                                                 <TableCell>{safeFormatDate(maint.date)}</TableCell>
-                                                <TableCell className="font-medium">{maint.task || 'N/A'}</TableCell>
+                                                <TableCell className="font-medium">
+                                                    {maint.task || 'N/A'}
+                                                    {maint.notes && (
+                                                        <span className="block text-xs text-muted-foreground font-normal mt-0.5">{maint.notes}</span>
+                                                    )}
+                                                </TableCell>
                                                 <TableCell>{safeFormatNumber(maint.mileage)} km</TableCell>
                                                  <TableCell>
                                                     {maint.task === 'Vignette' 

@@ -192,6 +192,8 @@ export interface SmartAutonomieResult {
   fuelPercentage: number;
   initialFuelAfterRefill: number;
   kmPerDay: number;
+  estimatedCurrentMileage?: number;
+  estimatedDistanceDrivenSinceLog?: number;
 }
 
 /**
@@ -289,6 +291,8 @@ export function calculateSmartAutonomie(
   const remainingRangeKm = (currentFuelLiters / consumptionRate) * 100;
   const daysUntilEmpty = adaptiveKmPerDay > 0 ? (remainingRangeKm / adaptiveKmPerDay) : 99;
 
+  const estimatedCurrentMileage = Math.round(lastLog.mileage + estimatedDistanceDrivenSinceLog);
+
   return {
     remainingRangeKm: Math.round(remainingRangeKm),
     daysUntilEmpty: parseFloat(daysUntilEmpty.toFixed(1)),
@@ -296,7 +300,9 @@ export function calculateSmartAutonomie(
     tankCapacity,
     fuelPercentage: Math.round(fuelPercentage),
     initialFuelAfterRefill: parseFloat(initialFuelAfterRefill.toFixed(1)),
-    kmPerDay: parseFloat(adaptiveKmPerDay.toFixed(1))
+    kmPerDay: parseFloat(adaptiveKmPerDay.toFixed(1)),
+    estimatedCurrentMileage,
+    estimatedDistanceDrivenSinceLog: Math.round(estimatedDistanceDrivenSinceLog)
   };
 }
 

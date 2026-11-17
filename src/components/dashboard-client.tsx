@@ -49,6 +49,7 @@ function StatCard({
   value,
   icon: Icon,
   description,
+  badge,
   onClick,
   disabled,
   isLoading,
@@ -63,6 +64,7 @@ function StatCard({
   value: string | number,
   icon: ComponentType<{ className?: string }>,
   description?: string,
+  badge?: React.ReactNode,
   onClick?: () => void,
   disabled?: boolean,
   isLoading?: boolean,
@@ -108,9 +110,12 @@ function StatCard({
       <div className={cn("absolute top-0 left-0 w-full h-1 bg-gradient-to-r", currentIconGradient)} />
 
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-          {title}
-        </CardTitle>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            {title}
+          </CardTitle>
+          {badge}
+        </div>
         <div className={cn(
           "p-2 rounded-xl bg-gradient-to-br shadow-lg text-white",
           currentIconGradient
@@ -534,6 +539,7 @@ export function DashboardClient() {
       drivingStyle: string;
       daysUntilEmpty?: number;
       remainingRangeKm?: number;
+      estimatedCurrentMileage?: number;
       avgRefillGauge?: number | null;
       avgDaysBetweenFills?: number | null;
     } | null>();
@@ -648,6 +654,7 @@ export function DashboardClient() {
         drivingStyle,
         daysUntilEmpty: smartAutonomie?.daysUntilEmpty,
         remainingRangeKm: smartAutonomie?.remainingRangeKm,
+        estimatedCurrentMileage: smartAutonomie?.estimatedCurrentMileage,
         avgRefillGauge,
         avgDaysBetweenFills
       });
@@ -707,8 +714,33 @@ export function DashboardClient() {
         desc += ` • ⚠️ ${anticipation.shortWarningText.replace(/^⚠️\s*/, '')}`;
       }
     }
+    if (getCanonicalTask(deadline.name) === 'vidange') {
+      const localNotes = typeof window !== 'undefined' ? localStorage.getItem(`carcare_vidange_notes_${deadline.vehicleId}`) : null;
+      if (vehicle?.nextVidangeNotes || localNotes) {
+        desc += ` • 📝 Pense-bête actif`;
+      }
+    }
     return desc;
   }
+
+  const getDeadlineBadge = (deadline: Deadline | null) => {
+    if (!deadline) return undefined;
+    const canonical = getCanonicalTask(deadline.name);
+    if (canonical === 'vidange') {
+      const veh = getVehicleForStat(deadline.vehicleId);
+      const localNotes = typeof window !== 'undefined' ? localStorage.getItem(`carcare_vidange_notes_${deadline.vehicleId}`) : null;
+      const hasNotes = !!(veh?.nextVidangeNotes || localNotes);
+      if (hasNotes) {
+        return (
+          <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded-full" title="Pense-bête mécanicien actif">
+            <StickyNote className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
+            Pense-bête actif
+          </span>
+        );
+      }
+    }
+    return undefined;
+  };
 
   const getDeadlineSecondaryAction = (deadline: Deadline | null) => {
     if (!deadline) return undefined;
@@ -741,10 +773,13 @@ export function DashboardClient() {
       };
     }
     if (canonical === 'vidange') {
+      const veh = getVehicleForStat(deadline.vehicleId);
+      const localNotes = typeof window !== 'undefined' ? localStorage.getItem(`carcare_vidange_notes_${deadline.vehicleId}`) : null;
+      const hasNotes = !!(veh?.nextVidangeNotes || localNotes);
       return {
-        label: 'Dernière vidange',
-        icon: History,
-        variantClass: 'border-blue-500/40 text-blue-600 dark:text-blue-400',
+        label: hasNotes ? 'Pense-bête · Vidange' : 'Dernière vidange',
+        icon: hasNotes ? StickyNote : History,
+        variantClass: hasNotes ? 'border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10' : 'border-blue-500/40 text-blue-600 dark:text-blue-400',
         onClick: () => {
           setVidangeHistoryVehicleId(deadline.vehicleId);
         }
@@ -786,13 +821,20 @@ export function DashboardClient() {
                       <Gauge className={`h-3.5 w-3.5 ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`} />
                     </div>
                     <div className="flex flex-col">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[10px] font-medium text-foreground">{vehicle.brand} {vehicle.model}</span>
                         <span className="text-[9px] text-muted-foreground px-1 py-px rounded-full bg-muted/50 border border-border/50">Smart Autonomie</span>
                       </div>
-                      <span className={`text-base font-bold leading-none mt-0.5 ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`}>
-                        ≈ {Math.round(remainingRangeKm)} km
-                      </span>
+                      <div className="flex items-baseline gap-2 mt-0.5">
+                        <span className={`text-base font-bold leading-none ${daysUntilEmpty != null && daysUntilEmpty < 3 ? 'text-red-500' : 'text-emerald-500'}`}>
+                          ≈ {Math.round(remainingRangeKm)} km
+                        </span>
+                        {stats.estimatedCurrentMileage != null && stats.estimatedCurrentMileage > 0 && (
+                          <span className="text-[9px] text-muted-foreground font-normal tracking-tight">
+                            · ~{stats.estimatedCurrentMileage.toLocaleString('fr-FR')} km (estimé)
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {daysUntilEmpty != null && (
@@ -832,6 +874,7 @@ export function DashboardClient() {
             <StatCard
               title={nextDeadline ? (isDeadlineUrgent ? "Échéance Proche !" : "Prochaine Échéance") : "Prochaine Échéance"}
               value={getNextDeadlineValue(nextDeadline)}
+              badge={getDeadlineBadge(nextDeadline)}
               icon={Bell}
               description={getNextDeadlineDescription(nextDeadline)}
               onClick={() => {
@@ -849,6 +892,7 @@ export function DashboardClient() {
             <StatCard
               title={secondNextDeadline ? (isSecondDeadlineUrgent ? "Échéance Suivante" : "Échéance Suivante") : "Échéance Suivante"}
               value={getNextDeadlineValue(secondNextDeadline)}
+              badge={getDeadlineBadge(secondNextDeadline)}
               icon={Bell}
               description={getNextDeadlineDescription(secondNextDeadline)}
               onClick={() => {
@@ -1110,25 +1154,48 @@ function LastVidangeModal({
               )}
             </div>
 
-            {/* Suggestions pour la prochaine vidange */}
-            {summary.notReplacedItems.length > 0 && (
+            {/* Diagnostic d'usure prédictif des filtres & bougies */}
+            {summary.predictions && summary.predictions.length > 0 && (
               <div className="space-y-2 pt-2 border-t">
                 <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                   <Sparkles className="h-4 w-4 text-amber-500" />
-                  À vérifier / prévoir pour la prochaine vidange :
+                  Diagnostic d'usure prédictif (Filtres & Bougies) :
                 </span>
                 <p className="text-[11px] text-muted-foreground">
-                  Ces éléments n'avaient pas été changés lors de la dernière vidange :
+                  Analyse automatique selon les cycles et le kilométrage de vos entretiens :
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {summary.notReplacedItems.map((item) => (
-                    <Badge
-                      key={item}
-                      variant="outline"
-                      className="border-amber-500/40 text-amber-800 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/20 text-xs"
+                <div className="space-y-1.5">
+                  {summary.predictions.map((pred) => (
+                    <div
+                      key={pred.id}
+                      className={cn(
+                        "p-2 rounded-lg border text-xs flex items-start justify-between gap-2 transition-colors",
+                        pred.status === 'recommended'
+                          ? "bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200"
+                          : "bg-muted/30 border-border/60 text-muted-foreground"
+                      )}
                     >
-                      • {item}
-                    </Badge>
+                      <div className="space-y-0.5 flex-1">
+                        <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                          <span>{pred.status === 'recommended' ? '⚠️' : '✓'}</span>
+                          <span>{pred.label}</span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">
+                          {pred.recommendationMessage}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={pred.status === 'recommended' ? 'default' : 'outline'}
+                        className={cn(
+                          "text-[10px] shrink-0 font-medium",
+                          pred.status === 'recommended'
+                            ? "bg-amber-600 hover:bg-amber-600 text-white border-none"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {pred.status === 'recommended' ? 'À changer' : 'OK'}
+                      </Badge>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1471,6 +1538,23 @@ function CompleteDeadlineDialog({
               </div>
             )}
 
+            {/* Diagnostic d'usure prédictif */}
+            {canonicalTask === 'vidange' && lastVidangeSummary?.predictions?.some(p => p.status === 'recommended') && (
+              <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Conseil d'usure prédictif (Filtres & Bougies) :</span>
+                </div>
+                <ul className="space-y-0.5 text-[11px] list-disc pl-4 text-muted-foreground">
+                  {lastVidangeSummary.predictions.filter(p => p.status === 'recommended').map(p => (
+                    <li key={p.id}>
+                      <strong className="text-foreground">{p.label}</strong> : {p.recommendationMessage}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Lien direct amendes radar si l'utilisateur veut vérifier avant de marquer la vignette */}
             {canonicalTask === 'vignette' && (
               <div className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border border-amber-500/20">
@@ -1515,6 +1599,7 @@ function CompleteDeadlineDialog({
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   {STANDARD_VIDANGE_ITEMS.map((item) => {
                     const isChecked = selectedVidangeItems.includes(item.id);
+                    const isRecommended = lastVidangeSummary?.predictions?.some(p => p.id === item.id && p.status === 'recommended');
                     return (
                       <div
                         key={item.id}
@@ -1526,25 +1611,32 @@ function CompleteDeadlineDialog({
                           );
                         }}
                         className={cn(
-                          "flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer transition-colors select-none",
+                          "flex items-center justify-between p-2 rounded-md border text-xs cursor-pointer transition-colors select-none",
                           isChecked
                             ? "bg-primary/5 border-primary/40 text-foreground font-medium"
                             : "bg-background/60 border-border/60 text-muted-foreground hover:bg-muted/60"
                         )}
                       >
-                        <Checkbox
-                          id={`vidange-item-${item.id}`}
-                          checked={isChecked}
-                          onCheckedChange={(checked) => {
-                            setSelectedVidangeItems(prev =>
-                              checked
-                                ? (prev.includes(item.id) ? prev : [...prev, item.id])
-                                : prev.filter(x => x !== item.id)
-                            );
-                          }}
-                          className="h-4 w-4"
-                        />
-                        <span className="leading-tight">{item.label}</span>
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <Checkbox
+                            id={`vidange-item-${item.id}`}
+                            checked={isChecked}
+                            onCheckedChange={(checked) => {
+                              setSelectedVidangeItems(prev =>
+                                checked
+                                  ? (prev.includes(item.id) ? prev : [...prev, item.id])
+                                  : prev.filter(x => x !== item.id)
+                              );
+                            }}
+                            className="h-4 w-4 shrink-0"
+                          />
+                          <span className="leading-tight truncate">{item.label}</span>
+                        </div>
+                        {isRecommended && (
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/50 text-amber-700 dark:text-amber-300 bg-amber-500/10 shrink-0">
+                            Conseillé
+                          </Badge>
+                        )}
                       </div>
                     );
                   })}

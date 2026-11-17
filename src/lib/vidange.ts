@@ -108,6 +108,18 @@ export const STANDARD_VIDANGE_ITEMS: VidangeStandardItem[] = [
   { id: 'bougies', label: 'Bougies d’allumage', shortLabel: 'Bougies', category: 'Allumage', isMandatoryOrFrequent: false },
 ];
 
+export interface WearItemPrediction {
+  id: string;
+  label: string;
+  shortLabel: string;
+  category: string;
+  status: 'recommended' | 'good';
+  vidangesElapsed: number;
+  kmElapsed: number | null;
+  lastReplacedDate: string | null;
+  recommendationMessage: string;
+}
+
 export interface LastVidangeSummary {
   hasHistory: boolean;
   lastVidange: Maintenance | null;
@@ -118,6 +130,7 @@ export interface LastVidangeSummary {
   replacedItems: string[];
   replacedItemIds: string[];
   notReplacedItems: string[];
+  predictions: WearItemPrediction[];
   nearbyEvents: Array<{ title: string; date: string; cost: number; source: 'maintenance' | 'repair' }>;
 }
 
@@ -149,6 +162,7 @@ export function getLastVidangeSummary(params: {
       replacedItems: [],
       replacedItemIds: [],
       notReplacedItems: STANDARD_VIDANGE_ITEMS.map(i => i.label),
+      predictions: [],
       nearbyEvents: [],
     };
   }
@@ -240,6 +254,109 @@ export function getLastVidangeSummary(params: {
     ? currentMileage - lastVidange.mileage
     : null;
 
+  // Calcul prédictif d'usure des filtres et bougies sur l'ensemble de l'historique
+  const isItemInMaintenance = (m: Maintenance, itemId: string): boolean => {
+    if (Array.isArray(m.replacedItems) && m.replacedItems.includes(itemId)) {
+      return true;
+    }
+    const text = [m.task || '', m.notes || ''].join(' ').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (itemId === 'filtre_air' && (text.includes('filtre a air') || text.includes('filtre air'))) return true;
+    if (itemId === 'filtre_carburant' && (text.includes('filtre a carburant') || text.includes('filtre carburant') || text.includes('filtre gasoil') || text.includes('filtre a gasoil') || text.includes('filtre essence') || text.includes('filtre a essence') || text.includes('gasoil'))) return true;
+    if (itemId === 'filtre_habitacle' && (text.includes('filtre habitacle') || text.includes('filtre clim') || text.includes('filtre pollen') || text.includes('habitacle') || text.includes('climatisation'))) return true;
+    if (itemId === 'bougies' && (text.includes('bougie') || text.includes('allumage'))) return true;
+    return false;
+  };
+
+  const wearItemIds = ['filtre_carburant', 'filtre_air', 'filtre_habitacle', 'bougies'];
+  const predictions: WearItemPrediction[] = [];
+
+  wearItemIds.forEach(itemId => {
+    const stdItem = STANDARD_VIDANGE_ITEMS.find(i => i.id === itemId);
+    if (!stdItem) return;
+
+    let foundIndex = -1;
+    let lastDate: string | null = null;
+    let lastMileage: number | null = null;
+
+    for (let i = 0; i < pastVidanges.length; i++) {
+      const v = pastVidanges[i];
+      if (isItemInMaintenance(v, itemId)) {
+        foundIndex = i;
+        lastDate = v.date;
+        lastMileage = v.mileage || null;
+        break;
+      }
+    }
+
+    const vidangesElapsed = foundIndex >= 0 ? foundIndex : pastVidanges.length;
+    let kmElapsed: number | null = null;
+    const refMileage = currentMileage || lastVidange.mileage || 0;
+    if (lastMileage && refMileage >= lastMileage) {
+      kmElapsed = refMileage - lastMileage;
+    }
+
+    let status: 'recommended' | 'good' = 'good';
+    let recommendationMessage = '';
+
+    if (itemId === 'filtre_carburant') {
+      if (vidangesElapsed >= 2 || (kmElapsed !== null && kmElapsed >= 20000) || (vidangesElapsed === 1 && pastVidanges.length >= 2)) {
+        status = 'recommended';
+        recommendationMessage = `Non remplacé depuis ${vidangesElapsed >= 2 ? `${vidangesElapsed} vidanges` : 'la dernière vidange'}${kmElapsed ? ` (~${kmElapsed.toLocaleString('fr-FR')} km)` : ''} → Remplacement vivement conseillé.`;
+      } else if (vidangesElapsed === 0) {
+        status = 'good';
+        recommendationMessage = 'Remplacé à la dernière vidange → Encore en bon état.';
+      } else {
+        status = 'good';
+        recommendationMessage = 'Cycle correct (recommandé tous les 20 000 km ou 2 vidanges).';
+      }
+    } else if (itemId === 'filtre_air') {
+      if (vidangesElapsed >= 2 || (kmElapsed !== null && kmElapsed >= 18000)) {
+        status = 'recommended';
+        recommendationMessage = `Non remplacé depuis ${vidangesElapsed} vidanges${kmElapsed ? ` (~${kmElapsed.toLocaleString('fr-FR')} km)` : ''} → Remplacement conseillé pour le moteur.`;
+      } else if (vidangesElapsed === 0) {
+        status = 'good';
+        recommendationMessage = 'Remplacé récemment.';
+      } else {
+        status = 'good';
+        recommendationMessage = 'À contrôler visuellement lors de la vidange.';
+      }
+    } else if (itemId === 'filtre_habitacle') {
+      if (vidangesElapsed >= 2 || (kmElapsed !== null && kmElapsed >= 18000)) {
+        status = 'recommended';
+        recommendationMessage = `Non changé depuis ${vidangesElapsed} vidanges → Remplacement conseillé pour l'air de l'habitacle.`;
+      } else if (vidangesElapsed === 0) {
+        status = 'good';
+        recommendationMessage = 'Filtre d\'habitacle récent.';
+      } else {
+        status = 'good';
+        recommendationMessage = 'État satisfaisant.';
+      }
+    } else if (itemId === 'bougies') {
+      if (vidangesElapsed >= 3 || (kmElapsed !== null && kmElapsed >= 30000)) {
+        status = 'recommended';
+        recommendationMessage = `Non remplacées depuis ${vidangesElapsed} vidanges${kmElapsed ? ` (~${kmElapsed.toLocaleString('fr-FR')} km)` : ''} → Remplacement conseillé pour l'allumage.`;
+      } else if (vidangesElapsed === 0) {
+        status = 'good';
+        recommendationMessage = 'Bougies d\'allumage récentes.';
+      } else {
+        status = 'good';
+        recommendationMessage = 'Bougies encore dans leur cycle d\'usure.';
+      }
+    }
+
+    predictions.push({
+      id: itemId,
+      label: stdItem.label,
+      shortLabel: stdItem.shortLabel,
+      category: stdItem.category,
+      status,
+      vidangesElapsed,
+      kmElapsed,
+      lastReplacedDate: lastDate,
+      recommendationMessage,
+    });
+  });
+
   return {
     hasHistory: true,
     lastVidange,
@@ -250,6 +367,7 @@ export function getLastVidangeSummary(params: {
     replacedItems,
     replacedItemIds,
     notReplacedItems,
+    predictions,
     nearbyEvents,
   };
 }
