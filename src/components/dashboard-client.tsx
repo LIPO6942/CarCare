@@ -17,7 +17,7 @@ import { getDeadlineAnticipationInfo } from '@/lib/tunisia-holidays';
 import { getVehicleTankCapacity, calculateAverageFuelConsumption, calculateIntervalConsumption, calculateSmartAutonomie, calculateAverageRefillGaugeLevel } from '@/lib/fuel-utils';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance, updateVehicle } from '@/lib/data';
 import { getCanonicalTask } from '@/lib/reminder-utils';
-import { getLastVidangeSummary, STANDARD_VIDANGE_ITEMS, type LastVidangeSummary } from '@/lib/vidange';
+import { getLastVidangeSummary, getStandardVidangeItems, isFuelFilterApplicable, type LastVidangeSummary } from '@/lib/vidange';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -524,8 +524,9 @@ export function DashboardClient() {
       maintenanceList: maintenance,
       repairsList: repairs,
       currentMileage: latestEvent?.mileage || 0,
+      vehicle: vidangeHistoryVehicle,
     });
-  }, [vidangeHistoryVehicleId, maintenance, repairs, allEvents]);
+  }, [vidangeHistoryVehicleId, maintenance, repairs, allEvents, vidangeHistoryVehicle]);
 
   const fuelStats = useMemo(() => {
     const stats = new Map<string, {
@@ -1154,6 +1155,19 @@ function LastVidangeModal({
               )}
             </div>
 
+            {/* Information filtre carburant si non applicable sur ce modèle (ex: Peugeot 308 essence) */}
+            {!isFuelFilterApplicable(vehicle) && (
+              <div className="p-2.5 rounded-lg bg-muted/40 border border-muted-foreground/15 text-xs flex items-center justify-between text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <span>⛽</span>
+                  <span>Filtre à essence : non applicable (intégré au réservoir sur {vehicle.model || 'ce modèle'})</span>
+                </div>
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-muted-foreground shrink-0">
+                  À vie
+                </Badge>
+              </div>
+            )}
+
             {/* Diagnostic d'usure prédictif des filtres & bougies */}
             {summary.predictions && summary.predictions.length > 0 && (
               <div className="space-y-2 pt-2 border-t">
@@ -1345,6 +1359,7 @@ function CompleteDeadlineDialog({
       maintenanceList: maintenance,
       repairsList: repairs,
       currentMileage: latestMileage,
+      vehicle: vehicle,
     });
   }, [vehicle, canonicalTask, maintenance, repairs, latestMileage]);
 
@@ -1390,7 +1405,7 @@ function CompleteDeadlineDialog({
 
       if (canonicalTask === 'vidange') {
         newMaintenance.replacedItems = selectedVidangeItems;
-        const itemLabels = STANDARD_VIDANGE_ITEMS.filter(i => selectedVidangeItems.includes(i.id)).map(i => i.shortLabel);
+        const itemLabels = getStandardVidangeItems(vehicle).filter(i => selectedVidangeItems.includes(i.id)).map(i => i.shortLabel);
         let notesContent = `Pack vidange : ${itemLabels.join(', ')}`;
         if (savedVidangeNotes) {
           notesContent += ` | Pense-bête mécanicien : ${savedVidangeNotes}`;
@@ -1597,7 +1612,7 @@ function CompleteDeadlineDialog({
                   <span className="text-[10px] text-muted-foreground font-normal">Cochez les éléments remplacés</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-1">
-                  {STANDARD_VIDANGE_ITEMS.map((item) => {
+                  {getStandardVidangeItems(vehicle).map((item) => {
                     const isChecked = selectedVidangeItems.includes(item.id);
                     const isRecommended = lastVidangeSummary?.predictions?.some(p => p.id === item.id && p.status === 'recommended');
                     return (

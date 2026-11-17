@@ -1,4 +1,4 @@
-import type { FuelLog, Repair, Maintenance } from './types';
+import type { FuelLog, Repair, Maintenance, Vehicle } from './types';
 import { calculateCalendarDaysDiff, getCanonicalTask } from './reminder-utils';
 
 /**
@@ -108,6 +108,68 @@ export const STANDARD_VIDANGE_ITEMS: VidangeStandardItem[] = [
   { id: 'bougies', label: 'Bougies d’allumage', shortLabel: 'Bougies', category: 'Allumage', isMandatoryOrFrequent: false },
 ];
 
+/**
+ * Détermine si un véhicule possède un filtre à carburant externe / remplaçable.
+ * Sur de nombreux modèles essence modernes (ex: Peugeot 308, 208, Citroën C3, C4...),
+ * le filtre à essence est intégré au réservoir / pompe immergée et n'est pas à remplacer en vidange.
+ */
+export function isFuelFilterApplicable(vehicle?: Vehicle | null): boolean {
+  if (!vehicle) return true;
+  if (vehicle.hasFuelFilter === false) return false;
+  if (vehicle.hasFuelFilter === true) return true;
+
+  if (typeof window !== 'undefined') {
+    const local = localStorage.getItem(`carcare_no_fuel_filter_${vehicle.id}`);
+    if (local === 'true') return false;
+    if (local === 'false') return true;
+  }
+
+  // Détection automatique pour les véhicules essence sans filtre externe (ex: Peugeot 308 essence)
+  if (vehicle.fuelType === 'Essence') {
+    const brand = (vehicle.brand || '').toLowerCase().trim();
+    const model = (vehicle.model || '').toLowerCase().trim();
+
+    // Modèles Peugeot essence (308, 208, 2008, 3008, 508, RCZ)
+    if (brand.includes('peugeot') && (model.includes('308') || model.includes('208') || model.includes('2008') || model.includes('3008') || model.includes('508') || model.includes('rcz'))) {
+      return false;
+    }
+    // Modèles Citroën essence (C3, C4, C4 Cactus, DS3, DS4)
+    if (brand.includes('citroen') && (model.includes('c3') || model.includes('c4') || model.includes('ds3') || model.includes('ds4'))) {
+      return false;
+    }
+    // Modèles Renault essence sans filtre externe (Clio 4/5, Captur, Megane 3/4)
+    if (brand.includes('renault') && (model.includes('clio') || model.includes('captur') || model.includes('megane'))) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Retourne la liste des éléments de vidange applicables pour ce véhicule
+ */
+export function getStandardVidangeItems(vehicle?: Vehicle | null): VidangeStandardItem[] {
+  const hasFilter = isFuelFilterApplicable(vehicle);
+  const isDiesel = vehicle?.fuelType === 'Diesel';
+
+  return STANDARD_VIDANGE_ITEMS
+    .filter(item => {
+      if (item.id === 'filtre_carburant' && !hasFilter) return false;
+      return true;
+    })
+    .map(item => {
+      if (item.id === 'filtre_carburant') {
+        return {
+          ...item,
+          label: isDiesel ? 'Filtre à carburant (gasoil)' : 'Filtre à carburant (essence)',
+          shortLabel: isDiesel ? 'Filtre gasoil' : 'Filtre essence',
+        };
+      }
+      return item;
+    });
+}
+
 export interface WearItemPrediction {
   id: string;
   label: string;
@@ -131,7 +193,7 @@ export interface LastVidangeSummary {
   replacedItemIds: string[];
   notReplacedItems: string[];
   predictions: WearItemPrediction[];
-  nearbyEvents: Array<{ title: string; date: string; cost: number; source: 'maintenance' | 'repair' }>;
+  nearbyEvents: Array<{ title: string; date: string; cost: number; source: 'maintenance' | 'repair'; description?: string }>;
 }
 
 export function getLastVidangeSummary(params: {
@@ -139,8 +201,9 @@ export function getLastVidangeSummary(params: {
   maintenanceList: Maintenance[];
   repairsList: Repair[];
   currentMileage?: number;
+  vehicle?: Vehicle | null;
 }): LastVidangeSummary {
-  const { vehicleId, maintenanceList, repairsList, currentMileage } = params;
+  const { vehicleId, maintenanceList, repairsList, currentMileage, vehicle } = params;
 
   const today = new Date();
   today.setHours(23, 59, 59, 999);
@@ -150,6 +213,8 @@ export function getLastVidangeSummary(params: {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const lastVidange = pastVidanges[0] || null;
+
+  const standardItems = getStandardVidangeItems(vehicle);
 
   if (!lastVidange || !lastVidange.date) {
     return {
@@ -161,14 +226,14 @@ export function getLastVidangeSummary(params: {
       cost: 0,
       replacedItems: [],
       replacedItemIds: [],
-      notReplacedItems: STANDARD_VIDANGE_ITEMS.map(i => i.label),
+      notReplacedItems: standardItems.map(i => i.label),
       predictions: [],
       nearbyEvents: [],
     };
   }
 
   // Événements dans la fenêtre de +/- 3 jours ou même kilométrage (+/- 50 km)
-  const nearbyEvents: Array<{ title: string; date: string; cost: number; source: 'maintenance' | 'repair' }> = [];
+  const nearbyEvents: Array<{ title: string; date: string; cost: number; source: 'maintenance' | 'repair'; description?: string; replacedItems?: string[] }> = [];
 
   maintenanceList.forEach(m => {
     if (m.vehicleId !== vehicleId || !m.date) return;
@@ -180,9 +245,11 @@ export function getLastVidangeSummary(params: {
     if (daysDiff <= 3 || mileageDiff <= 50) {
       nearbyEvents.push({
         title: m.task || 'Entretien',
+        description: m.notes || '',
         date: m.date,
         cost: m.cost || 0,
-        source: 'maintenance'
+        source: 'maintenance',
+        replacedItems: m.replacedItems || []
       });
     }
   });
@@ -196,9 +263,10 @@ export function getLastVidangeSummary(params: {
     if (daysDiff <= 3 || mileageDiff <= 50) {
       nearbyEvents.push({
         title: r.description || r.category || 'Réparation',
+        description: r.description || '',
         date: r.date,
         cost: r.cost || 0,
-        source: 'repair'
+        source: 'repair',
       });
     }
   });
@@ -206,42 +274,50 @@ export function getLastVidangeSummary(params: {
   // Identifier les éléments remplacés
   const detectedIds = new Set<string>();
 
-  if (Array.isArray(lastVidange.replacedItems) && lastVidange.replacedItems.length > 0) {
+  // 1. Éléments explicitement enregistrés dans la dernière vidange
+  if (Array.isArray(lastVidange.replacedItems)) {
     lastVidange.replacedItems.forEach(id => detectedIds.add(id));
-  } else {
-    const textCorpus = [
-      lastVidange.task || '',
-      lastVidange.notes || '',
-      ...nearbyEvents.map(e => e.title)
-    ].join(' ').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
 
-    if (textCorpus.includes('huile') || textCorpus.includes('vidange')) {
-      detectedIds.add('huile');
+  // 2. Éléments enregistrés dans les entretiens concomitants (± 3 jours)
+  nearbyEvents.forEach(evt => {
+    if (Array.isArray(evt.replacedItems)) {
+      evt.replacedItems.forEach(id => detectedIds.add(id));
     }
-    if (textCorpus.includes('filtre a huile') || textCorpus.includes('filtre huile') || (textCorpus.includes('filtre') && textCorpus.includes('huile'))) {
-      detectedIds.add('filtre_huile');
-    } else if (textCorpus.includes('vidange')) {
-      detectedIds.add('filtre_huile');
-    }
-    if (textCorpus.includes('filtre a air') || textCorpus.includes('filtre air')) {
-      detectedIds.add('filtre_air');
-    }
-    if (textCorpus.includes('filtre a carburant') || textCorpus.includes('filtre carburant') || textCorpus.includes('filtre gasoil') || textCorpus.includes('filtre a gasoil') || textCorpus.includes('filtre essence') || textCorpus.includes('filtre a essence') || textCorpus.includes('gasoil')) {
-      detectedIds.add('filtre_carburant');
-    }
-    if (textCorpus.includes('filtre habitacle') || textCorpus.includes('filtre clim') || textCorpus.includes('filtre pollen') || textCorpus.includes('filtre a pollen') || textCorpus.includes('habitacle') || textCorpus.includes('climatisation')) {
-      detectedIds.add('filtre_habitacle');
-    }
-    if (textCorpus.includes('bougie') || textCorpus.includes('allumage')) {
-      detectedIds.add('bougies');
-    }
+  });
+
+  // 3. Scan sémantique du texte : vidange + TOUTES les opérations concomitantes (titres + notes/descriptions)
+  // Prise en compte immédiate des bougies ou autres pièces faites en entretien concomitant
+  const textCorpus = [
+    lastVidange.task || '',
+    lastVidange.notes || '',
+    ...nearbyEvents.map(e => `${e.title} ${e.description || ''}`)
+  ].join(' ').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  if (textCorpus.includes('huile') || textCorpus.includes('vidange')) {
+    detectedIds.add('huile');
+  }
+  if (textCorpus.includes('filtre a huile') || textCorpus.includes('filtre huile') || (textCorpus.includes('filtre') && textCorpus.includes('huile')) || textCorpus.includes('vidange')) {
+    detectedIds.add('filtre_huile');
+  }
+  if (textCorpus.includes('filtre a air') || textCorpus.includes('filtre air')) {
+    detectedIds.add('filtre_air');
+  }
+  if (isFuelFilterApplicable(vehicle) && (textCorpus.includes('filtre a carburant') || textCorpus.includes('filtre carburant') || textCorpus.includes('filtre gasoil') || textCorpus.includes('filtre a gasoil') || textCorpus.includes('filtre essence') || textCorpus.includes('filtre a essence') || textCorpus.includes('gasoil') || textCorpus.includes('gazole'))) {
+    detectedIds.add('filtre_carburant');
+  }
+  if (textCorpus.includes('filtre habitacle') || textCorpus.includes('filtre clim') || textCorpus.includes('filtre pollen') || textCorpus.includes('filtre a pollen') || textCorpus.includes('habitacle') || textCorpus.includes('climatisation')) {
+    detectedIds.add('filtre_habitacle');
+  }
+  if (textCorpus.includes('bougie') || textCorpus.includes('allumage')) {
+    detectedIds.add('bougies');
   }
 
   const replacedItems: string[] = [];
   const replacedItemIds: string[] = [];
   const notReplacedItems: string[] = [];
 
-  STANDARD_VIDANGE_ITEMS.forEach(item => {
+  standardItems.forEach(item => {
     if (detectedIds.has(item.id)) {
       replacedItems.push(item.label);
       replacedItemIds.push(item.id);
@@ -255,44 +331,71 @@ export function getLastVidangeSummary(params: {
     : null;
 
   // Calcul prédictif d'usure des filtres et bougies sur l'ensemble de l'historique
-  const isItemInMaintenance = (m: Maintenance, itemId: string): boolean => {
-    if (Array.isArray(m.replacedItems) && m.replacedItems.includes(itemId)) {
-      return true;
-    }
-    const text = [m.task || '', m.notes || ''].join(' ').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    if (itemId === 'filtre_air' && (text.includes('filtre a air') || text.includes('filtre air'))) return true;
-    if (itemId === 'filtre_carburant' && (text.includes('filtre a carburant') || text.includes('filtre carburant') || text.includes('filtre gasoil') || text.includes('filtre a gasoil') || text.includes('filtre essence') || text.includes('filtre a essence') || text.includes('gasoil'))) return true;
-    if (itemId === 'filtre_habitacle' && (text.includes('filtre habitacle') || text.includes('filtre clim') || text.includes('filtre pollen') || text.includes('habitacle') || text.includes('climatisation'))) return true;
-    if (itemId === 'bougies' && (text.includes('bougie') || text.includes('allumage'))) return true;
+  const itemMatchesText = (text: string, itemId: string): boolean => {
+    const clean = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (itemId === 'filtre_air' && (clean.includes('filtre a air') || clean.includes('filtre air'))) return true;
+    if (itemId === 'filtre_carburant' && (clean.includes('filtre a carburant') || clean.includes('filtre carburant') || clean.includes('filtre gasoil') || clean.includes('filtre a gasoil') || clean.includes('filtre essence') || clean.includes('filtre a essence') || clean.includes('gasoil') || clean.includes('gazole'))) return true;
+    if (itemId === 'filtre_habitacle' && (clean.includes('filtre habitacle') || clean.includes('filtre clim') || clean.includes('filtre pollen') || clean.includes('habitacle') || clean.includes('climatisation'))) return true;
+    if (itemId === 'bougies' && (clean.includes('bougie') || clean.includes('allumage'))) return true;
     return false;
   };
 
-  const wearItemIds = ['filtre_carburant', 'filtre_air', 'filtre_habitacle', 'bougies'];
+  const wearItemIds = ['filtre_carburant', 'filtre_air', 'filtre_habitacle', 'bougies'].filter(id => {
+    if (id === 'filtre_carburant' && !isFuelFilterApplicable(vehicle)) return false;
+    return true;
+  });
+
   const predictions: WearItemPrediction[] = [];
 
   wearItemIds.forEach(itemId => {
-    const stdItem = STANDARD_VIDANGE_ITEMS.find(i => i.id === itemId);
+    const stdItem = standardItems.find(i => i.id === itemId);
     if (!stdItem) return;
 
-    let foundIndex = -1;
+    // Rechercher TOUS les événements historiques (vidanges, entretiens séparés, réparations) où cette pièce a été changée
+    const replacementEvents: Array<{ date: string; mileage: number | null }> = [];
+
+    maintenanceList.forEach(m => {
+      if (m.vehicleId !== vehicleId || !m.date) return;
+      if (new Date(m.date).getTime() > today.getTime()) return;
+      if ((Array.isArray(m.replacedItems) && m.replacedItems.includes(itemId)) || itemMatchesText(`${m.task || ''} ${m.notes || ''}`, itemId)) {
+        replacementEvents.push({ date: m.date, mileage: m.mileage || null });
+      }
+    });
+
+    repairsList.forEach(r => {
+      if (r.vehicleId !== vehicleId || !r.date) return;
+      if (new Date(r.date).getTime() > today.getTime()) return;
+      if (itemMatchesText(`${r.description || ''} ${r.category || ''}`, itemId)) {
+        replacementEvents.push({ date: r.date, mileage: r.mileage || null });
+      }
+    });
+
+    // Si la pièce a été détectée dans la dernière vidange ou ses événements concomitants
+    if (detectedIds.has(itemId) && lastVidange.date) {
+      replacementEvents.push({ date: lastVidange.date, mileage: lastVidange.mileage || null });
+    }
+
+    replacementEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    let vidangesElapsed = 0;
+    let kmElapsed: number | null = null;
     let lastDate: string | null = null;
     let lastMileage: number | null = null;
 
-    for (let i = 0; i < pastVidanges.length; i++) {
-      const v = pastVidanges[i];
-      if (isItemInMaintenance(v, itemId)) {
-        foundIndex = i;
-        lastDate = v.date;
-        lastMileage = v.mileage || null;
-        break;
-      }
-    }
+    if (replacementEvents.length > 0) {
+      const mostRecent = replacementEvents[0];
+      lastDate = mostRecent.date;
+      lastMileage = mostRecent.mileage;
 
-    const vidangesElapsed = foundIndex >= 0 ? foundIndex : pastVidanges.length;
-    let kmElapsed: number | null = null;
-    const refMileage = currentMileage || lastVidange.mileage || 0;
-    if (lastMileage && refMileage >= lastMileage) {
-      kmElapsed = refMileage - lastMileage;
+      // Nombre de vidanges passées strictement APRES ce remplacement (au-delà de 3 jours)
+      vidangesElapsed = pastVidanges.filter(v => v.date && new Date(v.date) > new Date(mostRecent.date) && Math.abs(calculateCalendarDaysDiff(v.date, mostRecent.date)) > 3).length;
+
+      const refMileage = currentMileage || lastVidange.mileage || 0;
+      if (lastMileage && refMileage >= lastMileage) {
+        kmElapsed = refMileage - lastMileage;
+      }
+    } else {
+      vidangesElapsed = pastVidanges.length;
     }
 
     let status: 'recommended' | 'good' = 'good';
@@ -304,10 +407,10 @@ export function getLastVidangeSummary(params: {
         recommendationMessage = `Non remplacé depuis ${vidangesElapsed >= 2 ? `${vidangesElapsed} vidanges` : 'la dernière vidange'}${kmElapsed ? ` (~${kmElapsed.toLocaleString('fr-FR')} km)` : ''} → Remplacement vivement conseillé.`;
       } else if (vidangesElapsed === 0) {
         status = 'good';
-        recommendationMessage = 'Remplacé à la dernière vidange → Encore en bon état.';
+        recommendationMessage = 'Remplacé à la dernière vidange (ou entretien concomitant) → Encore en bon état.';
       } else {
         status = 'good';
-        recommendationMessage = 'Cycle correct (recommandé tous les 20 000 km ou 2 vidanges).';
+        recommendationMessage = 'Cycle acceptable (recommandé tous les 20 000 km ou 2 vidanges).';
       }
     } else if (itemId === 'filtre_air') {
       if (vidangesElapsed >= 2 || (kmElapsed !== null && kmElapsed >= 18000)) {
@@ -315,7 +418,7 @@ export function getLastVidangeSummary(params: {
         recommendationMessage = `Non remplacé depuis ${vidangesElapsed} vidanges${kmElapsed ? ` (~${kmElapsed.toLocaleString('fr-FR')} km)` : ''} → Remplacement conseillé pour le moteur.`;
       } else if (vidangesElapsed === 0) {
         status = 'good';
-        recommendationMessage = 'Remplacé récemment.';
+        recommendationMessage = 'Remplacé récemment (vidange ou entretien concomitant).';
       } else {
         status = 'good';
         recommendationMessage = 'À contrôler visuellement lors de la vidange.';
@@ -337,10 +440,10 @@ export function getLastVidangeSummary(params: {
         recommendationMessage = `Non remplacées depuis ${vidangesElapsed} vidanges${kmElapsed ? ` (~${kmElapsed.toLocaleString('fr-FR')} km)` : ''} → Remplacement conseillé pour l'allumage.`;
       } else if (vidangesElapsed === 0) {
         status = 'good';
-        recommendationMessage = 'Bougies d\'allumage récentes.';
+        recommendationMessage = 'Bougies d’allumage remplacées récemment (vidange ou entretien concomitant).';
       } else {
         status = 'good';
-        recommendationMessage = 'Bougies encore dans leur cycle d\'usure.';
+        recommendationMessage = 'Bougies encore dans leur cycle d\'usure normal.';
       }
     }
 

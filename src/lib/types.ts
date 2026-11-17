@@ -11,6 +11,7 @@ export type Vehicle = {
   vin?: string;
   imageUrl?: string;
   nextVidangeNotes?: string;
+  hasFuelFilter?: boolean;
 };
 
 export type Repair = {
