@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Skeleton } from './ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Banknote, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw, Eye, ChevronLeft, ChevronRight, ExternalLink, Layers, Maximize2, X, RotateCcw, ClipboardList } from 'lucide-react';
+import { PlusCircle, FileText, Trash2, Download, Loader2, Car, Banknote, Calendar, Edit, Fingerprint, Save, ChevronDown, ChevronUp, CheckCircle, RefreshCw, Eye, ChevronLeft, ChevronRight, ExternalLink, Layers, Maximize2, X, RotateCcw, ClipboardList, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -480,6 +480,25 @@ export function DocumentsClient() {
                                                     <ClipboardList className="h-3.5 w-3.5 text-blue-500" />
                                                     <span>Checklist</span>
                                                 </Link>
+                                            </Button>
+                                        )}
+
+                                        {doc.type === 'Vignette' && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                asChild
+                                                className="h-9 px-3 text-xs sm:text-sm font-medium border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors gap-1.5 shrink-0"
+                                                title="Vérifier les amendes radar (Ministère des Finances)"
+                                            >
+                                                <a
+                                                    href="https://amendes.finances.gov.tn/"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    <ExternalLink className="h-3.5 w-3.5 text-amber-500" />
+                                                    <span>Amendes radar</span>
+                                                </a>
                                             </Button>
                                         )}
 
