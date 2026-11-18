@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Wrench, Fuel, Calendar, Sparkles, Loader2, GaugeCircle, History, Trash2, Edit, MoreHorizontal, Milestone, Droplets, BarChart3, Edit2, AlertCircle, StickyNote } from 'lucide-react';
+import { PlusCircle, Wrench, Fuel, Calendar, Sparkles, Loader2, GaugeCircle, History, Trash2, Edit, MoreHorizontal, Milestone, Droplets, BarChart3, Edit2, AlertCircle, StickyNote, Pin } from 'lucide-react';
 import {
     Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
@@ -124,7 +124,7 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataCha
                     <TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Historique</TabsTrigger>
                     <TabsTrigger value="repairs"><Wrench className="mr-2 h-4 w-4" />Réparations</TabsTrigger>
                     <TabsTrigger value="maintenance"><Calendar className="mr-2 h-4 w-4" />Entretien</TabsTrigger>
-                    <TabsTrigger 
+                    <TabsTrigger
                         value="fuel"
                         onPointerDown={handlePointerDown}
                         onPointerUp={handlePointerCancel}
@@ -151,10 +151,10 @@ export function VehicleTabs({ vehicle, repairs, maintenance, fuelLogs, onDataCha
             <TabsContent value="fuel">
                 <FuelTab vehicle={vehicle} fuelLogs={fuelLogs} onDataChange={onDataChange} />
             </TabsContent>
-            
-            <MonthlyFuelChartModal 
-                open={isChartModalOpen} 
-                onOpenChange={setIsChartModalOpen} 
+
+            <MonthlyFuelChartModal
+                open={isChartModalOpen}
+                onOpenChange={setIsChartModalOpen}
                 monthlyFuelLogs={monthlyFuelLogs}
                 vehicleName={`${vehicle.brand} ${vehicle.model} - ${vehicle.licensePlate}`}
             />
@@ -657,13 +657,13 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                 </CardHeader>
                 <CardContent>
                     {vehicle.nextVidangeNotes && (
-                        <div className="mb-4 p-3 rounded-lg border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 flex items-start gap-2.5 text-xs">
-                            <StickyNote className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                            <div className="space-y-0.5">
-                                <span className="font-semibold text-amber-900 dark:text-amber-200">
-                                    Pense-bête en cours pour la prochaine vidange :
-                                </span>
-                                <p className="text-muted-foreground whitespace-pre-wrap">
+                        <div className="mb-4 relative pt-3 pb-2.5 px-3.5 rounded-xl bg-gradient-to-br from-amber-100 via-amber-50 to-amber-100 dark:from-amber-950/60 dark:via-amber-900/30 dark:to-amber-950/50 border border-amber-300 dark:border-amber-700/60 shadow-xs text-xs space-y-1.5">
+                            <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200">
+                                <Pin className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 fill-amber-700/30 -rotate-45" />
+                                <span>Pense-bête en cours pour la prochaine vidange :</span>
+                            </div>
+                            <div className="bg-amber-50/90 dark:bg-black/30 rounded-lg p-2.5 border border-amber-200/90 dark:border-amber-800/40">
+                                <p className="text-amber-950 dark:text-amber-100 whitespace-pre-wrap font-medium">
                                     « {vehicle.nextVidangeNotes} »
                                 </p>
                             </div>
@@ -729,8 +729,8 @@ function MaintenanceTab({ vehicle, maintenance, onDataChange }: { vehicle: Vehic
                                                     )}
                                                 </TableCell>
                                                 <TableCell>{safeFormatNumber(maint.mileage)} km</TableCell>
-                                                 <TableCell>
-                                                    {maint.task === 'Vignette' 
+                                                <TableCell>
+                                                    {maint.task === 'Vignette'
                                                         ? safeFormatDate(calculateNextVignetteDate(vehicle.licensePlate, new Date(maint.date)))
                                                         : maint.nextDueDate
                                                             ? safeFormatDate(maint.nextDueDate)
@@ -788,7 +788,7 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
     const { toast } = useToast();
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    
+
     // States for dynamic UI preview
     const [currentTask, setCurrentTask] = useState<string>(initialData?.task || '');
     const [currentDate, setCurrentDate] = useState<string>(initialData?.date || new Date().toISOString().split('T')[0]);
@@ -881,17 +881,17 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <Input 
-                            name="date" 
-                            type="date" 
-                            required 
-                            value={currentDate} 
-                            onChange={(e) => setCurrentDate(e.target.value)} 
+                        <Input
+                            name="date"
+                            type="date"
+                            required
+                            value={currentDate}
+                            onChange={(e) => setCurrentDate(e.target.value)}
                         />
-                        <Input 
-                            name="mileage" 
-                            type="number" 
-                            placeholder="Kilométrage (optionnel)" 
+                        <Input
+                            name="mileage"
+                            type="number"
+                            placeholder="Kilométrage (optionnel)"
                             value={currentMileage}
                             onChange={(e) => setCurrentMileage(e.target.value)}
                         />
@@ -910,21 +910,21 @@ function MaintenanceDialog({ open, onOpenChange, vehicle, onDataChange, initialD
                         <legend className="text-sm font-medium px-1">Prochain entretien {currentTask === 'Vignette' ? '(Calculé)' : '(Optionnel)'}</legend>
                         <div className="grid grid-cols-2 gap-4 pt-2">
                             {currentTask === 'Vignette' ? (
-                                <Input 
-                                    name="nextDueDate" 
-                                    type="date" 
-                                    value={currentDate ? formatDateToLocalISO(calculateNextVignetteDate(vehicle.licensePlate || '', new Date(currentDate))) : ''} 
-                                    readOnly 
+                                <Input
+                                    name="nextDueDate"
+                                    type="date"
+                                    value={currentDate ? formatDateToLocalISO(calculateNextVignetteDate(vehicle.licensePlate || '', new Date(currentDate))) : ''}
+                                    readOnly
                                     className="bg-muted text-muted-foreground flex items-center justify-between"
                                     title="Calculé automatiquement"
                                 />
                             ) : (
                                 <Input name="nextDueDate" type="date" defaultValue={initialData?.nextDueDate?.split('T')[0]} />
                             )}
-                            <Input 
-                                name="nextDueMileage" 
-                                type="number" 
-                                placeholder="Prochain kilométrage" 
+                            <Input
+                                name="nextDueMileage"
+                                type="number"
+                                placeholder="Prochain kilométrage"
                                 value={nextDueMileage}
                                 onChange={(e) => setNextDueMileage(e.target.value)}
                             />

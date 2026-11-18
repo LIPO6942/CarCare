@@ -7,7 +7,7 @@ import { AppLayout } from '@/components/app-layout';
 import { DashboardHeader } from '@/components/dashboard-header';
 import { AddVehicleSheet } from '@/components/add-vehicle-sheet';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, CheckCircle2, Gauge, ClipboardList, ExternalLink, Droplets, History, Sparkles, StickyNote, Save } from 'lucide-react';
+import { PlusCircle, Car, Wrench, Bell, Fuel, AlertTriangle, CheckCircle2, Gauge, ClipboardList, ExternalLink, Droplets, History, Sparkles, StickyNote, Save, Pin, Edit3, Trash2 } from 'lucide-react';
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -778,7 +778,7 @@ export function DashboardClient() {
       const localNotes = typeof window !== 'undefined' ? localStorage.getItem(`carcare_vidange_notes_${deadline.vehicleId}`) : null;
       const hasNotes = !!(veh?.nextVidangeNotes || localNotes);
       return {
-        label: hasNotes ? 'Pense-bête · Vidange' : 'Dernière vidange',
+        label: hasNotes ? 'Consulter' : 'Historique',
         icon: hasNotes ? StickyNote : History,
         variantClass: hasNotes ? 'border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10' : 'border-blue-500/40 text-blue-600 dark:text-blue-400',
         onClick: () => {
@@ -1046,12 +1046,20 @@ function LastVidangeModal({
 }) {
   const [memo, setMemo] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
+
+  const savedNote = useMemo(() => {
+    if (!vehicle) return '';
+    const localNotes = typeof window !== 'undefined' ? localStorage.getItem(`carcare_vidange_notes_${vehicle.id}`) : null;
+    return vehicle.nextVidangeNotes ?? (localNotes || '');
+  }, [vehicle, open]);
 
   useEffect(() => {
     if (vehicle && open) {
-      const localNotes = typeof window !== 'undefined' ? localStorage.getItem(`carcare_vidange_notes_${vehicle.id}`) : null;
-      setMemo(vehicle.nextVidangeNotes ?? (localNotes || ''));
+      const current = vehicle.nextVidangeNotes ?? (typeof window !== 'undefined' ? localStorage.getItem(`carcare_vidange_notes_${vehicle.id}`) : '') ?? '';
+      setMemo(current);
+      setIsEditing(false);
     }
   }, [vehicle, open]);
 
@@ -1071,14 +1079,15 @@ function LastVidangeModal({
       }
       await updateVehicle(vehicle.id, { nextVidangeNotes: trimmed });
       toast({
-        title: "Pense-bête enregistré !",
+        title: trimmed ? "Pense-bête enregistré !" : "Pense-bête effacé",
         description: trimmed
-          ? "Ce rappel sera affiché lors de votre prochain passage chez le mécanicien."
-          : "Le rappel pour le mécanicien a été réinitialisé.",
+          ? "Ce rappel sera affiché en évidence lors de votre prochain passage chez le mécanicien."
+          : "Le rappel a été retiré.",
       });
       if (onVehicleUpdated) {
         onVehicleUpdated({ ...vehicle, nextVidangeNotes: trimmed });
       }
+      setIsEditing(false);
     } catch (err) {
       console.error("Error saving vidange memo:", err);
       toast({
@@ -1088,6 +1097,31 @@ function LastVidangeModal({
       if (onVehicleUpdated) {
         onVehicleUpdated({ ...vehicle, nextVidangeNotes: trimmed });
       }
+      setIsEditing(false);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteMemo = async () => {
+    if (!vehicle) return;
+    setIsSaving(true);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`carcare_vidange_notes_${vehicle.id}`);
+      }
+      await updateVehicle(vehicle.id, { nextVidangeNotes: '' });
+      setMemo('');
+      setIsEditing(false);
+      toast({
+        title: "Pense-bête supprimé",
+        description: "Le mémo pour la prochaine vidange a été effacé.",
+      });
+      if (onVehicleUpdated) {
+        onVehicleUpdated({ ...vehicle, nextVidangeNotes: '' });
+      }
+    } catch (err) {
+      console.error("Error deleting memo:", err);
     } finally {
       setIsSaving(false);
     }
@@ -1110,8 +1144,133 @@ function LastVidangeModal({
           </div>
         </DialogHeader>
 
+        {/* Section PENSE-BÊTE placé tout en haut de la fenêtre pour une visibilité immédiate */}
+        <div className="pt-1">
+          {savedNote && !isEditing ? (
+            /* Affichage comme un vrai Post-It / Pense-bête adhésif */
+            <div className="relative pt-3 pb-3 px-3.5 rounded-xl bg-gradient-to-br from-amber-100 via-amber-50 to-amber-100 dark:from-amber-950/60 dark:via-amber-900/30 dark:to-amber-950/50 border border-amber-300 dark:border-amber-700/60 shadow-md shadow-amber-500/10 text-amber-950 dark:text-amber-100 space-y-2">
+              {/* Ruban adhésif / Scotch effet pense-bête */}
+              <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-12 h-3.5 bg-amber-200/90 dark:bg-amber-600/40 rounded-xs shadow-xs border border-amber-300/80 dark:border-amber-500/30 -rotate-1" />
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-bold text-xs text-amber-900 dark:text-amber-200">
+                  <Pin className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 fill-amber-700/30 -rotate-45" />
+                  <span>Pense-bête mécanicien (prochaine vidange) :</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px] text-amber-900 dark:text-amber-200 hover:bg-amber-200/60 dark:hover:bg-amber-900/50 gap-1 font-semibold"
+                    onClick={() => {
+                      setMemo(savedNote);
+                      setIsEditing(true);
+                    }}
+                  >
+                    <Edit3 className="h-3 w-3" />
+                    Modifier
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-amber-800/70 hover:text-destructive hover:bg-destructive/10"
+                    onClick={handleDeleteMemo}
+                    disabled={isSaving}
+                    title="Supprimer ce pense-bête"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="bg-amber-50/90 dark:bg-black/30 rounded-lg p-2.5 border border-amber-200/90 dark:border-amber-800/40">
+                <p className="text-xs leading-relaxed whitespace-pre-wrap font-medium text-amber-950 dark:text-amber-100">
+                  « {savedNote} »
+                </p>
+              </div>
+
+              <p className="text-[10px] text-amber-800/80 dark:text-amber-300/80 flex items-center gap-1">
+                <span>💡</span>
+                <span>Rappelé automatiquement lors de la validation de la prochaine vidange.</span>
+              </p>
+            </div>
+          ) : isEditing ? (
+            /* Mode édition / création du pense-bête */
+            <div className="p-3.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-400/70 dark:border-amber-700/60 shadow-xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="vidange-memo" className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                  <StickyNote className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  {savedNote ? 'Modifier votre pense-bête :' : 'Nouveau pense-bête pour le mécanicien :'}
+                </Label>
+                {memo && (
+                  <span className="text-[10px] text-muted-foreground">{memo.length} car.</span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                Notez les vérifications ou pièces à signaler au mécanicien (ex : plaquettes avant, vibration, bruit suspect, permutation des pneus...).
+              </p>
+              <Textarea
+                id="vidange-memo"
+                rows={3}
+                placeholder="Ex : Vérifier les plaquettes avant, permuter les pneus, vérifier un léger sifflement au freinage..."
+                value={memo}
+                onChange={(e) => setMemo(e.target.value)}
+                className="text-xs bg-background resize-none border-amber-300 dark:border-amber-800 focus-visible:ring-amber-500"
+                autoFocus
+              />
+              <div className="flex items-center justify-between pt-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setMemo(savedNote);
+                    setIsEditing(false);
+                  }}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isSaving}
+                  className="h-7 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-medium"
+                  onClick={handleSaveMemo}
+                >
+                  {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  Enregistrer
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* Bannière compacte pour ajouter un pense-bête s'il n'en existe pas encore */
+            <div className="flex items-center justify-between p-2.5 rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 text-xs">
+              <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+                <StickyNote className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <span className="text-[11px] font-medium">Un truc à faire vérifier lors de la vidange ?</span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 gap-1 font-medium"
+                onClick={() => {
+                  setMemo('');
+                  setIsEditing(true);
+                }}
+              >
+                <PlusCircle className="h-3.5 w-3.5" />
+                Ajouter un pense-bête
+              </Button>
+            </div>
+          )}
+        </div>
+
         {summary.hasHistory ? (
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 border-t mt-1">
             {/* Résumé général */}
             <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-muted/40 border text-xs">
               <div>
@@ -1238,53 +1397,6 @@ function LastVidangeModal({
             <p>L'historique détaillé et les recommandations se construiront dès votre première vidange enregistrée !</p>
           </div>
         )}
-
-        {/* Pense-bête / Saisie libre pour la prochaine vidange */}
-        <div className="space-y-2.5 pt-3 border-t">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="vidange-memo" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <StickyNote className="h-4 w-4 text-blue-500" />
-              Pense-bête pour le mécanicien (prochaine vidange) :
-            </Label>
-            {memo && (
-              <span className="text-[10px] text-muted-foreground font-normal">
-                {memo.length} car.
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-muted-foreground leading-tight">
-            Saisie libre : notez d'autres vérifications ou pièces à changer chez le mécanicien lors de votre prochain rendez-vous (ex: plaquettes de frein, courroie, essuie-glaces, bruit à froid...).
-          </p>
-          <Textarea
-            id="vidange-memo"
-            rows={3}
-            placeholder="Ex : Vérifier les plaquettes avant, permuter les pneus avant/arrière, signaler un léger sifflement au freinage..."
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            className="text-xs resize-none bg-background"
-          />
-          <div className="flex items-center justify-between pt-1">
-            {memo ? (
-              <button
-                type="button"
-                className="text-[11px] text-muted-foreground hover:text-destructive underline transition-colors"
-                onClick={() => setMemo('')}
-              >
-                Effacer le texte
-              </button>
-            ) : <span />}
-            <Button
-              type="button"
-              size="sm"
-              disabled={isSaving}
-              className="h-8 text-xs gap-1.5 font-medium"
-              onClick={handleSaveMemo}
-            >
-              {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-              Enregistrer le pense-bête
-            </Button>
-          </div>
-        </div>
 
         <DialogFooter className="pt-2">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
@@ -1540,15 +1652,20 @@ function CompleteDeadlineDialog({
               </div>
             )}
 
-            {/* Rappel du pense-bête pour le mécanicien */}
+            {/* Rappel du pense-bête pour le mécanicien sous forme de Post-it */}
             {canonicalTask === 'vidange' && !!savedVidangeNotes && (
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-300">
-                  <StickyNote className="h-3.5 w-3.5" />
+              <div className="relative pt-3 pb-2.5 px-3 rounded-xl bg-gradient-to-br from-amber-100 via-amber-50 to-amber-100 dark:from-amber-950/60 dark:via-amber-900/30 dark:to-amber-950/50 border border-amber-300 dark:border-amber-700/60 shadow-xs text-xs space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200">
+                  <Pin className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 fill-amber-700/30 -rotate-45" />
                   <span>Votre pense-bête pour ce rendez-vous mécanicien :</span>
                 </div>
-                <p className="text-foreground text-[11px] whitespace-pre-wrap pl-5 italic">
-                  « {savedVidangeNotes} »
+                <div className="bg-amber-50/90 dark:bg-black/30 rounded-lg p-2 border border-amber-200/90 dark:border-amber-800/40">
+                  <p className="text-amber-950 dark:text-amber-100 text-[11px] whitespace-pre-wrap font-medium">
+                    « {savedVidangeNotes} »
+                  </p>
+                </div>
+                <p className="text-[10px] text-amber-800/80 dark:text-amber-300/80 italic">
+                  💡 Ce pense-bête sera automatiquement archivé dans les notes de cette vidange.
                 </p>
               </div>
             )}
