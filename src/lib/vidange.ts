@@ -18,13 +18,15 @@ export function calculateAverageKmPerDay(
 
   if (sortedEvents.length < 2) return null;
 
-  // Prefer recent usage (last 30 days from the latest event) to better match current driving habits.
+  // Prefer recent usage (last 30 days or last 2-3 events) to quickly capture changes in driving habits.
   const lastEventDate = new Date(sortedEvents[sortedEvents.length - 1].date);
   const recentCutoff = new Date(lastEventDate);
   recentCutoff.setDate(recentCutoff.getDate() - 30);
 
   const recentEvents = sortedEvents.filter(e => new Date(e.date) >= recentCutoff);
-  const windowEvents = recentEvents.length >= 2 ? recentEvents : sortedEvents;
+  const windowEvents = recentEvents.length >= 2
+    ? recentEvents
+    : sortedEvents.slice(-Math.min(sortedEvents.length, 3));
 
   const firstEvent = windowEvents[0];
   const lastEvent = windowEvents[windowEvents.length - 1];
@@ -32,10 +34,17 @@ export function calculateAverageKmPerDay(
   const firstDate = new Date(firstEvent.date);
   const lastDate = new Date(lastEvent.date);
   const daysDiff = Math.max(1, Math.ceil((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)));
-  
-  const kmDiff = lastEvent.mileage - firstEvent.mileage;
-  
-  if (kmDiff <= 0 || daysDiff <= 0) return null;
+
+  let kmDiff = lastEvent.mileage - firstEvent.mileage;
+
+  if (kmDiff <= 0 || daysDiff <= 0) {
+    const fAll = sortedEvents[0];
+    const lAll = sortedEvents[sortedEvents.length - 1];
+    const dAll = Math.max(1, Math.ceil((new Date(lAll.date).getTime() - new Date(fAll.date).getTime()) / (1000 * 60 * 60 * 24)));
+    const kAll = lAll.mileage - fAll.mileage;
+    if (kAll > 0 && dAll > 0) return Math.max(5, kAll / dAll);
+    return null;
+  }
 
   // Retourne la moyenne avec un minimum de 5 km/jour pour éviter les estimations trop faibles
   return Math.max(5, kmDiff / daysDiff);
@@ -61,7 +70,7 @@ export function estimateVidangeDate(
   const daysRemaining = Math.ceil(kmRemaining / avgKmPerDay);
   const estimatedDate = new Date();
   estimatedDate.setDate(estimatedDate.getDate() + daysRemaining);
-  
+
   return estimatedDate;
 }
 

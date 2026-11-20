@@ -17,7 +17,7 @@ import { getDeadlineAnticipationInfo } from '@/lib/tunisia-holidays';
 import { getVehicleTankCapacity, calculateAverageFuelConsumption, calculateIntervalConsumption, calculateSmartAutonomie, calculateAverageRefillGaugeLevel } from '@/lib/fuel-utils';
 import { getVehicles, getAllUserRepairs, getAllUserMaintenance, getAllUserFuelLogs, addMaintenance, updateMaintenance, updateVehicle } from '@/lib/data';
 import { getCanonicalTask } from '@/lib/reminder-utils';
-import { getLastVidangeSummary, getStandardVidangeItems, isFuelFilterApplicable, type LastVidangeSummary } from '@/lib/vidange';
+import { getLastVidangeSummary, getStandardVidangeItems, isFuelFilterApplicable, calculateAverageKmPerDay, type LastVidangeSummary } from '@/lib/vidange';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -443,24 +443,22 @@ export function DashboardClient() {
 
       let estimatedDate = new Date();
       if (kmRemaining > 0) {
-        const vehicleEvents = allEvents.filter(e => e.vehicleId === vehicle.id).sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
-        estimatedDate.setDate(estimatedDate.getDate() + 999);
-        if (vehicleEvents.length > 1) {
-          const firstEvent = vehicleEvents[0];
-          const lastEvent = vehicleEvents[vehicleEvents.length - 1];
-          const totalMiles = lastEvent.mileage - firstEvent.mileage;
-          const totalDays = (lastEvent.eventDate.getTime() - firstEvent.eventDate.getTime()) / (1000 * 60 * 60 * 24);
-          if (totalMiles > 0 && totalDays > 0) {
-            const avgDailyMileage = totalMiles / totalDays;
-            const daysToNextChange = Math.ceil(kmRemaining / avgDailyMileage);
-            estimatedDate = new Date(lastEvent.eventDate);
-            estimatedDate.setDate(estimatedDate.getDate() + daysToNextChange);
-          }
-        }
-      } else {
-        estimatedDate.setFullYear(estimatedDate.getFullYear() - 10);
-      }
+        const vehicleEvents = allEvents
+          .filter(e => e.vehicleId === vehicle.id)
+          .sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
 
+        // Calcul du rythme journalier (km/jour) réactif aux changements d'habitudes récents du conducteur
+        const recentKmPerDay = calculateAverageKmPerDay(vehicleEvents.map(e => ({ date: e.date, mileage: e.mileage }))) || 30;
+        const daysToNextChange = Math.ceil(kmRemaining / recentKmPerDay);
+
+        // Projection dynamique à partir d'aujourd'hui pour un tri chronologique fidèle avec les autres alertes (vignette, etc.)
+        estimatedDate = new Date(today);
+        estimatedDate.setDate(today.getDate() + daysToNextChange);
+      } else {
+        // Vidange déjà dépassée : placée dans le passé pour priorité absolue
+        estimatedDate = new Date(today);
+        estimatedDate.setDate(today.getDate() - 365);
+      }
 
       return {
         type: 'mileage' as const,
@@ -541,6 +539,7 @@ export function DashboardClient() {
       daysUntilEmpty?: number;
       remainingRangeKm?: number;
       estimatedCurrentMileage?: number;
+      isEstimated?: boolean;
       avgRefillGauge?: number | null;
       avgDaysBetweenFills?: number | null;
     } | null>();
@@ -656,6 +655,7 @@ export function DashboardClient() {
         daysUntilEmpty: smartAutonomie?.daysUntilEmpty,
         remainingRangeKm: smartAutonomie?.remainingRangeKm,
         estimatedCurrentMileage: smartAutonomie?.estimatedCurrentMileage,
+        isEstimated: smartAutonomie ? (smartAutonomie.isEstimated ?? false) : false,
         avgRefillGauge,
         avgDaysBetweenFills
       });
@@ -713,12 +713,6 @@ export function DashboardClient() {
       const anticipation = getDeadlineAnticipationInfo(deadline.date);
       if (anticipation.isNonWorking) {
         desc += ` • ⚠️ ${anticipation.shortWarningText.replace(/^⚠️\s*/, '')}`;
-      }
-    }
-    if (getCanonicalTask(deadline.name) === 'vidange') {
-      const localNotes = typeof window !== 'undefined' ? localStorage.getItem(`carcare_vidange_notes_${deadline.vehicleId}`) : null;
-      if (vehicle?.nextVidangeNotes || localNotes) {
-        desc += ` • 📝 Pense-bête actif`;
       }
     }
     return desc;
@@ -832,7 +826,9 @@ export function DashboardClient() {
                         </span>
                         {stats.estimatedCurrentMileage != null && stats.estimatedCurrentMileage > 0 && (
                           <span className="text-[9px] text-muted-foreground font-normal tracking-tight">
-                            · ~{stats.estimatedCurrentMileage.toLocaleString('fr-FR')} km (estimé)
+                            {stats.isEstimated
+                              ? `· ~${stats.estimatedCurrentMileage.toLocaleString('fr-FR')} km (estimé)`
+                              : `· ${stats.estimatedCurrentMileage.toLocaleString('fr-FR')} km`}
                           </span>
                         )}
                       </div>

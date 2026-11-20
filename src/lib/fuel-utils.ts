@@ -6,19 +6,19 @@ import type { Vehicle, FuelLog } from '@/lib/types';
 const KNOWN_MODEL_CAPACITIES: Array<{ keywords: string[]; capacity: number }> = [
   // Mini-citadines (35L - 40L)
   { keywords: ['picanto', 'i10', 'c1', '107', '108', 'aygo', 'panda', '500', 'twingo', 'matiz', 'spark', 'alto'], capacity: 38 },
-  
+
   // Citadines polyvalentes (45L - 50L)
   { keywords: ['clio', '208', '207', '206', 'rio', 'polo', 'fiesta', 'c3', 'i20', 'yaris', 'swift', 'punto', 'sandero', 'symbol', 'fabia', 'corsa', 'ibiza', 'micra'], capacity: 48 },
-  
+
   // Compactes et berlines moyennes (50L - 55L)
   { keywords: ['golf', 'megane', '308', '307', 'focus', 'astra', 'leon', 'ceed', 'tipo', 'i30', 'corolla', 'auris', 'civic', 'c4', 'octavia', 'a3', 'serie 1', 'classe a'], capacity: 52 },
-  
+
   // Berlines familiales et routières (60L - 70L)
   { keywords: ['passat', 'talisman', 'laguna', '508', '407', 'mondeo', 'insignia', 'superb', 'serie 3', 'serie 5', 'classe c', 'classe e', 'a4', 'a6', 'camry', 'avensis', 'accord'], capacity: 62 },
-  
+
   // Crossover & SUV compacts (50L - 60L)
   { keywords: ['qashqai', 'tucson', 'sportage', 'tiguan', '3008', '2008', 'kadjar', 'captur', 'duster', 'ateca', 'kuga', 'rav4', 'cr-v', 'karoq', 'x1', 'x3', 'gla', 'glc'], capacity: 56 },
-  
+
   // Grands SUV et 4x4 / Pickups (70L - 85L)
   { keywords: ['touareg', 'prado', 'land cruiser', 'patrol', 'hilux', 'd-max', 'ranger', 'navara', 'l200', 'santa fe', 'sorento', 'pajero', 'x5', 'gle', 'q7'], capacity: 75 },
 ];
@@ -194,6 +194,7 @@ export interface SmartAutonomieResult {
   kmPerDay: number;
   estimatedCurrentMileage?: number;
   estimatedDistanceDrivenSinceLog?: number;
+  isEstimated?: boolean;
 }
 
 /**
@@ -267,9 +268,21 @@ export function calculateSmartAutonomie(
 
   // 4. Estimation de la distance parcourue depuis le dernier plein
   const now = new Date();
-  const lastLogDate = new Date(lastLog.date);
-  const hoursPassed = Math.max(0, (now.getTime() - lastLogDate.getTime()) / (1000 * 60 * 60));
-  const daysPassed = hoursPassed / 24;
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  let logStart: Date;
+  if (lastLog.date.includes('T')) {
+    const d = new Date(lastLog.date);
+    logStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  } else {
+    const parts = lastLog.date.split('-').map(Number);
+    logStart = (parts.length >= 3 && !isNaN(parts[0]))
+      ? new Date(parts[0], parts[1] - 1, parts[2])
+      : new Date(new Date(lastLog.date).getFullYear(), new Date(lastLog.date).getMonth(), new Date(lastLog.date).getDate());
+  }
+
+  // Nombre de jours calendaires révolus depuis le plein (0 le jour même de l'ajout pour afficher le kilométrage exact ajouté)
+  const daysPassed = Math.max(0, Math.floor((todayStart.getTime() - logStart.getTime()) / (1000 * 60 * 60 * 24)));
 
   // Amortissement adaptatif si aucune saisie depuis longtemps
   let adaptiveKmPerDay = kmPerDay;
@@ -302,7 +315,8 @@ export function calculateSmartAutonomie(
     initialFuelAfterRefill: parseFloat(initialFuelAfterRefill.toFixed(1)),
     kmPerDay: parseFloat(adaptiveKmPerDay.toFixed(1)),
     estimatedCurrentMileage,
-    estimatedDistanceDrivenSinceLog: Math.round(estimatedDistanceDrivenSinceLog)
+    estimatedDistanceDrivenSinceLog: Math.round(estimatedDistanceDrivenSinceLog),
+    isEstimated: estimatedDistanceDrivenSinceLog > 0,
   };
 }
 
