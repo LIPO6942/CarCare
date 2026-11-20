@@ -49,6 +49,7 @@ function StatCard({
   value,
   icon: Icon,
   description,
+  inlineDescription = false,
   badge,
   onClick,
   disabled,
@@ -64,6 +65,7 @@ function StatCard({
   value: string | number,
   icon: ComponentType<{ className?: string }>,
   description?: string,
+  inlineDescription?: boolean,
   badge?: React.ReactNode,
   onClick?: () => void,
   disabled?: boolean,
@@ -125,11 +127,24 @@ function StatCard({
       </CardHeader>
 
       <CardContent className="flex-1 flex flex-col justify-center py-2">
-        <div className="text-2xl font-black tracking-tight">{value}</div>
-        {description && (
-          <p className="text-[10px] text-muted-foreground mt-1 font-medium italic leading-tight">
-            {description}
-          </p>
+        {inlineDescription ? (
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-xl sm:text-2xl font-black tracking-tight">{value}</span>
+            {description && (
+              <span className="text-[9px] text-muted-foreground font-medium leading-tight">
+                · {description}
+              </span>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="text-2xl font-black tracking-tight">{value}</div>
+            {description && (
+              <p className="text-[10px] text-muted-foreground mt-1 font-medium italic leading-tight">
+                {description}
+              </p>
+            )}
+          </>
         )}
       </CardContent>
 
@@ -827,7 +842,7 @@ export function DashboardClient() {
                         {stats.estimatedCurrentMileage != null && stats.estimatedCurrentMileage > 0 && (
                           <span className="text-[9px] text-muted-foreground font-normal tracking-tight">
                             {stats.isEstimated
-                              ? `· ~${stats.estimatedCurrentMileage.toLocaleString('fr-FR')} km (estimé)`
+                              ? `· ~${stats.estimatedCurrentMileage.toLocaleString('fr-FR')} km`
                               : `· ${stats.estimatedCurrentMileage.toLocaleString('fr-FR')} km`}
                           </span>
                         )}
@@ -874,6 +889,7 @@ export function DashboardClient() {
               badge={getDeadlineBadge(nextDeadline)}
               icon={Bell}
               description={getNextDeadlineDescription(nextDeadline)}
+              inlineDescription={true}
               onClick={() => {
                 setTargetTab(undefined);
                 setVehicleForDetailView(getVehicleForStat(nextDeadline?.vehicleId) || null);
@@ -892,6 +908,7 @@ export function DashboardClient() {
               badge={getDeadlineBadge(secondNextDeadline)}
               icon={Bell}
               description={getNextDeadlineDescription(secondNextDeadline)}
+              inlineDescription={true}
               onClick={() => {
                 setTargetTab(undefined);
                 setVehicleForDetailView(getVehicleForStat(secondNextDeadline?.vehicleId) || null);
