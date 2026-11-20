@@ -15,7 +15,7 @@ import { Fuel, Loader2, LineChart } from 'lucide-react';
 import { useRef } from 'react';
 import { MonthlyFuelChartModal } from '@/components/monthly-fuel-chart-modal';
 import { getSettings } from '@/lib/settings';
-import { splitFuelLogsByMonth } from '@/lib/fuel-utils';
+import { splitFuelLogsByMonth, calculateAverageRefillGaugeLevel } from '@/lib/fuel-utils';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -41,8 +41,25 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>(vehicles[0]?.id);
   const [currentMileage, setCurrentMileage] = useState<string>('');
   const [totalCost, setTotalCost] = useState<string>('');
-  const [gaugeLevelBefore, setGaugeLevelBefore] = useState<number>(12.5);
+
+  // Calcul du % habituel de la jauge avant plein pour ce véhicule
+  const defaultGaugeLevel = useMemo(() => {
+    if (!selectedVehicleId) return 12.5;
+    const vehicleLogs = fuelLogs.filter(log => log.vehicleId === selectedVehicleId);
+    const avgGauge = calculateAverageRefillGaugeLevel(vehicleLogs);
+    if (avgGauge !== null && !isNaN(avgGauge)) {
+      return Math.round(avgGauge);
+    }
+    return 12.5;
+  }, [selectedVehicleId, fuelLogs]);
+
+  const [gaugeLevelBefore, setGaugeLevelBefore] = useState<number>(defaultGaugeLevel);
   const [isChartModalOpen, setIsChartModalOpen] = useState(false);
+
+  // Positionner automatiquement le slider sur la moyenne habituelle du véhicule
+  useEffect(() => {
+    setGaugeLevelBefore(defaultGaugeLevel);
+  }, [defaultGaugeLevel]);
 
   // Calcul dynamique des 4 montants les plus fréquents pour une sélection rapide sur une ligne
   const frequentAmounts = useMemo(() => {
@@ -229,7 +246,7 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
       setSelectedVehicleId(vehicleId);
       setCurrentMileage('');
       setTotalCost('');
-      setGaugeLevelBefore(12.5);
+      setGaugeLevelBefore(defaultGaugeLevel);
 
     } catch (error) {
       console.error("Error adding fuel log:", error);
@@ -316,7 +333,14 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
 
           <div className="w-full bg-muted/30 p-4 rounded-md">
             <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-medium">Jauge (Avant)</label>
+              <div className="flex items-center gap-1.5">
+                <label className="text-sm font-medium">Jauge (Avant)</label>
+                {defaultGaugeLevel !== null && (
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    (Habituel : ~{defaultGaugeLevel}%)
+                  </span>
+                )}
+              </div>
               <span className="text-sm font-bold text-primary">{gaugeLevelBefore.toFixed(0)}%</span>
             </div>
             <Slider
@@ -383,9 +407,9 @@ export function QuickFuelLogForm({ vehicles, fuelLogs, onFuelLogAdded, onOpenVeh
         </form>
       </CardContent>
       {selectedVehicleId && (
-        <MonthlyFuelChartModal 
-          open={isChartModalOpen} 
-          onOpenChange={setIsChartModalOpen} 
+        <MonthlyFuelChartModal
+          open={isChartModalOpen}
+          onOpenChange={setIsChartModalOpen}
           monthlyFuelLogs={monthlyFuelLogs}
           vehicleName={`${vehicles.find(v => v.id === selectedVehicleId)?.brand || ''} ${vehicles.find(v => v.id === selectedVehicleId)?.model || ''}`}
         />

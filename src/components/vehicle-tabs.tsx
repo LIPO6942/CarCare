@@ -1162,6 +1162,7 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 vehicle={vehicle}
+                fuelLogs={fuelLogs}
                 onDataChange={onDataChange}
                 initialData={itemToEdit}
             />
@@ -1177,15 +1178,23 @@ function FuelTab({ vehicle, fuelLogs, onDataChange }: { vehicle: Vehicle, fuelLo
     )
 }
 
-function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData }: { open: boolean, onOpenChange: (open: boolean) => void, vehicle: Vehicle, onDataChange: () => void, initialData: FuelLog | null }) {
+function FuelLogDialog({ open, onOpenChange, vehicle, fuelLogs = [], onDataChange, initialData }: { open: boolean, onOpenChange: (open: boolean) => void, vehicle: Vehicle, fuelLogs?: FuelLog[], onDataChange: () => void, initialData: FuelLog | null }) {
     const { toast } = useToast();
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Calcul du % habituel de jauge avant plein pour ce véhicule
+    const defaultGaugeLevel = useMemo(() => {
+        if (!fuelLogs || fuelLogs.length === 0) return 12.5;
+        const avg = calculateAverageRefillGaugeLevel(fuelLogs);
+        if (avg !== null && !isNaN(avg)) return Math.round(avg);
+        return 12.5;
+    }, [fuelLogs]);
+
     const [quantity, setQuantity] = useState(initialData?.quantity?.toString() || '');
     const [pricePerLiter, setPricePerLiter] = useState(initialData?.pricePerLiter?.toString() || '');
     const [totalCost, setTotalCost] = useState(initialData?.totalCost?.toString() || '');
-    const [gaugeLevelBefore, setGaugeLevelBefore] = useState<number>((initialData?.gaugeLevelBefore ?? 0.5) * 100);
+    const [gaugeLevelBefore, setGaugeLevelBefore] = useState<number>((initialData?.gaugeLevelBefore ?? (defaultGaugeLevel / 100)) * 100);
 
     useEffect(() => {
         const settings = getSettings();
@@ -1196,15 +1205,15 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
                 setQuantity(initialData.quantity?.toString() || '');
                 setPricePerLiter(initialData.pricePerLiter?.toString() || defaultPrice);
                 setTotalCost(initialData.totalCost?.toString() || '');
-                setGaugeLevelBefore((initialData.gaugeLevelBefore ?? 0.5) * 100);
+                setGaugeLevelBefore((initialData.gaugeLevelBefore ?? (defaultGaugeLevel / 100)) * 100);
             } else {
                 setQuantity('');
                 setPricePerLiter(defaultPrice);
                 setTotalCost('');
-                setGaugeLevelBefore(50); // Default à 50%
+                setGaugeLevelBefore(defaultGaugeLevel);
             }
         }
-    }, [initialData, open, vehicle.fuelType]);
+    }, [initialData, open, vehicle.fuelType, defaultGaugeLevel]);
 
     const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newQuantity = e.target.value;
@@ -1320,7 +1329,14 @@ function FuelLogDialog({ open, onOpenChange, vehicle, onDataChange, initialData 
                     </div>
                     <div className="space-y-3 bg-muted/30 p-4 rounded-md">
                         <div className="flex justify-between items-center">
-                            <Label htmlFor="gaugeLevelBefore" className="text-sm font-medium">Niveau du réservoir AVANT le plein</Label>
+                            <div className="flex items-center gap-1.5">
+                                <Label htmlFor="gaugeLevelBefore" className="text-sm font-medium">Niveau du réservoir AVANT le plein</Label>
+                                {defaultGaugeLevel !== null && (
+                                    <span className="text-[10px] text-muted-foreground font-normal">
+                                        (Habituel : ~{defaultGaugeLevel}%)
+                                    </span>
+                                )}
+                            </div>
                             <span className="text-sm font-bold text-primary">{gaugeLevelBefore.toFixed(0)}%</span>
                         </div>
                         <Slider
